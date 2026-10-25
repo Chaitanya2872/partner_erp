@@ -12,13 +12,16 @@ export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fieldErrors: FieldError[];
+  /** Correlation id from the server (also in the X-Request-Id header), shown so support can find the log entry. */
+  readonly requestId?: string;
 
-  constructor(status: number, code: string, message: string, fieldErrors: FieldError[] = []) {
+  constructor(status: number, code: string, message: string, fieldErrors: FieldError[] = [], requestId?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
     this.fieldErrors = fieldErrors;
+    this.requestId = requestId;
   }
 }
 
@@ -31,6 +34,12 @@ const sessionListeners = new Set<SessionListener>();
 export function onSessionEnded(listener: SessionListener): () => void {
   sessionListeners.add(listener);
   return () => sessionListeners.delete(listener);
+}
+
+/** Clears the access token and tells listeners the session is over (the server rejected the refresh cookie). */
+export function endSession(): void {
+  tokenStore.clear();
+  sessionListeners.forEach((listener) => listener("expired"));
 }
 
 interface RefreshPayload {
@@ -92,7 +101,7 @@ http.interceptors.response.use(
       if (token) {
         return http(original);
       }
-      sessionListeners.forEach((listener) => listener("expired"));
+      endSession();
     }
     throw toApiError(error);
   },
@@ -102,10 +111,13 @@ export function toApiError(error: unknown): ApiRequestError {
   if (error instanceof ApiRequestError) {
     return error;
   }
+  if (axios.isCancel(error)) {
+    return new ApiRequestError(0, "CANCELLED", "The request was cancelled.");
+  }
   if (axios.isAxiosError(error)) {
     const body = (error.response?.data as ApiEnvelope<unknown> | undefined)?.error as ApiErrorBody | undefined;
     if (body) {
-      return new ApiRequestError(body.status, body.code, body.detail ?? body.title ?? "Request failed.", body.fieldErrors);
+      return new ApiRequestError(body.status, body.code, body.detail ?? body.title ?? "Request failed.", body.fieldErrors ?? [], body.requestId);
     }
     if (!error.response) {
       return new ApiRequestError(0, "NETWORK_ERROR", "The server could not be reached. Check your connection.");
@@ -115,14 +127,17 @@ export function toApiError(error: unknown): ApiRequestError {
   return new ApiRequestError(0, "UNKNOWN", error instanceof Error ? error.message : "Unexpected error.");
 }
 
-/** Unwraps `data` from the envelope. */
-export async function apiGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-  const res = await http.get<ApiEnvelope<T>>(url, { params: cleanParams(params) });
+/**
+ * Unwraps `data` from the envelope. Pass the `signal` TanStack Query provides so superseded requests (e.g. typing
+ * in a search box) are cancelled.
+ */
+export async function apiGet<T>(url: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+  const res = await http.get<ApiEnvelope<T>>(url, { params: cleanParams(params), signal });
   return res.data.data as T;
 }
 
-export async function apiPage<T>(url: string, params?: Record<string, unknown>): Promise<Page<T>> {
-  const res = await http.get<ApiEnvelope<T[]>>(url, { params: cleanParams(params) });
+export async function apiPage<T>(url: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<Page<T>> {
+  const res = await http.get<ApiEnvelope<T[]>>(url, { params: cleanParams(params), signal });
   return {
     content: res.data.data ?? [],
     meta: res.data.meta ?? { page: 0, size: 0, totalElements: 0, totalPages: 0 },

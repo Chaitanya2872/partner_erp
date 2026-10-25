@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { UnauthorizedPage } from "@/pages/UnauthorizedPage";
+import { LoadingState, PermissionDenied } from "@/components/feedback/States";
 import type { ModuleCode } from "@/types/common.types";
 
 interface ProtectedRouteProps {
@@ -12,15 +11,15 @@ interface ProtectedRouteProps {
 }
 
 /**
- * Requires a session, sends users who must change their password to that screen, and renders the
- * unauthorized page when module access is missing. Presentation only: the API enforces the same rules.
+ * Requires a session, sends users who must change their password to that screen, and shows PermissionDenied
+ * when module access is missing. Presentation only: the API enforces the same rules on every request.
  */
 export function ProtectedRoute({ children, anyOf }: ProtectedRouteProps) {
   const { status, user, canRead } = useAuth();
   const location = useLocation();
 
   if (status === "loading") {
-    return <LoadingSpinner fullPage label="Restoring your session…" />;
+    return <LoadingState fullPage label="Restoring your session…" />;
   }
   if (status === "anonymous" || !user) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
@@ -29,7 +28,7 @@ export function ProtectedRoute({ children, anyOf }: ProtectedRouteProps) {
     return <Navigate to="/account/password" replace />;
   }
   if (anyOf && !anyOf.some((m) => canRead(m))) {
-    return <UnauthorizedPage />;
+    return <PermissionDenied />;
   }
   return <>{children}</>;
 }

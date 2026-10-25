@@ -1,19 +1,24 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { Lock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog } from "@/components/ui/Dialog";
-import { FormField } from "@/components/forms/FormField";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { ErrorState } from "@/components/common/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { Input, Textarea } from "@/components/ui/Input";
+import { Alert } from "@/components/ui/Alert";
+import { FormError, FormField } from "@/components/forms/FormField";
+import { DataTable, type ColumnDef } from "@/components/tables/DataTable";
 import { ApiRequestError } from "@/services/api";
+import { errorMessage } from "@/lib/errors";
+import { queryKeys } from "@/lib/queryKeys";
+import { formatNumber } from "@/utils/format";
 import { roleService, type Role } from "../services/roleService";
 import { useRoles } from "../hooks/useRoles";
 
 /**
- * Settings → Role Management. Only display names and descriptions are editable (Super Admin); internal codes
- * are fixed and drive authorization.
+ * Role Management. Only display names and descriptions are editable (Super Admin); the internal codes are fixed
+ * and are what authorization uses, so renaming never changes anyone's access.
  */
 export function RoleManagement() {
   const { canWrite, refreshUser } = useAuth();
@@ -22,53 +27,53 @@ export function RoleManagement() {
   const [editing, setEditing] = useState<Role | null>(null);
   const editable = canWrite("ROLE_MANAGEMENT");
 
-  if (roles.isPending) return <LoadingSpinner label="Loading roles…" />;
-  if (roles.isError) return <ErrorState error={roles.error} onRetry={() => roles.refetch()} />;
+  const columns: ColumnDef<Role>[] = [
+    {
+      id: "name",
+      header: "Role name",
+      cell: (role) => (
+        <div className="min-w-48">
+          <div className="font-medium">{role.displayName}</div>
+          <div className="text-xs text-muted-foreground">{role.description || "No description"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "code",
+      header: "Internal code",
+      cell: (role) => (
+        <span className="inline-flex items-center gap-1.5 font-mono text-[0.8125rem] text-muted-foreground">
+          <Lock className="size-3" aria-hidden="true" />
+          {role.code}
+        </span>
+      ),
+    },
+    { id: "users", header: "Users", numeric: true, cell: (role) => (role.userCount === undefined ? "—" : formatNumber(role.userCount)) },
+  ];
 
   return (
-    <section className="card" aria-labelledby="roles-heading">
-      <h3 id="roles-heading">Role management</h3>
-      <p className="muted small" style={{ marginTop: -4 }}>
-        The three system roles cannot be added or removed. Renaming a role changes its label everywhere; users and
-        permissions are unaffected.
-      </p>
-      <div className="scroll">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th scope="col">Role name</th>
-              <th scope="col">Internal code</th>
-              <th scope="col" className="r">
-                Users
-              </th>
-              {editable ? (
-                <th scope="col">
-                  <span className="sr-only">Edit</span>
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {roles.data.map((role) => (
-              <tr key={role.id}>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{role.displayName}</div>
-                  {role.description ? <div className="muted small">{role.description}</div> : null}
-                </td>
-                <td className="mono">{role.code}</td>
-                <td className="r">{role.userCount ?? "—"}</td>
-                {editable ? (
-                  <td className="ra">
-                    <button type="button" className="btn sm" onClick={() => setEditing(role)} aria-label={`Edit ${role.displayName}`}>
-                      <Pencil size={13} aria-hidden="true" /> Edit
-                    </button>
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <>
+      <DataTable
+        caption="Roles"
+        itemLabel="roles"
+        columns={columns}
+        columnMenu={false}
+        rows={roles.data}
+        rowKey={(role) => role.id}
+        loading={roles.isPending}
+        error={roles.error}
+        onRetry={() => roles.refetch()}
+        skeletonRows={3}
+        rowActions={
+          editable
+            ? (role) => (
+                <Button size="sm" variant="outline" onClick={() => setEditing(role)} aria-label={`Edit ${role.displayName}`}>
+                  <Pencil aria-hidden="true" /> Edit
+                </Button>
+              )
+            : undefined
+        }
+      />
       {editing ? (
         <EditRoleDialog
           key={editing.id}
@@ -76,26 +81,30 @@ export function RoleManagement() {
           onClose={() => setEditing(null)}
           onSaved={async (updated) => {
             setEditing(null);
-            toast.success(`Role renamed to “${updated.displayName}”.`);
-            await queryClient.invalidateQueries({ queryKey: ["roles"] });
-            await queryClient.invalidateQueries({ queryKey: ["users"] });
+            toast.success(`Role renamed to “${updated.displayName}”. The new name is shown everywhere.`);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.roles });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
             await refreshUser().catch(() => undefined);
           }}
         />
       ) : null}
-    </section>
+    </>
   );
 }
+
+const normalise = (value: string) => value.trim().replace(/\s+/g, " ");
 
 /** Mounted per role (keyed), so its fields start from that role's current values. */
 function EditRoleDialog({ role, onClose, onSaved }: { role: Role; onClose: () => void; onSaved: (role: Role) => void }) {
   const [name, setName] = useState(role.displayName);
   const [description, setDescription] = useState(role.description ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const trimmed = name.trim().replace(/\s+/g, " ");
+  const trimmed = normalise(name);
   const validation = trimmed.length < 2 ? "Enter at least 2 characters." : trimmed.length > 60 ? "Use at most 60 characters." : null;
+  const renamed = trimmed !== role.displayName && !validation;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +114,7 @@ function EditRoleDialog({ role, onClose, onSaved }: { role: Role; onClose: () =>
     }
     setSaving(true);
     setError(null);
+    setFormError(null);
     try {
       const updated = await roleService.update(role.id, {
         displayName: trimmed,
@@ -115,7 +125,7 @@ function EditRoleDialog({ role, onClose, onSaved }: { role: Role; onClose: () =>
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === "DUPLICATE_ROLE_NAME") setError("Another role already uses this name.");
       else if (err instanceof ApiRequestError && err.fieldErrors.length > 0) setError(err.fieldErrors[0].message);
-      else setError(err instanceof Error ? err.message : "Saving failed.");
+      else setFormError(errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -124,27 +134,37 @@ function EditRoleDialog({ role, onClose, onSaved }: { role: Role; onClose: () =>
   return (
     <Dialog
       open
-      onOpenChange={(next) => !next && onClose()}
+      onOpenChange={(next) => !next && !saving && onClose()}
       title="Edit role"
-      description={`Internal code ${role.code} cannot be changed.`}
+      description={
+        <>
+          Internal code <span className="font-mono">{role.code}</span> cannot be changed.
+        </>
+      }
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <Button onClick={onClose} disabled={saving}>
             Cancel
-          </button>
-          <button type="submit" form="role-form" className="btn primary" disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" form="role-form" variant="primary" loading={saving} loadingText="Saving…">
+            Save
+          </Button>
         </>
       }
     >
-      <form id="role-form" onSubmit={submit} noValidate className="fgrid">
-        <FormField label="Role name" error={error ?? undefined} wide>
-          <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+      <form id="role-form" onSubmit={submit} noValidate className="space-y-4">
+        <FormError>{formError}</FormError>
+        <FormField label="Role name" error={error ?? undefined} required hint="2–60 characters, unique across roles.">
+          <Input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
         </FormField>
-        <FormField label="Description" wide>
-          <textarea rows={2} maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} />
+        <FormField label="Description">
+          <Textarea rows={2} maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} />
         </FormField>
+        {renamed ? (
+          <Alert tone="info" role="status">
+            Everyone with this role will see <strong>{trimmed}</strong> instead of <strong>{role.displayName}</strong>. Access does not change.
+          </Alert>
+        ) : null}
       </form>
     </Dialog>
   );

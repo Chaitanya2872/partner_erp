@@ -1,52 +1,89 @@
 import {
+  Banknote,
   BarChart3,
   ClipboardList,
   FileSpreadsheet,
   FileText,
   Handshake,
+  KeyRound,
   LayoutDashboard,
-  Lock,
   Package,
   ScrollText,
   Settings,
+  ShieldCheck,
   Users,
   Wallet,
-  Banknote,
   type LucideIcon,
 } from "lucide-react";
 import type { Permissions } from "@/lib/permissions";
 import type { ModuleCode } from "@/types/common.types";
 
+/**
+ * Sidebar structure, following the original application (Dashboard · Funnel · Sales · Master) plus an
+ * Administration group for Phase 3 screens. Visibility comes from the user's effective READ permission on the
+ * item's module (never from role names); labels come from the module catalogue in the database.
+ *
+ * Internal B2C is deliberately absent: it is a permission and a workflow inside Estimates/Invoices (Phase 8),
+ * not a separate module page.
+ */
+export type NavGroup = "Funnel" | "Sales" | "Master" | "Administration";
+
 export interface NavItem {
   path: string;
-  /** Module whose display name (from the database) labels the item and whose READ permission shows it. */
+  /** Module whose display name labels the item and whose READ permission shows it. */
   module: ModuleCode;
-  /** Alternative modules that also make the item visible (Settings hosts Role Management). */
-  alsoVisibleWith?: ModuleCode[];
   icon: LucideIcon;
-  group: "Workspace" | "Administration";
+  /** Undefined for top-level items (Dashboard). */
+  group?: NavGroup;
   /** Phase that delivers the module's screens; undefined when available now. */
   phase?: number;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { path: "/dashboard", module: "DASHBOARD", icon: LayoutDashboard, group: "Workspace" },
-  { path: "/partners", module: "PARTNERS", icon: Handshake, group: "Workspace", phase: 5 },
-  { path: "/leads", module: "LEADS", icon: ClipboardList, group: "Workspace", phase: 6 },
-  { path: "/products", module: "PRODUCTS", icon: Package, group: "Workspace" },
-  { path: "/estimates", module: "ESTIMATES", icon: FileSpreadsheet, group: "Workspace", phase: 8 },
-  { path: "/invoices", module: "INVOICES", icon: FileText, group: "Workspace", phase: 9 },
-  { path: "/payments", module: "PAYMENTS", icon: Wallet, group: "Workspace", phase: 10 },
-  { path: "/payouts", module: "PAYOUTS", icon: Banknote, group: "Workspace", phase: 11 },
-  { path: "/b2c", module: "INTERNAL_B2C", icon: Lock, group: "Workspace", phase: 8 },
-  { path: "/reports", module: "REPORTS", icon: BarChart3, group: "Workspace", phase: 12 },
+  { path: "/dashboard", module: "DASHBOARD", icon: LayoutDashboard },
+  { path: "/partners", module: "PARTNERS", icon: Handshake, group: "Funnel", phase: 5 },
+  { path: "/leads", module: "LEADS", icon: ClipboardList, group: "Funnel", phase: 6 },
+  { path: "/estimates", module: "ESTIMATES", icon: FileSpreadsheet, group: "Sales", phase: 8 },
+  { path: "/invoices", module: "INVOICES", icon: FileText, group: "Sales", phase: 9 },
+  { path: "/payments", module: "PAYMENTS", icon: Wallet, group: "Sales", phase: 10 },
+  { path: "/payouts", module: "PAYOUTS", icon: Banknote, group: "Sales", phase: 11 },
+  { path: "/products", module: "PRODUCTS", icon: Package, group: "Master" },
+  { path: "/reports", module: "REPORTS", icon: BarChart3, group: "Master", phase: 12 },
+  { path: "/settings", module: "SETTINGS", icon: Settings, group: "Master", phase: 13 },
   { path: "/users", module: "USER_MANAGEMENT", icon: Users, group: "Administration" },
-  { path: "/settings", module: "SETTINGS", alsoVisibleWith: ["ROLE_MANAGEMENT"], icon: Settings, group: "Administration" },
+  { path: "/roles", module: "ROLE_MANAGEMENT", icon: ShieldCheck, group: "Administration" },
   { path: "/audit-logs", module: "AUDIT_LOGS", icon: ScrollText, group: "Administration" },
 ];
 
+export const NAV_GROUPS: NavGroup[] = ["Funnel", "Sales", "Master", "Administration"];
+
+/** Icon for the account area (change password). */
+export const ACCOUNT_ICON = KeyRound;
+
 export function isVisible(item: NavItem, permissions: Pick<Permissions, "canRead">): boolean {
-  return [item.module, ...(item.alsoVisibleWith ?? [])].some((m) => permissions.canRead(m));
+  return permissions.canRead(item.module);
+}
+
+export interface NavSection {
+  group?: NavGroup;
+  items: NavItem[];
+}
+
+/** Visible items grouped for rendering; groups with no visible item are dropped. */
+export function visibleSections(permissions: Pick<Permissions, "canRead">): NavSection[] {
+  const visible = NAV_ITEMS.filter((item) => isVisible(item, permissions));
+  const sections: NavSection[] = [];
+  const top = visible.filter((item) => !item.group);
+  if (top.length > 0) sections.push({ items: top });
+  for (const group of NAV_GROUPS) {
+    const items = visible.filter((item) => item.group === group);
+    if (items.length > 0) sections.push({ group, items });
+  }
+  return sections;
+}
+
+export function navItemByPath(path: string): NavItem | undefined {
+  return NAV_ITEMS.find((item) => item.path === path);
 }
 
 /** Fallback label used only until the module catalogue has loaded. */

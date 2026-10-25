@@ -1,6 +1,7 @@
 import type { ModuleInfo, ModulePermission } from "@/modules/auth/types/auth.types";
 import type { DataScope } from "@/types/common.types";
 import type { PermissionDraft } from "../types/user.types";
+import { NAV_ITEMS } from "@/app/navigation";
 
 export type Flag = "read" | "write" | "delete" | "export" | "approve";
 
@@ -136,3 +137,11 @@ export function sensitiveAdditions(before: PermissionDraft, after: PermissionDra
   }
   return out;
 }
+
+/** Matrix grouping, following the sidebar. Internal B2C belongs with Sales (it is part of estimates/invoices). */
+export function groupOf(moduleCode: string): string {
+  if (moduleCode === "INTERNAL_B2C") return "Sales";
+  return NAV_ITEMS.find((item) => item.module === moduleCode)?.group ?? "General";
+}
+
+export const MATRIX_GROUP_ORDER = ["General", "Funnel", "Sales", "Master", "Administration"];

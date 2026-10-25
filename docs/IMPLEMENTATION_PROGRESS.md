@@ -7,8 +7,8 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 0 | Source analysis & architecture | COMPLETED (approved 2026-10-24) | 2026-10-24 | 2026-10-24 |
 | 1 | Backend foundation | COMPLETED (approved 2026-10-24) | 2026-10-24 | 2026-10-24 |
 | 2 | Database schema & seed data | COMPLETED (approved 2026-10-25) | 2026-10-24 | 2026-10-24 |
-| 3 | Authentication & authorization (incl. auth/admin screens) | COMPLETED (awaiting approval) | 2026-10-25 | 2026-10-25 |
-| 4 | Frontend foundation | NOT_STARTED (shell, routing, API client and auth screens already delivered in Phase 3) | — | — |
+| 3 | Authentication & authorization (incl. auth/admin screens) | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
+| 4 | Frontend foundation & design system | COMPLETED (awaiting approval) | 2026-10-25 | 2026-10-25 |
 | 5 | Partner management | NOT_STARTED | — | — |
 | 6 | Lead management | NOT_STARTED | — | — |
 | 7 | Product & price sheet | NOT_STARTED | — | — |
@@ -112,7 +112,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
   - Swagger/OpenAPI paths and `/api/v1/auth/**` are permitted in the security config; in prd the docs are disabled through springdoc properties. Auth endpoints arrive in Phase 3.
   - CSRF is disabled for the stateless API. The refresh-cookie CSRF design is part of Phase 3 (ADR-07).
   - Empty placeholder Java files (entities, services, jobs, utils) remain for later phases. They compile as empty compilation units.
-  - Nothing is committed to git yet (no commit was requested).
+  - Nothing is committed to git yet (no commit was requested). *(Committed as `bdf0ec9` at the start of Phase 4.)*
 - **Pending decisions:** D-04 to D-31 business decisions stay open; source behaviour applies until you approve a change.
 - **Next phase:** Phase 2, database schema and seed data (migrations V2–V11, entities, repositories, the 29-product seed, tiers, settings, roles). Testcontainers needs Docker Desktop running; otherwise DB tests run against a dedicated local test database (needs your preference).
 
@@ -174,7 +174,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 - **Known issues:**
   - `created_by`/`updated_by` stay NULL until an `AuditorAware` is registered with authentication (Phase 3).
   - The first run failed 3 tests because product fixtures lacked the NOT NULL names. That was a bug in the tests, now fixed; the schema didn't change.
-  - Nothing is committed to git yet (no commit was requested).
+  - Nothing is committed to git yet (no commit was requested). *(Committed as `bdf0ec9` at the start of Phase 4.)*
 - **Pending decisions:**
   - D-23 (role→permission mapping) must be decided before Phase 3 can enforce authorization.
   - D-16 (partner/lead numbering), D-17 (product deactivate vs delete) and D-26 (soft delete) affect columns that were created nullable here.
@@ -185,7 +185,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 
 ## Phase 3: Authentication, authorization, role & user management
 
-- **Status:** COMPLETED. Waiting for approval before Phase 4.
+- **Status:** COMPLETED (approved 2026-10-25).
 - **Start date:** 2026-10-25 · **Completed:** 2026-10-25
 - **Decisions made in this phase:** `docs/architecture/DECISIONS.md §D` (P3-01…P3-14). D-23 is resolved by the three-role model.
 
@@ -367,10 +367,10 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 - Login has account lockout but no per-IP rate limiting (planned for Phase 15 with the reverse proxy).
 - There is no administrator-initiated password reset or "forgot password" flow; neither was specified.
 - The Admin default template has no User Management access, so out of the box only a Super Admin manages users (as specified).
-- The client bundle is 668 kB minified (210 kB gzip). Route-level code splitting is planned for Phase 4/15.
+- The client bundle is 668 kB minified (210 kB gzip). Route-level code splitting is planned for Phase 4/15. *(Done in Phase 4.)*
 - ESLint reports 6 warnings and no errors: 5 fast-refresh export notices and 1 React Compiler notice about React Hook Form `watch`.
 - Some Phase 0 client scaffold files are still empty and unused (e.g. `modules/auth/hooks/useLogin.ts`, `modules/auth/services/authService.ts`, other modules' components). They are left for their phases.
-- Nothing is committed to git yet (no commit was requested).
+- Nothing is committed to git yet (no commit was requested). *(Committed as `bdf0ec9` at the start of Phase 4.)*
 
 ### Pending decisions
 - D-30 (record ownership) and a team model, needed before SELF/TEAM can show records.
@@ -378,3 +378,140 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 
 ### Next phase
 Phase 4, frontend foundation, after your approval. Much of it was delivered here, so its remaining scope can be narrowed.
+
+## Phase 4: Frontend foundation & design system
+
+- **Status:** COMPLETED. Waiting for approval before Phase 5.
+- **Start date:** 2026-10-25 · **Completed:** 2026-10-25
+- **Decisions:** `docs/architecture/DECISIONS.md §E` (P4-01…P4-10).
+- **Docs:** `docs/frontend/DESIGN_SYSTEM.md`, `docs/frontend/ARCHITECTURE.md`, `docs/frontend/COMPONENTS.md`, `client/README.md`.
+- **Git:** Phase 3 checkpoint `bdf0ec9` committed before starting. Phase 4 is committed separately (`feat: complete phase 4 frontend foundation and design system`). Nothing was pushed.
+
+### Completed tasks
+1. **Design system.**
+   - IOTIQ tokens (ivory `#F4EFE2`, paper `#FBF8EF`, forest `#11271C`, gold `#C39C67`) plus semantic, status, sidebar and chart tokens for light and dark.
+   - Fonts: Bricolage Grotesque, Instrument Sans and IBM Plex Mono.
+   - Radius, shadow and spacing conventions, print rules and reduced motion.
+   - The legacy component CSS classes were removed.
+2. **Themes.**
+   - Light, Dark and System, persisted per device. A pre-paint script prevents a flash of the wrong theme, and the app follows the OS live while System is selected.
+   - Print and PDF always use light tokens.
+3. **Application shell.**
+   - Sidebar: Dashboard, then Funnel, Sales, Master and Administration (DB module names, permission-filtered, no Internal B2C).
+   - Desktop: collapsible with tooltips and persistence. Tablet: icon rail. Phone: drawer.
+   - Top bar: breadcrumbs, theme menu, and an account menu with the role display name, Change password and Sign out.
+   - Skip link and route error boundary.
+4. **Components:** about 60 reusable components across `ui`, `forms`, `tables`, `data`, `feedback`, `layout`, `navigation` and `dashboard` (see COMPONENTS.md).
+5. **DataTable:** server pagination and page size, server sorting (`aria-sort`), column visibility, skeleton, empty and error states with retry, row actions, and a focusable horizontal scroll region.
+6. **Forms:**
+   - RHF + Zod with shared schemas (email, password policy, decimal strings).
+   - Server field-error mapping, error summary, accessible field wiring and an unsaved-changes guard.
+   - Currency, percentage, number, date and password inputs, and a searchable select.
+7. **Formatting:** INR with Indian grouping from decimal strings, without float conversion (`₹1,25,000.00`). Percentages (`18.00%`), dates, relative times, document numbers.
+8. **Status badges** for user, partner, lead, estimate, invoice and payout, using backend states only. Derived states are marked.
+9. **Dashboard components** (metric card, trend, chart container, activity, alert, summary). The dashboard shows real counts only. Business metrics show an explicit "Phase 12" state.
+10. **Screens refined:**
+    - Login (session-ended notice), Change password (live policy checklist).
+    - Users: filters, sorting, columns.
+    - Permission matrix: grouped, sticky module column, unsaved-changes guard.
+    - Role Management (now `/roles`): description, immutable code, user count, rename dialog with preview, toast, live top-bar update.
+    - Products: read-only; category filter and sorting; B2C columns only with `VIEW_INTERNAL_B2C`.
+    - Audit logs: action, target, actor and date filters, and a details dialog with before/after.
+11. **API client:**
+    - `ApiRequestError.requestId`, shown as a support reference.
+    - AbortSignal cancellation through TanStack Query, with cancelled requests never shown as errors.
+    - Query-key factories, user-facing error descriptions.
+    - The concurrent single-flight refresh is unchanged.
+12. **Performance:** every route lazy (including the shell and login), stable vendor chunks.
+13. **Error handling:** app-level and route-level error boundaries, a router error page, and recovery from failed chunk loads after a deploy ("A new version is available").
+
+### Performance (production build, minified JS; gzip in brackets)
+
+| | Before (Phase 3) | After (Phase 4) |
+|---|---|---|
+| JS files | 1 chunk, 668.3 kB (209.9) | 40 chunks, 825.6 kB total (274.6) |
+| Largest chunk | 668.3 kB | 218.8 kB (`vendor-react`) |
+| Initial JS: Login | 668.3 kB (209.9) | 735.5 kB (238.3) |
+| Initial JS: Dashboard | 668.3 kB (209.9) | 622.7 kB (204.8) |
+| Initial JS: Products | 668.3 kB (209.9) | 629.5 kB (208.0) |
+| Initial JS: Roles / Audit / Permissions | 668.3 kB (209.9) | 642.5 / 643.1 / 636.3 kB (212.2 / 212.6 / 209.9) |
+| Initial JS: Users | 668.3 kB (209.9) | 768.1 kB (251.6) |
+| CSS | 14.4 kB | 40.6 kB (8.5) |
+
+"Initial JS" is the entry plus every chunk the route imports statically, measured from the build output.
+- **Honest summary:** total code grew by about 157 kB because of the design system (Radix menus, popovers, tabs and tooltips; the theme; the components). The vite chunk-size warning is gone.
+- **Per route:**
+  - Most routes load slightly less than before.
+  - Login loads about 28 kB gzip more, because it pulls the forms chunk (zod plus react-hook-form).
+  - Users loads about 42 kB gzip more (dialog, forms and dropdown menu).
+- **Main gain:** caching. The vendor chunks (react, router, query, forms: 459 kB) don't change between application releases, and a page visited later downloads only its own chunk (4–17 kB).
+- **Possible later work (Phase 15):** a lighter validation path on Login, or preloading the forms chunk.
+
+### Build and test results (2026-10-25)
+- **Client:**
+  - `npm test` → **97 tests in 15 files, all passing.** The 58 new tests cover the 18 required areas:
+    - Sidebar responsiveness (desktop, tablet rail, phone, live resize).
+    - Collapse and expand with persistence, plus a rail-styling regression test.
+    - Mobile drawer: navigation and Escape.
+    - Theme switching and persistence, including an invalid saved value.
+    - Protected routes and session expiry (`endSession` → login with notice).
+    - Permission-aware navigation (groups, Administration, Role Management only, no Internal B2C), breadcrumbs.
+    - Role rename updating the top bar.
+    - Matrix behaviour (existing tests).
+    - Form validation (schemas, decimal comparison, inline accessible errors, focus, server-error mapping).
+    - DataTable: pagination, page size, windowing, loading, empty, error, sorting, columns, row actions.
+    - Currency and number formatting.
+    - Status badges.
+    - Error boundaries (fallback, retry, reset on navigation, chunk errors, API error descriptions with request ID).
+    - Lazy routes (every page is `React.lazy`; a lazy page renders behind the shell).
+    - Internal B2C visibility (existing tests).
+  - `npm run lint` → 0 errors, 4 warnings (fast-refresh notices on files that export a provider or context alongside components).
+  - `npm run build` → success, no chunk over 500 kB.
+- **Server:** `mvn clean verify` → **BUILD SUCCESS, 76 tests** (10 unit, 66 integration), 0 failures. The backend is unchanged in Phase 4.
+- **Browser verification** (agent-browser; backend on `partner_erp_test`; integration-test fixture accounts; no production data):
+  - **Sign-in flow:** a protected URL redirects to login, and signing in returns to it.
+  - **Sidebar:** collapsed on desktop and persisted, with the active item highlighted.
+  - **Theme:** Light → Dark persisted across reload. localStorage holds only `iotiq.theme` and `iotiq.sidebar.collapsed`. sessionStorage is empty, and no cookie is readable from JavaScript.
+  - **Users, matrix, roles:** the Users list, the permission matrix (also at 390 px) and Role Management in dark mode all render correctly.
+  - **Role rename:** the rename preview showed, the top bar updated to the new name immediately, and the name was then reverted.
+  - **Products:** as Super Admin, the "Internal B2C view" and B2C columns show. The test seed has no B2C prices, so they show "—". As a USER-role fixture there are no B2C columns or names in the DOM, the sidebar shows only Dashboard and Products, and `/users` shows "You don't have access to this page".
+  - **Audit:** the action filter works, and the details dialog shows before/after JSON with no password, token or hash.
+  - **Mobile drawer** at 390 px: opens, navigates and closes.
+  - **Sign out** returns to login, and protected URLs then redirect there.
+  - **Print** from dark mode (PDF) renders a white page with the light palette and no navigation.
+  - **Horizontal overflow** was checked at 1440, 1280, 1024, 768, 390 and 360 px on Dashboard, Users, Permissions, Roles, Products, Audit and Change password. Document width equals the viewport on every page after the fixes below; wide tables scroll inside their own region.
+  - Screenshots were deleted afterwards, and the backend started for the check was stopped.
+- **Defects found by browser verification and fixed:**
+  1. **Collapsed rail lost its styling** (no active highlight, wrong item size). The tooltip trigger (Radix Slot) stringified NavLink's className function. The active state is now styled through `aria-current`, and a regression assertion was added.
+  2. **Page-level horizontal scroll** on Users, Audit, Roles and Permissions at narrower widths. Absolutely positioned `sr-only` text inside the table escaped its non-positioned scroll container. The DataTable, matrix and tab scrollers are now `relative`.
+  3. **Users table scrolled at 1440 px** because of long emails. The name column is capped and the email is truncated, with the full value as a tooltip.
+
+### Responsive behaviour
+| Width | Shell | Tables |
+|---|---|---|
+| 1440 / 1280 | Full sidebar (collapsible) | Fit, except very wide data |
+| 1024 | Full sidebar (collapsible) | Users and Audit scroll inside their region |
+| 768 | Icon rail | Scroll inside region |
+| 390 / 360 | Drawer; breadcrumbs collapse to the current page | Scroll inside region; toolbars stack |
+
+### Accessibility (WCAG 2.2 AA)
+- **Contrast:** text, status and input-border colours were checked against their backgrounds in both themes (4.5:1 for text, 3:1 for control borders and focus rings).
+- **Keyboard:** all interactive elements are keyboard-operable and use Radix focus management. Dialogs and the drawer trap focus and close on Escape. There is a skip link, visible focus rings and focusable scroll regions.
+- **Screen readers:** landmarks (`nav "Main navigation"`, breadcrumb, `main`); `aria-current` on the active link; `aria-sort` on sortable headers; `aria-busy` and `role=status` while loading; `role=alert` for errors. Fields are wired with `aria-invalid`, `aria-describedby` and `aria-required`.
+- **Status:** status is always conveyed as text, never by colour alone.
+- **Touch:** targets are at least 36 px; navigation links are 40 px.
+- **Motion:** reduced motion is respected.
+- **Not done:** no automated axe audit or screen-reader session yet (planned for Phase 14).
+
+### Known issues / limitations
+- **Bundle:** Login and Users load more initial JS than the Phase 3 single bundle (see Performance).
+- **Accessibility:** not yet audited with axe or a real screen reader (Phase 14).
+- **Charts:** no chart library yet (Phase 12). Dashboard business metrics are intentionally absent.
+- **Labels:** sidebar labels come from the DB module names ("Products / Price Sheet", "Partner Payouts"). The prompt's "Item & Price Sheet" is not used (P4-05).
+- **Date filters:** use the native date input, so their display format follows the browser locale (for example mm/dd/yyyy in an en-US browser).
+- **Browser fixtures:** browser checks used integration-test fixture accounts in `partner_erp_test`. Resetting that schema for a clean data set was blocked by the tool's permission policy, so the data reflects the last `mvn verify` run.
+- **Lint:** 4 lint warnings remain (fast-refresh notices). They are harmless in production builds.
+- **Dev server:** a Vite dev server from an earlier session was already running on port 5173 and was reused. It was left running.
+
+### Next phase
+Phase 5, partner management, after your approval.

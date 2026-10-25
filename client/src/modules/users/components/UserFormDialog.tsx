@@ -1,33 +1,30 @@
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/Dialog";
-import { FormField } from "@/components/forms/FormField";
+import { Button } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Input";
+import { FormError, FormField, FormGrid } from "@/components/forms/FormField";
+import { PasswordInput } from "@/components/forms/inputs";
+import { applyServerErrors, emailSchema, passwordPolicySchema } from "@/lib/validation";
+import { errorMessage } from "@/lib/errors";
 import { ApiRequestError } from "@/services/api";
 import type { Role } from "@/modules/settings/services/roleService";
 import type { User } from "../types/user.types";
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 const base = {
   fullName: z.string().trim().min(2, "Enter the full name.").max(120, "Use at most 120 characters."),
-  email: z.string().trim().min(1, "Email is required.").regex(EMAIL, "Enter a valid email address.").max(254),
+  email: emailSchema,
   roleId: z.string().min(1, "Select a role."),
 };
 
-const createSchema = z.object({
-  ...base,
-  temporaryPassword: z
-    .string()
-    .min(12, "Use at least 12 characters.")
-    .max(128, "Use at most 128 characters.")
-    .regex(/[A-Za-z]/, "Include at least one letter.")
-    .regex(/\d/, "Include at least one digit."),
-});
+const createSchema = z.object({ ...base, temporaryPassword: passwordPolicySchema });
 const editSchema = z.object({ ...base, temporaryPassword: z.string().optional() });
 
 export type UserFormValues = z.infer<typeof createSchema>;
+
+const FIELDS = ["fullName", "email", "roleId", "temporaryPassword"] as const;
 
 interface UserFormDialogProps {
   open: boolean;
@@ -41,31 +38,32 @@ interface UserFormDialogProps {
   onSubmit: (values: UserFormValues) => Promise<void>;
 }
 
-export function UserFormDialog({ open, user, roles, assignableRoleIds, canChangeRole, onClose, onSubmit }: UserFormDialogProps) {
+/** Mounts a fresh form each time the dialog opens (keyed by the user), so fields start from current values. */
+export function UserFormDialog(props: UserFormDialogProps) {
+  return props.open ? <UserFormDialogBody key={props.user?.id ?? "new"} {...props} /> : null;
+}
+
+function UserFormDialogBody({ user, roles, assignableRoleIds, canChangeRole, onClose, onSubmit }: UserFormDialogProps) {
   const editing = !!user;
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
-    reset,
     setError,
-    watch,
+    control,
     formState: { errors, isSubmitting },
-  } = useForm<UserFormValues>({ resolver: zodResolver(editing ? editSchema : createSchema) as never });
+  } = useForm<UserFormValues>({
+    resolver: zodResolver(editing ? editSchema : createSchema) as never,
+    defaultValues: {
+      fullName: user?.fullName ?? "",
+      email: user?.email ?? "",
+      roleId: user?.role.id ?? (assignableRoleIds.length === 1 ? assignableRoleIds[0] : ""),
+      temporaryPassword: "",
+    },
+  });
 
-  useEffect(() => {
-    if (open) {
-      setFormError(null);
-      reset({
-        fullName: user?.fullName ?? "",
-        email: user?.email ?? "",
-        roleId: user?.role.id ?? (assignableRoleIds.length === 1 ? assignableRoleIds[0] : ""),
-        temporaryPassword: "",
-      });
-    }
-  }, [open, user, reset, assignableRoleIds]);
-
-  const roleChanged = editing && watch("roleId") !== user?.role.id;
+  const selectedRoleId = useWatch({ control, name: "roleId" });
+  const roleChanged = editing && selectedRoleId !== user?.role.id;
   const selectable = roles.filter((r) => assignableRoleIds.includes(r.id) || r.id === user?.role.id);
 
   const submit = handleSubmit(async (values) => {
@@ -73,65 +71,73 @@ export function UserFormDialog({ open, user, roles, assignableRoleIds, canChange
     try {
       await onSubmit(values);
     } catch (error) {
-      if (error instanceof ApiRequestError && error.fieldErrors.length > 0) {
-        error.fieldErrors.forEach((fe) => setError(fe.field as keyof UserFormValues, { message: fe.message }));
-      } else {
-        setFormError(error instanceof Error ? error.message : "Saving failed.");
-      }
+      const unmatched = applyServerErrors(error, setError, FIELDS);
+      const hasFieldErrors = error instanceof ApiRequestError && error.fieldErrors.length > 0;
+      if (!hasFieldErrors) setFormError(errorMessage(error));
+      else if (unmatched.length > 0) setFormError(unmatched.join(" "));
     }
   });
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={(next) => !next && onClose()}
+      open
+      onOpenChange={(next) => !next && !isSubmitting && onClose()}
       title={editing ? "Edit user" : "Create user"}
       description={editing ? undefined : "The user must change the temporary password at first sign-in."}
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={isSubmitting}>
+          <Button onClick={onClose} disabled={isSubmitting}>
             Cancel
-          </button>
-          <button type="submit" form="user-form" className="btn primary" disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : editing ? "Save changes" : "Create user"}
-          </button>
+          </Button>
+          <Button type="submit" form="user-form" variant="primary" loading={isSubmitting} loadingText="Saving…">
+            {editing ? "Save changes" : "Create user"}
+          </Button>
         </>
       }
     >
-      <form id="user-form" onSubmit={submit} noValidate>
-        {formError ? (
-          <div className="notice bad" role="alert" style={{ marginBottom: 12 }}>
-            {formError}
-          </div>
-        ) : null}
-        <div className="fgrid">
-          <FormField label="Full name" error={errors.fullName?.message} wide>
-            <input type="text" autoComplete="off" {...register("fullName")} />
+      <form id="user-form" onSubmit={submit} noValidate className="space-y-4">
+        <FormError>{formError}</FormError>
+        <FormGrid>
+          <FormField label="Full name" error={errors.fullName?.message} required wide>
+            <Input type="text" autoComplete="off" {...register("fullName")} />
           </FormField>
-          <FormField label="Email" error={errors.email?.message} wide>
-            <input type="email" autoComplete="off" {...register("email")} />
+          <FormField label="Email" error={errors.email?.message} required wide>
+            <Input type="email" autoComplete="off" inputMode="email" {...register("email")} />
           </FormField>
           <FormField
             label="Role"
             error={errors.roleId?.message}
+            required
             wide
-            hint={roleChanged ? "Changing the role resets this user's permissions to the role's defaults." : undefined}
+            hint={
+              roleChanged
+                ? "Changing the role resets this user's permissions to the role's defaults."
+                : editing && !canChangeRole
+                  ? "Only a Super Admin can change roles, and never on their own account."
+                  : undefined
+            }
           >
-            <select {...register("roleId")} disabled={editing && !canChangeRole}>
+            <Select {...register("roleId")} disabled={editing && !canChangeRole}>
               <option value="">Select a role…</option>
               {selectable.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.displayName}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
           {!editing ? (
-            <FormField label="Temporary password" error={errors.temporaryPassword?.message} wide hint="12–128 characters with a letter and a digit. Share it securely.">
-              <input type="password" autoComplete="new-password" {...register("temporaryPassword")} />
+            <FormField
+              label="Temporary password"
+              error={errors.temporaryPassword?.message}
+              required
+              wide
+              hint="12–128 characters with a letter and a digit. Share it with the user securely."
+            >
+              <PasswordInput autoComplete="new-password" {...register("temporaryPassword")} />
             </FormField>
           ) : null}
-        </div>
+        </FormGrid>
       </form>
     </Dialog>
   );

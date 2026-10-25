@@ -1,109 +1,161 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
-import { DataTable, Pager, type Column } from "@/components/tables/DataTable";
-import { EmptyState, ErrorState } from "@/components/common/EmptyState";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { formatCurrency } from "@/utils/formatCurrency";
+import { DataTable, type ColumnDef } from "@/components/tables/DataTable";
+import { toSortParam, type SortState } from "@/components/tables/sorting";
+import { EmptyState } from "@/components/feedback/States";
+import { PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
+import { SearchInput } from "@/components/forms/SearchInput";
+import { Select } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { formatCurrency, formatPercent } from "@/utils/format";
+import { queryKeys } from "@/lib/queryKeys";
 import { productService } from "../services/productService";
 import { PRODUCT_CATEGORIES, type Product, type ProductCategory } from "../types/product.types";
 
+const PAGE_SIZES = [25, 50, 100];
+
 /**
  * Read-only price sheet (maintenance arrives in Phase 7). Internal B2C columns appear only for users with
- * PRODUCTS:VIEW_INTERNAL_B2C; the server omits those fields for everyone else.
+ * PRODUCTS:VIEW_INTERNAL_B2C; the server omits those fields for everyone else, so hiding them here is
+ * presentation, not protection.
  */
 export function ProductsPage() {
   const { canPerform } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ProductCategory | "">("");
   const [page, setPage] = useState(0);
+  const [size, setSize] = useState(50);
+  const [sort, setSort] = useState<SortState | null>(null);
   const q = useDebounce(search.trim());
   const internal = canPerform("PRODUCTS", "VIEW_INTERNAL_B2C");
 
+  const filters = { q, category, page, size, sort: toSortParam(sort) };
   const products = useQuery({
-    queryKey: ["products", { q, category, page }],
-    queryFn: () => productService.list({ q, category, page, size: 50 }),
+    queryKey: queryKeys.products.list(filters),
+    queryFn: ({ signal }) => productService.list(filters, signal),
     placeholderData: keepPreviousData,
   });
 
-  const columns: Column<Product>[] = [
-    { key: "sku", header: "SKU", cell: (p) => <span className="mono">{p.sku}</span> },
+  const columns: ColumnDef<Product>[] = [
+    { id: "sku", header: "SKU", sortKey: "sku", hideable: false, cell: (p) => <span className="font-mono text-[0.8125rem]">{p.sku}</span> },
     {
-      key: "name",
+      id: "name",
       header: "Product",
+      sortKey: "partnerName",
+      hideable: false,
       cell: (p) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{p.partnerName}</div>
-          {internal && p.b2cName ? <div className="muted small">B2C: {p.b2cName}</div> : null}
+        <div className="min-w-48">
+          <div className="font-medium">{p.partnerName}</div>
+          {internal && p.b2cName ? <div className="text-xs text-muted-foreground">B2C: {p.b2cName}</div> : null}
         </div>
       ),
     },
-    { key: "category", header: "Category", cell: (p) => p.categoryLabel },
-    { key: "price", header: "Partner price", className: "r", cell: (p) => formatCurrency(p.partnerPrice) },
-    { key: "gst", header: "GST", className: "r", cell: (p) => `${p.gstPercent}%` },
+    { id: "category", header: "Category", sortKey: "category", cell: (p) => p.categoryLabel },
+    { id: "unit", header: "Unit", cell: (p) => p.unit, defaultHidden: true },
+    { id: "hsn", header: "HSN", cell: (p) => <span className="font-mono text-[0.8125rem]">{p.hsn ?? "—"}</span>, defaultHidden: true },
+    { id: "price", header: "Partner price", numeric: true, sortKey: "partnerPrice", cell: (p) => formatCurrency(p.partnerPrice) },
+    { id: "gst", header: "GST", numeric: true, cell: (p) => formatPercent(p.gstPercent) },
   ];
   if (internal) {
     columns.push(
-      { key: "b2c", header: "B2C price", className: "r", cell: (p) => formatCurrency(p.b2cPrice) },
-      { key: "cost", header: "Landed cost", className: "r", cell: (p) => formatCurrency(p.costPrice) },
+      { id: "b2c", header: "B2C price", numeric: true, cell: (p) => formatCurrency(p.b2cPrice) },
+      { id: "cost", header: "Landed cost", numeric: true, cell: (p) => formatCurrency(p.costPrice) },
     );
   }
 
+  const filtered = !!q || !!category;
+  const resetPage = () => setPage(0);
+
   return (
-    <>
-      <div className="top">
-        <div>
-          <h1>Products</h1>
-          <p>Price sheet · read only (product maintenance arrives in Phase 7).</p>
-        </div>
-        {internal ? <span className="pill gold">Internal B2C view</span> : null}
-      </div>
-      <div className="tools" role="search">
-        <Search size={16} aria-hidden="true" className="muted" />
-        <input
-          type="search"
-          placeholder={internal ? "Search SKU, product or B2C name" : "Search SKU or product"}
-          aria-label="Search products"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
-        />
-        <select
-          aria-label="Filter by category"
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value as ProductCategory | "");
-            setPage(0);
-          }}
-        >
-          <option value="">All categories</option>
-          {PRODUCT_CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {products.isPending ? (
-        <LoadingSpinner label="Loading products…" />
-      ) : products.isError ? (
-        <ErrorState error={products.error} onRetry={() => products.refetch()} />
-      ) : (
-        <>
-          <DataTable
-            caption="Products"
-            columns={columns}
-            rows={products.data.content}
-            rowKey={(p) => p.id}
-            empty={<EmptyState title="No products match" />}
-          />
-          <Pager meta={products.data.meta} onPage={setPage} />
-        </>
-      )}
-    </>
+    <PageContainer>
+      <PageHeader
+        title="Products"
+        description="Price sheet · read only. Product maintenance and CSV import arrive in Phase 7."
+        badge={
+          internal ? (
+            <Badge tone="accent">
+              <LockKeyhole aria-hidden="true" /> Internal B2C view
+            </Badge>
+          ) : undefined
+        }
+      />
+      <DataTable
+        caption="Products"
+        itemLabel="products"
+        columns={columns}
+        rows={products.data?.content}
+        rowKey={(p) => p.id}
+        loading={products.isPending}
+        fetching={products.isFetching && !products.isPending}
+        error={products.error}
+        onRetry={() => products.refetch()}
+        sort={sort}
+        onSortChange={(next) => {
+          setSort(next);
+          resetPage();
+        }}
+        page={products.data?.meta}
+        onPageChange={setPage}
+        pageSizeOptions={PAGE_SIZES}
+        onPageSizeChange={(next) => {
+          setSize(next);
+          resetPage();
+        }}
+        empty={
+          <EmptyState
+            title={filtered ? "No products match" : "The price sheet is empty"}
+            action={
+              filtered ? (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setCategory("");
+                    resetPage();
+                  }}
+                >
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+          >
+            {filtered ? "Try another search or category." : undefined}
+          </EmptyState>
+        }
+        toolbar={
+          <Toolbar label="Product filters">
+            <SearchInput
+              placeholder={internal ? "Search SKU, product or B2C name" : "Search SKU or product"}
+              aria-label="Search products"
+              value={search}
+              onValueChange={(value) => {
+                setSearch(value);
+                resetPage();
+              }}
+            />
+            <Select
+              aria-label="Filter by category"
+              value={category}
+              wrapperClassName="sm:w-56"
+              onChange={(e) => {
+                setCategory(e.target.value as ProductCategory | "");
+                resetPage();
+              }}
+            >
+              <option value="">All categories</option>
+              {PRODUCT_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+          </Toolbar>
+        }
+      />
+    </PageContainer>
   );
 }

@@ -20,8 +20,9 @@ beforeEach(() => {
 describe("role management", () => {
   it("lists roles with name, internal code and user count", async () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("SUPER_ADMIN"));
-    renderApp("/settings");
-    const table = await screen.findByRole("table");
+    renderApp("/roles");
+    await screen.findByText("SUPER_ADMIN");
+    const table = screen.getByRole("table");
     expect(within(table).getByRole("columnheader", { name: "Role name" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Internal code" })).toBeInTheDocument();
     expect(within(table).getByText("SUPER_ADMIN")).toBeInTheDocument();
@@ -32,7 +33,7 @@ describe("role management", () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("SUPER_ADMIN"));
     vi.mocked(authService.me).mockResolvedValue(makeMe("SUPER_ADMIN"));
     vi.mocked(roleService.update).mockResolvedValue({ ...roles[1], displayName: "Operations Manager", version: 1 });
-    renderApp("/settings");
+    renderApp("/roles");
     await userEvent.click(await screen.findByRole("button", { name: "Edit Admin" }));
     const input = screen.getByLabelText("Role name");
     await userEvent.clear(input);
@@ -46,7 +47,7 @@ describe("role management", () => {
   it("reports duplicate names", async () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("SUPER_ADMIN"));
     vi.mocked(roleService.update).mockRejectedValue(new ApiRequestError(409, "DUPLICATE_ROLE_NAME", "dup"));
-    renderApp("/settings");
+    renderApp("/roles");
     await userEvent.click(await screen.findByRole("button", { name: "Edit User" }));
     const input = screen.getByLabelText("Role name");
     await userEvent.clear(input);
@@ -59,7 +60,7 @@ describe("role management", () => {
     vi.mocked(authService.restore).mockResolvedValue(
       makeMe("ADMIN", { modules: [row("DASHBOARD"), row("ROLE_MANAGEMENT")] }),
     );
-    renderApp("/settings");
+    renderApp("/roles");
     expect(await screen.findByText("SUPER_ADMIN")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Edit/ })).not.toBeInTheDocument();
   });

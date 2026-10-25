@@ -1,14 +1,19 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useModules } from "@/hooks/useModules";
 import { useAuth } from "@/hooks/useAuth";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { ErrorState } from "@/components/common/EmptyState";
-import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
+import { ErrorState, LoadingState } from "@/components/feedback/States";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { UnsavedChangesGuard } from "@/components/forms/UnsavedChangesGuard";
+import { PageActions, PageContainer, PageHeader } from "@/components/layout/Page";
+import { Alert } from "@/components/ui/Alert";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { ApiRequestError } from "@/services/api";
+import { errorMessage } from "@/lib/errors";
+import { queryKeys } from "@/lib/queryKeys";
 import { userService } from "../services/userService";
 import { PermissionMatrix } from "../components/PermissionMatrix";
 import { missingScopes, sameDraft, sensitiveAdditions, toDraft, toRequest } from "../lib/permissionMatrix";
@@ -19,8 +24,8 @@ export function UserPermissionsPage() {
   const queryClient = useQueryClient();
   const { refreshUser } = useAuth();
   const modules = useModules();
-  const user = useQuery({ queryKey: ["users", id], queryFn: () => userService.get(id) });
-  const permissions = useQuery({ queryKey: ["users", id, "permissions"], queryFn: () => userService.permissions(id) });
+  const user = useQuery({ queryKey: queryKeys.users.detail(id), queryFn: ({ signal }) => userService.get(id, signal) });
+  const permissions = useQuery({ queryKey: queryKeys.users.permissions(id), queryFn: ({ signal }) => userService.permissions(id, signal) });
 
   const original = useMemo<PermissionDraft | null>(
     () => (modules.data && permissions.data ? toDraft(modules.data, permissions.data.modules, permissions.data.actions) : null),
@@ -34,17 +39,29 @@ export function UserPermissionsPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidScopes, setInvalidScopes] = useState<string[]>([]);
 
+  const dirty = !!(draft && original && modules.data && !sameDraft(draft, original, modules.data));
+
   if (modules.isPending || user.isPending || permissions.isPending || !draft || !original) {
     if (modules.isError || user.isError || permissions.isError) {
-      return <ErrorState error={modules.error ?? user.error ?? permissions.error} />;
+      return (
+        <PageContainer>
+          <PageHeader title="Permissions" back={{ to: "/users", label: "Users" }} />
+          <ErrorState error={modules.error ?? user.error ?? permissions.error} onRetry={() => void Promise.all([user.refetch(), permissions.refetch()])} />
+        </PageContainer>
+      );
     }
-    return <LoadingSpinner label="Loading permissions…" />;
+    return <LoadingState label="Loading permissions…" />;
   }
 
   const catalog = modules.data!;
   const target = permissions.data!;
   const readOnly = !target.editable;
-  const dirty = !sameDraft(draft, original, catalog);
+
+  const discard = () => {
+    setDraft(null);
+    setErrors([]);
+    setInvalidScopes([]);
+  };
 
   const persist = async () => {
     setSaving(true);
@@ -54,14 +71,14 @@ export function UserPermissionsPage() {
       toast.success("Permissions saved. They apply to the user's next request.");
       setConfirming(null);
       setDraft(null);
-      await queryClient.invalidateQueries({ queryKey: ["users", id] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(id) });
       await refreshUser().catch(() => undefined);
     } catch (error) {
       setConfirming(null);
       if (error instanceof ApiRequestError && error.fieldErrors.length > 0) {
         setErrors(error.fieldErrors.map((fe) => fe.message));
       } else {
-        toast.error(error instanceof Error ? error.message : "Saving failed.");
+        toast.error(errorMessage(error));
       }
     } finally {
       setSaving(false);
@@ -81,52 +98,51 @@ export function UserPermissionsPage() {
   };
 
   return (
-    <>
-      <Link to="/users" className="lnk small" style={{ display: "inline-flex", gap: 4, alignItems: "center", marginBottom: 8 }}>
-        <ArrowLeft size={13} aria-hidden="true" /> Users
-      </Link>
-      <div className="top">
-        <div>
-          <h1>Permissions</h1>
-          <p>
-            {user.data!.fullName} · <span className="pill">{target.role.displayName}</span>
-          </p>
-        </div>
-        {!readOnly ? (
-          <div className="acts">
-            <button type="button" className="btn" disabled={!dirty || saving} onClick={() => { setDraft(null); setErrors([]); setInvalidScopes([]); }}>
-              Cancel
-            </button>
-            <button type="button" className="btn primary" disabled={!dirty || saving} onClick={save}>
-              {saving ? "Saving…" : "Save permissions"}
-            </button>
-          </div>
-        ) : null}
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Permissions"
+        documentTitle={`Permissions · ${user.data!.fullName}`}
+        back={{ to: "/users", label: "Users" }}
+        description={
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span className="font-medium text-foreground">{user.data!.fullName}</span>
+            <Badge tone="outline">{target.role.displayName}</Badge>
+            {dirty ? <Badge tone="warning">Unsaved changes</Badge> : null}
+          </span>
+        }
+        actions={
+          !readOnly ? (
+            <PageActions>
+              <Button disabled={!dirty || saving} onClick={discard}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={!dirty} loading={saving} loadingText="Saving…" onClick={save}>
+                Save permissions
+              </Button>
+            </PageActions>
+          ) : undefined
+        }
+      />
 
       {target.superAdmin ? (
-        <div className="notice info" style={{ marginBottom: 12 }}>
-          A {target.role.displayName} always has full access to every module; these permissions cannot be edited.
-        </div>
+        <Alert tone="info">A {target.role.displayName} always has full access to every module; these permissions cannot be edited.</Alert>
       ) : readOnly ? (
-        <div className="notice" style={{ marginBottom: 12 }}>
-          Read-only view. Only a Super Admin can change permissions, and nobody can change their own.
-        </div>
+        <Alert tone="neutral">Read-only view. Only a Super Admin can change permissions, and nobody can change their own.</Alert>
       ) : (
-        <div className="notice info" style={{ marginBottom: 12 }}>
-          Write includes Read. Delete, Export, Approve and special actions must be granted separately. Self and Team scopes
-          show no records until record ownership and teams are introduced; choose All for full visibility.
-        </div>
+        <Alert tone="info" title="How permissions combine">
+          Write includes Read. Delete, Export, Approve and special actions must be granted separately. Self and Team scopes show no records
+          until record ownership and teams are introduced; choose All for full visibility.
+        </Alert>
       )}
 
       {errors.length > 0 ? (
-        <div className="notice bad" role="alert" style={{ marginBottom: 12 }}>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
+        <Alert tone="danger" title="The permissions were not saved">
+          <ul>
             {errors.map((e) => (
               <li key={e}>{e}</li>
             ))}
           </ul>
-        </div>
+        </Alert>
       ) : null}
 
       <PermissionMatrix
@@ -155,8 +171,10 @@ export function UserPermissionsPage() {
             <li key={item}>{item}</li>
           ))}
         </ul>
-        <p className="muted small">The change is recorded in the audit log.</p>
+        <p className="text-xs text-muted-foreground">The change is recorded in the audit log.</p>
       </ConfirmDialog>
-    </>
+
+      <UnsavedChangesGuard when={dirty && !saving} message="Your permission changes have not been saved and will be lost." />
+    </PageContainer>
   );
 }
