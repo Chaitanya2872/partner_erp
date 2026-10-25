@@ -115,7 +115,7 @@ export function toApiError(error: unknown): ApiRequestError {
     return new ApiRequestError(0, "CANCELLED", "The request was cancelled.");
   }
   if (axios.isAxiosError(error)) {
-    const body = (error.response?.data as ApiEnvelope<unknown> | undefined)?.error as ApiErrorBody | undefined;
+    const body = envelopeOf(error.response?.data)?.error as ApiErrorBody | undefined;
     if (body) {
       return new ApiRequestError(body.status, body.code, body.detail ?? body.title ?? "Request failed.", body.fieldErrors ?? [], body.requestId);
     }
@@ -149,9 +149,43 @@ export async function apiSend<T>(method: "post" | "put" | "patch", url: string, 
   return res.data.data as T;
 }
 
+/** A file the server sent as an attachment (CSV exports and templates). */
+export interface DownloadedFile {
+  text: string;
+  filename: string;
+}
+
+/** GET a text attachment; the file name comes from Content-Disposition, else `fallbackName`. */
+export async function apiDownload(url: string, fallbackName: string, params?: Record<string, unknown>): Promise<DownloadedFile> {
+  const res = await http.get<string>(url, { params: cleanParams(params), responseType: "text" });
+  const disposition = String(res.headers["content-disposition"] ?? "");
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  return { text: res.data, filename: match ? decodeURIComponent(match[1]) : fallbackName };
+}
+
+/** POST one file as multipart/form-data (field `file`). */
+export async function apiUpload<T>(url: string, file: File, params?: Record<string, unknown>): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await http.post<ApiEnvelope<T>>(url, form, { params: cleanParams(params) });
+  return res.data.data as T;
+}
+
 /** DELETE endpoints answer 204 No Content. */
 export async function apiDelete(url: string): Promise<void> {
   await http.delete(url);
+}
+
+/** The JSON envelope of a response; text responses (downloads) carry it as a string. */
+function envelopeOf(data: unknown): ApiEnvelope<unknown> | undefined {
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data) as ApiEnvelope<unknown>;
+    } catch {
+      return undefined;
+    }
+  }
+  return data as ApiEnvelope<unknown> | undefined;
 }
 
 function cleanParams(params?: Record<string, unknown>): Record<string, unknown> | undefined {

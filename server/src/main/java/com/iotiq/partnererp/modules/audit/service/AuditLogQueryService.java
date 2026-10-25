@@ -13,18 +13,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class AuditLogQueryService {
+
+    /** Product snapshot keys shown only to holders of {@code PRODUCTS:VIEW_INTERNAL_B2C} (P7-09). */
+    static final Set<String> INTERNAL_PRODUCT_FIELDS = Set.of("b2cName", "aliases", "b2cPrice", "costPrice");
 
     private final AuditLogRepository repository;
     private final UserRepository userRepository;
@@ -37,9 +42,14 @@ public class AuditLogQueryService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * @param internalProductFields whether the caller may see B2C names, alternative names, B2C prices and landed
+     *                              costs in product entries; without it those keys are removed
+     */
     @Transactional(readOnly = true)
     public Page<AuditLogResponse> search(String entityType, UUID entityId, String action, UUID userId,
-                                         Instant from, Instant to, Pageable pageable) {
+                                         Instant from, Instant to, Pageable pageable,
+                                         boolean internalProductFields) {
         Specification<AuditLog> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (entityType != null && !entityType.isBlank()) {
@@ -69,14 +79,22 @@ public class AuditLogQueryService {
                 .collect(Collectors.toMap(User::getId, Function.identity()));
         return page.map(e -> {
             User actor = e.getUserId() == null ? null : actors.get(e.getUserId());
+            boolean hide = !internalProductFields && "PRODUCT".equals(e.getEntityType());
             return new AuditLogResponse(e.getId(), e.getCreatedAt(), e.getUserId(),
                     actor == null ? null : actor.getFullName(), actor == null ? null : actor.getEmail(),
-                    e.getAction(), e.getEntityType(), e.getEntityId(), parse(e.getOldValues()),
-                    parse(e.getNewValues()), e.getIpAddress(), e.getRequestId());
+                    e.getAction(), e.getEntityType(), e.getEntityId(), parse(e.getOldValues(), hide),
+                    parse(e.getNewValues(), hide), e.getIpAddress(), e.getRequestId());
         });
     }
 
-    private JsonNode parse(String json) {
-        return json == null ? null : objectMapper.readTree(json);
+    private JsonNode parse(String json, boolean hideInternalProductFields) {
+        if (json == null) {
+            return null;
+        }
+        JsonNode node = objectMapper.readTree(json);
+        if (hideInternalProductFields && node instanceof ObjectNode object) {
+            INTERNAL_PRODUCT_FIELDS.forEach(object::remove);
+        }
+        return node;
     }
 }

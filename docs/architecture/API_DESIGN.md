@@ -117,19 +117,28 @@ Legend: **Perm** = required permission. **Src** = originating source action.
 | DELETE | /leads/{id} | LEADS:DELETE | 204, soft delete (D-26); `409 LEAD_HAS_DOCUMENTS` while estimates, invoices, payments or internal documents point at it |
 | GET | /leads/{id}/history | LEADS:READ | stage history, oldest first, with actor names and reasons |
 
-### 3.5 Products (src: newItem, editItem, delItem, impItems, expItems, tplItems)
+### 3.5 Products (src: newItem, editItem, delItem, impItems, expItems, tplItems) — as built in Phase 7
 
-Phase 3 implements the read side only: `GET /products` (`q`, `category`, paging) and `GET /products/{id}`, both `PRODUCTS:READ`; internal fields only with `PRODUCTS:VIEW_INTERNAL_B2C`. Maintenance endpoints below arrive in Phase 7.
+Permissions map onto the existing codes (no new permission code): `PRODUCTS:READ/WRITE/DELETE/EXPORT` and the `PRODUCTS:VIEW_INTERNAL_B2C` action ("internal" below). Internal fields are `b2cName`, `aliases`, `b2cPrice`, `costPrice` and the derived `discountPercent`, `b2cPriceMissing`, `sameNameAsB2c`; callers without the action get `ProductResponse`, which has none of them (P3-13, P7-04).
 
-| GET | /products | PRODUCT_READ | `q`, `category`, `active`, `b2cMissing`. B2C/cost fields only with B2C_VIEW |
+**Current restriction:** `POST /products` and `POST /products/import` require `PRODUCTS:VIEW_INTERNAL_B2C` as well as Products write, because the B2C name is required. D-17 (deactivate, delete only if unreferenced) and D-18 (preview → confirm import) are approved.
+
+| Method | Path | Permission | Notes |
 |---|---|---|---|
-| POST | /products | PRODUCT_WRITE (+B2C_PRICE_WRITE for b2c/cost) | |
-| GET | /products/{id} | PRODUCT_READ | |
-| PUT | /products/{id} | PRODUCT_WRITE | |
-| PATCH | /products/{id}/status | PRODUCT_WRITE | activate/deactivate (D-17) |
-| POST | /products/import?dryRun=true | PRODUCT_IMPORT | multipart CSV → per-row result; `dryRun=false` commits in one transaction |
-| GET | /products/export | PRODUCT_READ | CSV. B2C/cost columns only with B2C_VIEW |
-| GET | /products/import-template | PRODUCT_READ | CSV template |
+| GET | /products | PRODUCTS:READ | `q` (SKU, partner name, category label; B2C name only for internal callers), `category`, `active`, `b2cMissing` (internal only, ignored otherwise), paging, `sort` ∈ sku, partnerName, category, partnerPrice, updatedAt (default category, SKU) |
+| GET | /products/meta | PRODUCTS:READ | categories with total/active counts, default GST (company settings), default unit `nos`, max alternative names (20) |
+| GET | /products/options | PRODUCTS:READ (Phase 8 decides access for Estimates write users) | active products for document line pickers, at most 50: `id, sku, category, name, hsn, unit, rate, gstPercent` (+ `b2cName, b2cRate` for internal callers) |
+| GET | /products/{id} | PRODUCTS:READ | internal or partner-safe view |
+| GET | /products/{id}/history | PRODUCTS:READ | audited changes, newest first; internal fields removed for other callers, and internal-only updates hidden |
+| POST | /products | PRODUCTS:WRITE + internal | `403 INTERNAL_B2C_REQUIRED` without the action (the B2C name is required). `400` field errors; duplicate SKU (ignoring case) → `sku: "That SKU already exists."` |
+| PUT | /products/{id} | PRODUCTS:WRITE | needs `version` (`409 CONCURRENT_MODIFICATION` when stale). Without the action, internal fields must be omitted and stay unchanged; sending any → `403 INTERNAL_B2C_REQUIRED` |
+| PATCH | /products/{id}/status | PRODUCTS:WRITE | `{active, version}`; deactivate/activate (D-17) |
+| DELETE | /products/{id} | PRODUCTS:DELETE | `204`; `409 PRODUCT_IN_USE` while any estimate, invoice or B2C document line references it ("Deactivate it instead") |
+| GET | /products/export | PRODUCTS:EXPORT | CSV (UTF-8 with BOM) honouring `q`, `category`, `active`, `b2cMissing`. Internal: `sku, category, b2c_name, cp_name, cp_alternatives (\| separated), hsn, gst_percent, unit, b2c_price, cp_price, cost, active`; otherwise `sku, category, cp_name, hsn, gst_percent, unit, cp_price, active` |
+| GET | /products/import-template | PRODUCTS:WRITE | header plus one example row in a valid category (D-18) |
+| POST | /products/import?dryRun=true | PRODUCTS:WRITE + internal | multipart `file` (≤ 1 MB, ≤ 5,000 rows). Returns `{dryRun, total, created, updated, unchanged, failed, columns, rows[{row, sku, outcome CREATE/UPDATE/UNCHANGED/ERROR, changes, errors, warnings}]}`. `dryRun=false` saves every valid row in one transaction and skips rows with errors. `400` for a missing file, missing required columns or no data rows; `413 FILE_TOO_LARGE` |
+
+Server-side entry point for Phases 8–9: `ProductService.lineSnapshot(id)` returns the §6.2 line snapshot (`name` = partner name, `rate` = partner price, `b2cName`, `b2cRate` = B2C price or 0, `hsn`, `unit`, `gstPercent`) and refuses deactivated products with `422 PRODUCT_INACTIVE`.
 
 ### 3.6 Estimates (src: newEst, editDoc, delDoc, estStatus, toInv, viewDoc, dlDoc)
 | GET | /estimates | DOC_READ | `q` (no/partner/client), `status`, `partnerId`, `leadId`, `expired` |

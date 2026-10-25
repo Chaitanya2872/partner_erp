@@ -10,8 +10,8 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 3 | Authentication & authorization (incl. auth/admin screens) | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
 | 4 | Frontend foundation & design system | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
 | 5 | Partner management | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
-| 6 | Lead management | COMPLETED (approved with final changes; awaiting final approval) | 2026-10-25 | 2026-10-25 |
-| 7 | Product & price sheet | NOT_STARTED | — | — |
+| 6 | Lead management | COMPLETED (approved 2026-10-26) | 2026-10-25 | 2026-10-25 |
+| 7 | Product & price sheet | COMPLETED (approved 2026-10-26) | 2026-10-26 | 2026-10-26 |
 | 8 | Estimate management | NOT_STARTED | — | — |
 | 9 | Invoice management | NOT_STARTED | — | — |
 | 10 | Payment management | NOT_STARTED | — | — |
@@ -616,7 +616,7 @@ Phase 6, lead management (approved 2026-10-25; see below).
 
 ## Phase 6: Lead management
 
-- **Status:** COMPLETED. Approved on 2026-10-25 subject to the final changes below, which are done; awaiting final approval.
+- **Status:** COMPLETED and approved (final approval 2026-10-26, when Phase 7 was approved to begin).
 - **Start date:** 2026-10-25 · **Completed:** 2026-10-25
 - **Decisions:** D-04, D-05, D-26 and D-30 accepted with the recommended options; `docs/architecture/DECISIONS.md §G` (P6-01…P6-12). **API:** `docs/architecture/API_DESIGN.md §3.4`.
 - **Git:** committed as `feat: complete phase 6 lead management` on top of the Phase 5 commit `994047d`. Nothing was pushed.
@@ -681,4 +681,80 @@ Phase 6, lead management (approved 2026-10-25; see below).
 - `lead_number` and client email wait for D-16, which stays open until those requirements are finalized.
 
 ### Next phase
-Phase 7, product & price sheet, after your approval. Not started.
+Phase 7, product & price sheet: see below.
+
+---
+
+## Phase 7: Product & price sheet
+
+- **Status:** COMPLETED and approved (2026-10-26).
+- **Start date:** 2026-10-26 · **Completed:** 2026-10-26
+- **Decisions:** `docs/architecture/DECISIONS.md §H` (P7-01…P7-11). **D-17 and D-18 approved (2026-10-26).** **API:** `docs/architecture/API_DESIGN.md §3.5`.
+- **Scope note:** authentication, partner and lead behaviour are unchanged. One integration fix outside the product module: the audit log viewer hides internal product fields from viewers without `PRODUCTS:VIEW_INTERNAL_B2C` (P7-08).
+- **Git:** committed as `feat: complete phase 7 product and price sheet management` on top of the Phase 6 commit `b167f76`. Nothing was pushed.
+
+### Final approval (2026-10-26)
+- D-17 approved: active products only for new documents; inactive products stay visible; delete only when unreferenced; saved line snapshots never change. New regression test `ProductApiIT.documentLineSnapshotsSurviveProductEditsDeactivationAndRefusedDeletes` (edit, deactivate and a refused delete leave an estimate line's snapshot unchanged).
+- D-18 approved as built (preview → confirm, blank cells and missing columns keep values, unknown categories and invalid prices rejected, no zero overwrites, formula-safe export, internal fields permission-protected).
+- Product picker permission deferred to Phase 8 (proposal: Estimates write users may pick active products without Products read, minimum fields only). Not implemented.
+- **Current restriction:** creating products and importing CSV require `PRODUCTS:VIEW_INTERNAL_B2C` in addition to Products write.
+
+### Completed tasks
+1. **Backend.**
+   - Create (Products write + internal action), update with optimistic locking, activate/deactivate, and delete only while no document line uses the product (D-17).
+   - Search over SKU, partner name, category label (and B2C name for internal callers); category, status and B2C-missing filters; sheet order category → SKU; meta endpoint with category counts and form defaults.
+   - Validation shared by the form and the import (`ProductRules`): SKU format and case-insensitive uniqueness, HSN/SAC 4/6/8 digits, prices ≥ 0 with 2 decimals, GST 0–100 with 3 decimals, alternative names de-duplicated (≤ 20); non-blocking price warnings.
+   - Internal fields (B2C name, alternative names, B2C price, landed cost, discount) only with `PRODUCTS:VIEW_INTERNAL_B2C`, in every response, search, filter, export and history entry; writers without it can't send them (`403 INTERNAL_B2C_REQUIRED`).
+   - Product history endpoint built on the audit trail; audit actions for create, update (changed keys only), status, delete, per-product import and an import summary.
+   - CSV export (Products export; partner-safe columns without the internal action; formula guard; UTF-8 BOM), import template with a valid category, and import with dry-run preview → commit following D-18 (blank cells and missing columns keep values, unknown categories rejected per row, per-row errors and warnings, one transaction).
+   - Integration readiness: `/products/options` for line pickers (active only) and `ProductService.lineSnapshot` (§6.2 snapshot; inactive products refused).
+   - Multipart limits (1 MB) with `413 FILE_TOO_LARGE`, missing-file and multipart errors in the standard envelope.
+2. **Frontend.**
+   - Price sheet: source columns, "B2C price needed" and "same as B2C" pills, discount, status; category, status and B2C-price filters; Edit, Activate/Deactivate and Delete row actions by permission; Export CSV, Import CSV and New product by permission.
+   - Import dialog: file choice, template download, preview table (new / update with field changes / no change / error with reasons, plus warnings), "Import N rows" confirm.
+   - Product detail: partner-facing card, internal B2C card (internal users only), history timeline with readable before → after values, inactive alert.
+   - Product form (new/edit): identity, names, price & tax sections; internal fields only with the action; live discount preview and warnings; server field errors (e.g. duplicate SKU) mapped to fields; read-only notice for writers without the action.
+   - Routes `/products/new`, `/products/:id`, `/products/:id/edit`; audit log has product actions and a "Products" target filter.
+
+### Database changes
+- None. The V6 schema already had every column (including `active`). No migration was added or modified.
+
+### Files
+- **Server:**
+  - `modules/products/{controller/ProductController, service/ProductService, service/ProductImportService, service/ProductRules, service/ProductCsv, service/ProductLineSnapshot, repository/ProductRepository, repository/ProductMetricsRepository, mapper/ProductMapper, dto/*}`
+  - `AuditActions` (product actions), `AuditLogRepository`, `AuditLogQueryService` + `AuditLogController` (internal product fields hidden), `GlobalExceptionHandler` (upload errors), `application.yml` (multipart limits).
+  - Tests: `unit/products/ProductRulesTest` (7), `unit/products/ProductCsvTest` (3), `integration/products/ProductApiIT` (17).
+- **Client:**
+  - `modules/products/{types/product.types, services/productService, hooks/useProducts, utils/productDisplay, components/ProductBadges, components/ProductDialogs, components/ProductTable, components/ProductForm, components/ImportDialog, pages/ProductsPage, pages/ProductDetailsPage, pages/ProductFormPage, pages/Products.test}`
+  - `services/api.ts` (`apiDownload`, `apiUpload`, JSON errors from text responses), `utils/download.ts`, `lib/queryKeys.ts`, `lib/status.ts` (product status), `app/router.tsx`, `modules/audit/pages/AuditLogsPage.tsx`.
+
+### Browser verification (2026-10-26)
+- **Setup:** a separate backend on port 8091 against **`partner_erp_test`** (Flyway log: schema version 14) and Vite on 5181 proxying to it. Integration-test fixture accounts only: a Super Admin (internal action, export, delete), an Admin with the default template (Products write, no internal action) and a User (Products read). Test products with SKUs starting `P7-` were created through the API. The server on 8080 was left alone. Both test servers and all browser sessions were stopped afterwards.
+- **Verified:**
+  - Super Admin list: internal columns, "same as B2C" on all five Locks & Entry seeds, "B2C price needed" on unset prices, discount, status, Export/Import/New product.
+  - Detail page: partner-facing and internal cards (33% discount, alternative names), history.
+  - Edit: raising the partner price above the B2C price showed "Partner discount: -8%" and the advisory warning; the save succeeded and history shows "Partner price: ₹8,000.00 → ₹13,000.00".
+  - Deactivate: the confirmation text, the "P7-GLIDE deactivated." toast, the inactive alert and "Status: Active → Inactive" in history; the product left `/products/options`.
+  - Import: preview of a 3-row file showed 1 new, 1 update ("cp_price: 13000 → 13500" with the above-B2C warning) and 1 error (unknown category "Switching"); confirming showed "Import finished: 1 created, 1 updated, 1 skipped with errors." The updated row kept its B2C price, HSN, alternative names and stored SKU spelling.
+  - Delete of an unused product: confirmation, then "P7-UNUSED deleted."
+  - Admin: partner columns only, no Export/Import/New product, history without internal changes, access denied on `/products/new`; via the API, export `403` and create `403 INTERNAL_B2C_REQUIRED`, responses without B2C keys.
+  - User: no edit, status, delete, import or export controls.
+  - Layouts at 390, 820 and 1280 px for the list, detail and edit pages: no horizontal page overflow.
+- **Issue found and fixed:** the import preview listed the internal header prefixes (`cp_alt`, `gst`) as recognised columns; it now uses the template names (`cp_alternatives`, `gst_percent`), also in row messages.
+
+### Build and test results (2026-10-26, final)
+- `mvn verify`: **173 tests, 0 failures, 0 errors, 0 skipped** (53 unit, 120 integration; new: `ProductRulesTest` 7, `ProductCsvTest` 3, `ProductApiIT` 17). Regression suites passing: `AuthIT` 12, `PermissionIT` 6, `UserManagementIT` 8, `PartnerApiIT` 16, `LeadApiIT` 21, `InternalB2cSecurityIT` 3. Run **without `clean`**; the server on port 8080 was neither stopped nor modified.
+- `npm test`: **141 tests in 18 files, 0 failures** (`Products.test.tsx` 14). Intermittently, the first test of a file times out while the whole suite runs in parallel on a loaded machine (seen in login, users, leads, partners and products files, never the same twice); those files pass on their own and the rerun of the full suite passed.
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings as before).
+- `npm run build`: OK. Route chunks: ProductsPage 12.1 kB, ProductFormPage 9.1 kB, ProductDetailsPage 4.8 kB, shared ProductBadges 3.0 kB (4.4 / 3.6 / 2.0 / 1.5 kB gzip).
+
+### Known issues / limitations
+- The delete check sees existing lines only; Phase 8 must record product usage before documents can be deleted (P7-01).
+- Intermittent first-test timeouts in the frontend suite under load (test infrastructure; no product code involved).
+- Categories are the fixed source list; adding or renaming categories is not built (P7-03).
+- With the default role templates an Admin can edit partner-facing fields but can't create or import products until a Super Admin grants `VIEW_INTERNAL_B2C` (P7-04).
+- A CSV can't clear a stored value (blank keeps it); use the form.
+- Product picker access for Estimates write users is deferred to Phase 8; the picker currently needs Products read.
+
+### Next phase
+Phase 8, estimates and the internal B2C twin, after your approval. Not started.

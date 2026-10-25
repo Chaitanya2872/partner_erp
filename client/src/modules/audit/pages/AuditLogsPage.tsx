@@ -56,6 +56,12 @@ const ACTIONS = [
   "LEAD_STAGE_CHANGED",
   "LEAD_ACKNOWLEDGED",
   "LEAD_DELETED",
+  "PRODUCT_CREATED",
+  "PRODUCT_UPDATED",
+  "PRODUCT_STATUS_CHANGED",
+  "PRODUCT_DELETED",
+  "PRODUCT_IMPORTED",
+  "PRODUCT_IMPORT_COMPLETED",
 ];
 
 const SECURITY_ACTIONS = new Set(["LOGIN_FAILED", "ACCOUNT_LOCKED", "REFRESH_TOKEN_REUSED"]);
@@ -204,6 +210,7 @@ export function AuditLogsPage() {
               <option value="ROLE">Roles</option>
               <option value="PARTNER">Partners</option>
               <option value="LEAD">Leads</option>
+              <option value="PRODUCT">Products</option>
             </Select>
             {canPickActor ? (
               <SearchableSelect

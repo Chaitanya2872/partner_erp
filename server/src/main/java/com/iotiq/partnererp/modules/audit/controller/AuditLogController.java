@@ -6,6 +6,7 @@ import com.iotiq.partnererp.common.response.PageResponse;
 import com.iotiq.partnererp.common.web.Pageables;
 import com.iotiq.partnererp.modules.audit.dto.AuditLogResponse;
 import com.iotiq.partnererp.modules.audit.service.AuditLogQueryService;
+import com.iotiq.partnererp.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Sort;
@@ -43,6 +44,8 @@ public class AuditLogController {
                                                     @RequestParam(defaultValue = "0") int page,
                                                     @RequestParam(defaultValue = "50") int size) {
         return PageResponse.of(queryService.search(entityType, entityId, action, userId, from, to,
-                Pageables.of(page, size, null, Set.of(), Sort.by(Sort.Direction.DESC, "createdAt")))).toApiResponse();
+                Pageables.of(page, size, null, Set.of(), Sort.by(Sort.Direction.DESC, "createdAt")),
+                SecurityUtils.requireCurrentUser().permissions().canPerform("PRODUCTS", "VIEW_INTERNAL_B2C")))
+                .toApiResponse();
     }
 }

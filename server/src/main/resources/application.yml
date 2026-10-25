@@ -29,6 +29,10 @@ spring:
     baseline-on-migrate: false
   jackson:
     time-zone: Asia/Kolkata
+  servlet:
+    multipart:
+      max-file-size: 1MB          # product CSV import (ProductImportService.MAX_BYTES)
+      max-request-size: 2MB
   mvc:
     problemdetails:
       enabled: false              # GlobalExceptionHandler produces the envelope

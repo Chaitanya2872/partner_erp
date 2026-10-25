@@ -21,6 +21,8 @@ const LoginPage = named(() => import("@/modules/auth/pages/LoginPage"), "LoginPa
 const ChangePasswordPage = named(() => import("@/modules/auth/pages/ChangePasswordPage"), "ChangePasswordPage");
 const DashboardPage = named(() => import("@/modules/dashboard/pages/DashboardPage"), "DashboardPage");
 const ProductsPage = named(() => import("@/modules/products/pages/ProductsPage"), "ProductsPage");
+const ProductDetailsPage = named(() => import("@/modules/products/pages/ProductDetailsPage"), "ProductDetailsPage");
+const ProductFormPage = named(() => import("@/modules/products/pages/ProductFormPage"), "ProductFormPage");
 const PartnersPage = named(() => import("@/modules/partners/pages/PartnersPage"), "PartnersPage");
 const PartnerDetailsPage = named(() => import("@/modules/partners/pages/PartnerDetailsPage"), "PartnerDetailsPage");
 const PartnerFormPage = named(() => import("@/modules/partners/pages/PartnerFormPage"), "PartnerFormPage");
@@ -87,6 +89,9 @@ export const routes: RouteObject[] = [
       { path: "leads/:id", handle: handle({ nav: "/leads", crumb: "Details" }), element: guard(<LeadDetailsPage />, ["LEADS"]) },
       { path: "leads/:id/edit", handle: handle({ nav: "/leads", crumb: "Edit" }), element: guard(<LeadFormPage />, ["LEADS"]) },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
+      { path: "products/new", handle: handle({ nav: "/products", crumb: "New product" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },
+      { path: "products/:id", handle: handle({ nav: "/products", crumb: "Details" }), element: guard(<ProductDetailsPage />, ["PRODUCTS"]) },
+      { path: "products/:id/edit", handle: handle({ nav: "/products", crumb: "Edit" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },
       { path: "users", handle: handle({ nav: "/users" }), element: guard(<UsersPage />, ["USER_MANAGEMENT"]) },
       {
         path: "users/:id/permissions",

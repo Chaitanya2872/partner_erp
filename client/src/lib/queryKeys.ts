@@ -31,6 +31,9 @@ export const queryKeys = {
   products: {
     all: ["products"] as const,
     list: (filters: Record<string, unknown>) => ["products", "list", filters] as const,
+    meta: ["products", "meta"] as const,
+    detail: (id: string) => ["products", id] as const,
+    history: (id: string) => ["products", id, "history"] as const,
   },
   auditLogs: {
     all: ["audit-logs"] as const,

@@ -76,7 +76,13 @@ const payout: Registry = {
   CLAWBACK: { label: "Clawback", tone: "danger", derived: true, hint: "Negative fee from a refund." },
 };
 
-export const STATUS_REGISTRY = { user, partner, agreement, lead, estimate, invoice, payout } as const;
+/** products.active (V6) shown as a status; inactive products stay on the sheet but leave the line pickers (D-17). */
+const product: Registry = {
+  ACTIVE: { label: "Active", tone: "success" },
+  INACTIVE: { label: "Inactive", tone: "outline", hint: "Hidden from estimate and invoice line pickers; kept on existing documents." },
+};
+
+export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoice, payout } as const;
 
 export type StatusDomain = keyof typeof STATUS_REGISTRY;
 
