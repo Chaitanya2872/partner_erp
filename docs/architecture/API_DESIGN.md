@@ -40,7 +40,7 @@ The proposed 6-role matrix (D-23) was superseded by the Phase 3 instruction. Det
 | Module | Columns | Module actions | Admin default | User default |
 |---|---|---|---|---|
 | DASHBOARD | R | | R | R |
-| PARTNERS | R W D E A S | | RW | — |
+| PARTNERS | R W D E A S | `VIEW_PARTNER_SENSITIVE` (V13) | RW | — |
 | LEADS | R W D E A S | | RW | — |
 | PRODUCTS | R W D E | `VIEW_INTERNAL_B2C` | RW | R |
 | ESTIMATES | R W D E S | | RW | — |
@@ -66,7 +66,7 @@ Enforcement: `SecurityConfig` (authentication, public routes) + `@PreAuthorize` 
 
 Legend: **Perm** = required permission. **Src** = originating source action.
 
-> **Note (Phase 3):** sections 3.2–3.11 still show the pre-Phase-3 permission names. They map onto the module authorities of §2 and each section is updated when its phase is built: `*_READ` → `<MODULE>:READ`, `*_WRITE` → `<MODULE>:WRITE`, `LEAD_DELETE` → `LEADS:DELETE`, `LEAD_ACK`/`TIER_REVIEW` → `LEADS:APPROVE`/`PARTNERS:APPROVE`, `INVOICE_CANCEL` → `INVOICES:DELETE`, `PAYOUT_PAY` → `PAYOUTS:MARK_PAYOUT_PAID`, `PAYMENT_REVERSE` → `PAYMENTS:REVERSE_PAYMENT`, `B2C_VIEW` → `INTERNAL_B2C:READ` (documents) / `PRODUCTS:VIEW_INTERNAL_B2C` (price sheet), `REPORT_READ` → `REPORTS:READ`, CSV downloads → `<MODULE>:EXPORT`. Login has account lockout but no IP rate limiting yet.
+> **Note (Phase 3):** sections 3.2 and 3.4–3.11 still show the pre-Phase-3 permission names. They map onto the module authorities of §2 and each section is updated when its phase is built: `*_READ` → `<MODULE>:READ`, `*_WRITE` → `<MODULE>:WRITE`, `LEAD_DELETE` → `LEADS:DELETE`, `LEAD_ACK`/`TIER_REVIEW` → `LEADS:APPROVE`/`PARTNERS:APPROVE`, `INVOICE_CANCEL` → `INVOICES:DELETE`, `PAYOUT_PAY` → `PAYOUTS:MARK_PAYOUT_PAID`, `PAYMENT_REVERSE` → `PAYMENTS:REVERSE_PAYMENT`, `B2C_VIEW` → `INTERNAL_B2C:READ` (documents) / `PRODUCTS:VIEW_INTERNAL_B2C` (price sheet), `REPORT_READ` → `REPORTS:READ`, CSV downloads → `<MODULE>:EXPORT`. Login has account lockout but no IP rate limiting yet.
 
 ### 3.1 Auth (implemented, Phase 3)
 | Method | Path | Perm | Notes |
@@ -87,18 +87,22 @@ Legend: **Perm** = required permission. **Src** = originating source action.
 | GET | /dashboard/top-partners | REPORT_READ | top 5 by paid revenue 12 m |
 | GET | /dashboard/tier-mix | PARTNER_READ | excludes Inactive |
 
-### 3.3 Partners (src: newCp, editCp, openCp, tierOne, tierAll, stmt)
-| GET | /partners | PARTNER_READ | `q` (name/city/category/contact), `status`, `category`, `tier`, `agreementStatus`. Rows include tier, calculatedTier, revenue12m, leadCount |
+### 3.3 Partners (implemented, Phase 5; src: newCp, editCp, openCp, tierOne, tierAll)
+| Method | Path | Authority | Notes |
 |---|---|---|---|
-| POST | /partners | PARTNER_WRITE | programme ⇒ tier 4 |
-| GET | /partners/{id} | PARTNER_READ | masked PAN/bank unless PARTNER_SENSITIVE_READ |
-| PUT | /partners/{id} | PARTNER_WRITE | with version |
-| PATCH | /partners/{id}/status | PARTNER_WRITE | `{status}` (activate/deactivate) |
-| GET | /partners/{id}/performance | PARTNER_READ | tiles: tier, revenue12m, next-tier progress, fees unpaid/paid, agreement |
-| GET | /partners/{id}/leads, /estimates, /invoices, /payments, /payouts | respective READ | linked lists |
-| GET | /partners/{id}/statement.csv | PAYOUT_READ | fee statement CSV (BR-O8) |
-| POST | /partners/tier-review/preview | TIER_REVIEW | `{partnerIds?}` (default all non-Inactive) → proposed actions |
-| POST | /partners/tier-review/apply | TIER_REVIEW | applies the previewed set (server recomputes) |
+| GET | /partners | PARTNERS:READ | `q` (name, city, category label, contact, phone), `status`, `category`, `tier`, `agreementStatus`, `page`, `size` (20), `sort` ∈ name, city, category, status, agreementStatus, createdAt (default name). Rows: tier, calculatedTier, revenue12m, leadCount. No PAN or bank fields. |
+| GET | /partners/meta | PARTNERS:READ | categories, statuses, agreement statuses, tiers, default agreement version |
+| POST | /partners | PARTNERS:WRITE (+APPROVE for tier ≠ 1 or programme) | 201. Programme ⇒ tier 4 |
+| GET | /partners/{id} | PARTNERS:READ | Without PARTNERS:VIEW_PARTNER_SENSITIVE (`sensitiveVisible: false`): PAN and bank account `••` + last 4, GSTIN `••` + last 3 (P5-02); `panOnFile`/`gstinOnFile`/`bankAccountOnFile` flags |
+| PUT | /partners/{id} | PARTNERS:WRITE (+APPROVE to change tier/programme) | with `version`. `pan`/`gstin`/`bankAccount`: null keeps, "" removes. A manual tier/programme change clears the grace flag (P5-13) |
+| PATCH | /partners/{id}/status | PARTNERS:WRITE | `{status, version}` |
+| DELETE | /partners/{id} | — | 405 (BR-P10) |
+| GET | /partners/{id}/performance | PARTNERS:READ | tier, calculatedTier, revenue12m, revenueSince, next tier, progress %, remaining, fees unpaid/paid, leads, payoutReady |
+| GET | /partners/{id}/tier-reviews | PARTNERS:READ | tier history with actor names |
+| POST | /partners/tier-review/preview | PARTNERS:APPROVE | `{partnerIds?}` (default: all non-Inactive) → proposed changes |
+| POST | /partners/tier-review/apply | PARTNERS:APPROVE | `{items: [{partnerId, action, toLevel}]}`; recomputed under lock, `409 TIER_REVIEW_STALE` on any mismatch |
+| GET | /partners/{id}/leads, /estimates, /invoices, /payments, /payouts | respective READ | Phases 6–11 |
+| GET | /partners/{id}/statement.csv | PAYOUTS:EXPORT | Phase 11 (BR-O8) |
 
 ### 3.4 Leads (src: newLead, editLead, ackLead, delLead, stage change)
 | GET | /leads | LEAD_READ | `q`, `stage`, `partnerId`, `conflict`, `slaBreach`. Rows include SLA flags & protection status |

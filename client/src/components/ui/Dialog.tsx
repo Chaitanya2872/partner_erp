@@ -24,6 +24,8 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-50 bg-overlay animate-in" />
         <RadixDialog.Content
+          // Without a description there is nothing to reference (repeating the title made readers announce it twice).
+          {...(description ? {} : { "aria-describedby": undefined })}
           className={cn(
             "fixed left-1/2 top-[max(1rem,6vh)] z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col",
             "rounded-xl border border-border bg-surface text-foreground shadow-lg animate-in focus-visible:outline-none",
@@ -35,9 +37,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
               <RadixDialog.Title className="font-display text-lg font-semibold">{title}</RadixDialog.Title>
               {description ? (
                 <RadixDialog.Description className="mt-0.5 text-sm text-muted-foreground">{description}</RadixDialog.Description>
-              ) : (
-                <RadixDialog.Description className="sr-only">{title}</RadixDialog.Description>
-              )}
+              ) : null}
             </div>
             <RadixDialog.Close
               className="-mr-1.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"

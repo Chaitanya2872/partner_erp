@@ -47,6 +47,10 @@ const ACTIONS = [
   "USER_STATUS_CHANGED",
   "PERMISSIONS_CHANGED",
   "ROLE_UPDATED",
+  "PARTNER_CREATED",
+  "PARTNER_UPDATED",
+  "PARTNER_STATUS_CHANGED",
+  "PARTNER_TIER_REVIEWED",
 ];
 
 const SECURITY_ACTIONS = new Set(["LOGIN_FAILED", "ACCOUNT_LOCKED", "REFRESH_TOKEN_REUSED"]);
@@ -193,6 +197,7 @@ export function AuditLogsPage() {
               <option value="">All targets</option>
               <option value="USER">Users</option>
               <option value="ROLE">Roles</option>
+              <option value="PARTNER">Partners</option>
             </Select>
             {canPickActor ? (
               <SearchableSelect

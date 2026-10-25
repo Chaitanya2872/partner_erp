@@ -20,6 +20,7 @@ const defs: [string, string, Flags[], boolean?][] = [
 ];
 
 const actions: Record<string, { code: string; displayName: string; superAdminOnly?: boolean }[]> = {
+  PARTNERS: [{ code: "VIEW_PARTNER_SENSITIVE", displayName: "View partner PAN and bank details" }],
   PRODUCTS: [{ code: "VIEW_INTERNAL_B2C", displayName: "View internal B2C prices" }],
   PAYMENTS: [{ code: "REVERSE_PAYMENT", displayName: "Reverse payment" }],
   PAYOUTS: [{ code: "MARK_PAYOUT_PAID", displayName: "Mark payout paid" }],

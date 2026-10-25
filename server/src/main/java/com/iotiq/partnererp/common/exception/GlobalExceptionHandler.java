@@ -125,8 +125,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleIntegrity(DataIntegrityViolationException ex) {
-        // The root cause can contain column values; log it server-side only.
-        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        // The driver message can echo column values (PostgreSQL: "Failing row contains (...)"), which may include
+        // PAN, GSTIN or bank details. Log only the constraint name and SQL state.
+        String constraint = ex.getCause() instanceof org.hibernate.exception.ConstraintViolationException cve
+                ? cve.getConstraintName() : null;
+        String sqlState = ex.getMostSpecificCause() instanceof java.sql.SQLException sql ? sql.getSQLState() : null;
+        log.warn("Data integrity violation: constraint={}, sqlState={}", constraint, sqlState);
         return build(HttpStatus.CONFLICT, "DATA_CONFLICT", "Conflict",
                 "The change conflicts with existing data (for example a duplicate value).", null);
     }

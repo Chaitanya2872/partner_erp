@@ -21,6 +21,9 @@ const LoginPage = named(() => import("@/modules/auth/pages/LoginPage"), "LoginPa
 const ChangePasswordPage = named(() => import("@/modules/auth/pages/ChangePasswordPage"), "ChangePasswordPage");
 const DashboardPage = named(() => import("@/modules/dashboard/pages/DashboardPage"), "DashboardPage");
 const ProductsPage = named(() => import("@/modules/products/pages/ProductsPage"), "ProductsPage");
+const PartnersPage = named(() => import("@/modules/partners/pages/PartnersPage"), "PartnersPage");
+const PartnerDetailsPage = named(() => import("@/modules/partners/pages/PartnerDetailsPage"), "PartnerDetailsPage");
+const PartnerFormPage = named(() => import("@/modules/partners/pages/PartnerFormPage"), "PartnerFormPage");
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
 const RolesPage = named(() => import("@/modules/settings/pages/RolesPage"), "RolesPage");
@@ -68,6 +71,14 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomeRedirect /> },
       { path: "dashboard", handle: handle({ nav: "/dashboard" }), element: guard(<DashboardPage />, ["DASHBOARD"]) },
+      { path: "partners", handle: handle({ nav: "/partners" }), element: guard(<PartnersPage />, ["PARTNERS"]) },
+      { path: "partners/new", handle: handle({ nav: "/partners", crumb: "New partner" }), element: guard(<PartnerFormPage />, ["PARTNERS"]) },
+      { path: "partners/:id", handle: handle({ nav: "/partners", crumb: "Details" }), element: guard(<PartnerDetailsPage />, ["PARTNERS"]) },
+      {
+        path: "partners/:id/edit",
+        handle: handle({ nav: "/partners", crumb: "Edit" }),
+        element: guard(<PartnerFormPage />, ["PARTNERS"]),
+      },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
       { path: "users", handle: handle({ nav: "/users" }), element: guard(<UsersPage />, ["USER_MANAGEMENT"]) },
       {

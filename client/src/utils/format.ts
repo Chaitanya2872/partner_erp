@@ -66,6 +66,11 @@ export function formatDate(value: string | null | undefined): string {
   return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** Today in the business timezone (Asia/Kolkata, as the server's clock) as ISO yyyy-mm-dd, for date limits. */
+export function businessToday(now: Date = new Date()): string {
+  return now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
 /** 25 Oct 2026, 2:30 pm in the viewer's timezone (timestamps are stored in UTC). */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return NOT_AVAILABLE;

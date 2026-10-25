@@ -41,7 +41,7 @@ class MigrationAndSeedIT extends AbstractIntegrationTest {
     void allMigrationsAppliedSuccessfully() {
         List<String> versions = jdbc.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
         assertThat(count("select count(*) from flyway_schema_history where not success")).isZero();
     }
 
@@ -142,7 +142,8 @@ class MigrationAndSeedIT extends AbstractIntegrationTest {
                 "INTERNAL_B2C", "REPORTS", "SETTINGS", "USER_MANAGEMENT", "ROLE_MANAGEMENT", "AUDIT_LOGS");
         assertThat(jdbc.queryForList("select code from permissions where active order by code", String.class))
                 .containsExactlyInAnyOrder("DELETE", "EXPORT", "APPROVE", "MARK_PAYOUT_PAID", "REVERSE_PAYMENT",
-                        "VIEW_INTERNAL_B2C", "MANAGE_USERS", "MANAGE_PERMISSIONS", "MANAGE_SETTINGS");
+                        "VIEW_INTERNAL_B2C", "MANAGE_USERS", "MANAGE_PERMISSIONS", "MANAGE_SETTINGS",
+                        "VIEW_PARTNER_SENSITIVE");
         assertThat(count("select count(*) from permissions where not active")).isEqualTo(29);
 
         Map<String, String> admin = template("ADMIN");

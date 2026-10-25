@@ -29,6 +29,13 @@ const partner: Registry = {
   INACTIVE: { label: "Inactive", tone: "outline" },
 };
 
+/** partners.agreement_status (V4). Active partners without a signed agreement raise an alert (BR-P6). */
+const agreement: Registry = {
+  NOT_SENT: { label: "Not sent", tone: "neutral" },
+  SENT: { label: "Sent", tone: "info" },
+  SIGNED: { label: "Signed", tone: "success" },
+};
+
 /** leads.stage (V5). */
 const lead: Registry = {
   NEW: { label: "New", tone: "neutral" },
@@ -69,7 +76,7 @@ const payout: Registry = {
   CLAWBACK: { label: "Clawback", tone: "danger", derived: true, hint: "Negative fee from a refund." },
 };
 
-export const STATUS_REGISTRY = { user, partner, lead, estimate, invoice, payout } as const;
+export const STATUS_REGISTRY = { user, partner, agreement, lead, estimate, invoice, payout } as const;
 
 export type StatusDomain = keyof typeof STATUS_REGISTRY;
 

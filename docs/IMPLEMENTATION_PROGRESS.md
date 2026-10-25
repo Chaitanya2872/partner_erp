@@ -8,8 +8,8 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 1 | Backend foundation | COMPLETED (approved 2026-10-24) | 2026-10-24 | 2026-10-24 |
 | 2 | Database schema & seed data | COMPLETED (approved 2026-10-25) | 2026-10-24 | 2026-10-24 |
 | 3 | Authentication & authorization (incl. auth/admin screens) | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
-| 4 | Frontend foundation & design system | COMPLETED (awaiting approval) | 2026-10-25 | 2026-10-25 |
-| 5 | Partner management | NOT_STARTED | — | — |
+| 4 | Frontend foundation & design system | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
+| 5 | Partner management | COMPLETED (conditional approval items done; awaiting final approval) | 2026-10-25 | 2026-10-25 |
 | 6 | Lead management | NOT_STARTED | — | — |
 | 7 | Product & price sheet | NOT_STARTED | — | — |
 | 8 | Estimate management | NOT_STARTED | — | — |
@@ -381,7 +381,7 @@ Phase 4, frontend foundation, after your approval. Much of it was delivered here
 
 ## Phase 4: Frontend foundation & design system
 
-- **Status:** COMPLETED. Waiting for approval before Phase 5.
+- **Status:** COMPLETED (approved 2026-10-25).
 - **Start date:** 2026-10-25 · **Completed:** 2026-10-25
 - **Decisions:** `docs/architecture/DECISIONS.md §E` (P4-01…P4-10).
 - **Docs:** `docs/frontend/DESIGN_SYSTEM.md`, `docs/frontend/ARCHITECTURE.md`, `docs/frontend/COMPONENTS.md`, `client/README.md`.
@@ -515,3 +515,101 @@ Phase 4, frontend foundation, after your approval. Much of it was delivered here
 
 ### Next phase
 Phase 5, partner management, after your approval.
+
+## Phase 5: Partner management
+
+- **Status:** COMPLETED. The conditional-approval items (GSTIN masking, browser verification, regression run, docs, Git checkpoint) are done; awaiting final approval.
+- **Start date:** 2026-10-25 · **Completed:** 2026-10-25
+- **Decisions:** `docs/architecture/DECISIONS.md §F` (P5-01…P5-14). **API:** `docs/architecture/API_DESIGN.md §3.3`.
+- **Git:** committed as `feat: complete phase 5 partner management` on top of the Phase 4 commit `e709c7e`. Nothing was pushed.
+
+### Completed tasks
+1. **Backend.**
+   - CRUD with optimistic locking, a status patch, and no delete (405, BR-P10).
+   - Search (name, city, category, contact, phone), filters (status, category, tier, agreement), whitelisted sorting and pagination.
+   - revenue12m (BR-P12): Σ net payments dated on or after today − 365 days, so refunds reduce it and future-dated payments count. Computed in one grouped query per page.
+   - Calculated tier, and a performance endpoint (progress, remaining, fees unpaid/paid, leads, payout readiness).
+   - Tier review preview and apply (§3.1), with recomputation under row locks and a stale check, plus tier history.
+   - PAN, **GSTIN** and bank account masking behind `VIEW_PARTNER_SENSITIVE` (V13).
+   - Format validation, and audit records that keep only changed keys with sensitive values masked.
+2. **Frontend.**
+   - The list page: search, four filters, assigned → calculated tier, revenue, agreement and leads.
+   - The detail page: status and tier badges, BR-P6/P7/P8 and grace alerts, performance tiles, an accessible progress bar, profile, agreement and compliance cards, tier history, notes, and a linked-records note.
+   - The create/edit page: three sections plus notes, zod rules mirroring the server, server field errors, an unsaved-changes guard, write-only PAN/GSTIN/bank handling, and tier and programme fields gated by approve.
+   - The tier review dialog: bulk or single, select and apply, with a "Preview again" flow on 409.
+   - Routes `/partners`, `/partners/new`, `/partners/:id` and `/partners/:id/edit`. Partners is live in the sidebar. The audit log has partner actions and a "Partners" target filter.
+
+### Conditional-approval changes (2026-10-25)
+1. **GSTIN masking (P5-02).**
+   - The GSTIN embeds the PAN, so it is now masked under the existing `VIEW_PARTNER_SENSITIVE` action as `••` + its last 3 characters. Those are the entity number, `Z` and check character, none of them from the PAN. No new permission code was added.
+   - Full values stay in the database and are shown to Super Admins and holders of the action.
+   - Audit snapshots mask GSTIN. On update, GSTIN follows the null-keeps / ""-removes semantics, and a masked value sent back is rejected without being echoed. GSTIN and PAN are not searchable, and list rows carry neither. There are no exports yet; the statement CSV in Phase 11 must follow P5-02.
+2. **Hardening found on the way.**
+   - The integrity-violation handler no longer logs the driver message, whose "Failing row contains (…)" can include PAN, GSTIN or bank details (P5-14).
+   - Change detection on update compares unmasked values. Before, a new PAN/GSTIN with the same visible tail was skipped by the audit and returned a stale version (P5-08).
+3. **Regression tests.**
+   - `PartnerApiIT.maskedGstinCannotBeUsedToReconstructThePan` checks that:
+     - the detail, update, list, search, validation-error and audit outputs contain neither the full PAN/GSTIN nor the PAN's hidden first 6 characters;
+     - the combined masks reveal only the PAN's last 4;
+     - keep / replace (same tail) / remove all work.
+   - `PartnerMapperTest` checks the mask positions.
+
+### Browser verification (2026-10-25)
+- **Setup:**
+  - A separate backend on port 8091 against **`partner_erp_test`**, confirmed in the Flyway log line, and a separate Vite on 5181 proxying to it.
+  - Accounts: integration-test fixture accounts only (Super Admin, Admin, Admin with Partners read + `VIEW_PARTNER_SENSITIVE`, User). No dev or production data was touched.
+  - An unrelated server already running on 8080 and the Vite on 5173 were left alone.
+  - Screenshots were deleted, and both servers and all browser sessions were stopped afterwards.
+- **Verified:**
+  - List: search by city and by category label; status, category, tier and agreement filters; sorting by city (both directions, with `aria-sort`) and by name; pagination summary.
+  - Create: Super Admin, Architect, tier 3. Checked the empty-submit error summary and focus, the Architect warning, and the tier hint showing fee % and payout days. Lands on the detail page.
+  - Edit: Admin. Tier and programme are disabled, inline PAN validation works, and a cleared PAN field keeps the stored value. Changing the agreement to Signed and the city persisted.
+  - Status change: confirmation, then the BR-P6 "Agreement not signed" alert appears for an Active partner.
+  - Masking:
+    - Super Admin and the sensitive-grant Admin see full PAN, GSTIN and bank account.
+    - The plain Admin sees `••234F`, `••1Z5` and `••9012`; the page text contains no full value or hidden PAN prefix. The edit form shows "On file: …" hints and Remove checkboxes.
+  - Tier review:
+    - The bulk preview (17 of 18 partners, the inactive one excluded) showed an upgrade and two grace periods; unticking one applied 2. The list and tier history show the upgrade, actor and revenue. Grace badge and alert shown.
+    - Single-partner preview showed a one-step downgrade. After a concurrent tier edit in a second session, apply returned 409, with Apply disabled and "Preview again" fetching new figures.
+  - Permissions:
+    - The Admin has no "Run tier review". The read-only viewer has no create, edit, status or review actions and gets an access-denied page on `/partners/new` and `/edit`.
+    - The User has no Partners in the navigation, and all four partner URLs show the access-denied page.
+  - Layouts at 1440, 1024, 768 and 390 px: no horizontal page overflow on the list, detail, edit or new pages. Tables scroll inside their region. The form and the tier review dialog stack on phones.
+- **Issues found and fixed:**
+  1. After a successful save, the unsaved-changes guard blocked the redirect with "Leave without saving?". The guard is now off while submitting, and a regression assertion was added; it was confirmed to fail without the fix.
+  2. A manual tier change kept the old grace flag, so a partner moved up by hand was immediately offered a step-down. A manual tier or programme change now clears grace (P5-13, new integration test).
+  3. At 1440 px the row actions were clipped. The redundant "View" button was removed (the name is the link) and the search placeholder shortened.
+  4. The mask alert showed a misplaced second lock icon, and the leads tile had a developer-facing "Phase 6" hint. Both removed.
+  5. Dialogs without a description repeated the title as a hidden description, so screen readers announced it twice. The shared `Dialog` now omits it.
+  6. The tier review rows repeated the grace wording. Shortened to "(unchanged)".
+- **Note:** each `mvn verify` rebuilds the `partner_erp_test` schema (guarded to `*_test` databases), so browser sessions and data from before a test run disappear. This is expected.
+
+### Database changes
+- `V13__partner_sensitive_permission.sql`: adds the `PARTNERS` action `VIEW_PARTNER_SENSITIVE`. It is not granted to any template, and Super Admins hold it implicitly. No applied migration was modified, and no migration was added for the GSTIN change (it is response-level).
+
+### Files
+- **Server:**
+  - `modules/partners/{controller/PartnerController, service/PartnerService, service/TierReviewService, service/TierRules, repository/PartnerRepository, repository/PartnerMetricsRepository, mapper/PartnerMapper, dto/*}`
+  - `AuditActions` (partner actions), `common/exception/GlobalExceptionHandler` (safe integrity logging)
+  - Tests: `unit/partners/{TierRulesTest, PartnerMapperTest}`, `integration/partners/PartnerApiIT`; `MigrationAndSeedIT` updated.
+- **Client:**
+  - `modules/partners/{types, services/partnerService, hooks/usePartners, components/PartnerForm, components/TierReviewDialog, components/TierCell, pages/PartnersPage, pages/PartnerDetailsPage, pages/PartnerFormPage, pages/Partners.test}`
+  - `components/ui/Dialog.tsx`, `app/router.tsx`, `app/navigation.ts`, `lib/queryKeys.ts`, `lib/status.ts`, `utils/format.ts` (`businessToday`), `types/common.types.ts`, `modules/audit/pages/AuditLogsPage.tsx`, `test/fixtures.ts`.
+
+### Build and test results (2026-10-25, after the conditional-approval changes)
+- `mvn clean verify`: **117 tests, 0 failures, 0 errors, 0 skipped**.
+  - 35 unit tests: `TierRulesTest` 23, `PartnerMapperTest` 2.
+  - 82 integration tests: `PartnerApiIT` 16, including the GSTIN regression and the grace reset.
+- `npm test`: **112 tests in 16 files, 0 failures**. 15 are partner tests, now covering GSTIN masking and write-only handling and the save-without-guard regression.
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings as Phase 4).
+- `npm run build`: OK. Route chunks: PartnersPage 6.1 kB, PartnerDetailsPage 10.6 kB, PartnerFormPage 11.8 kB (2.2 / 4.0 / 4.4 kB gzip).
+
+### Known issues / limitations
+- **Linked lists:** leads, estimates, invoices, payments and payouts on the detail page arrive with their phases. Lead counts and fee totals read the existing tables and are 0 until then.
+- **Tier review:** manual only (D-07). There is no scheduled job.
+- **Exports:** none in Phase 5. The partner statement CSV (Phase 11) must apply P5-02 masking.
+- **Date input:** native, so its display format follows the browser locale.
+- **Mobile:** filters stack one per row on phones (shared Toolbar behaviour), so the table starts lower on the screen.
+
+### Next phase
+Phase 6, lead management, after your approval.
