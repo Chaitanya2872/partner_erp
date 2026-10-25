@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeIndianRupee, ChevronDown, Handshake, Lock, Pencil, TrendingUp, Users, Wallet } from "lucide-react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { BadgeIndianRupee, ChevronDown, Handshake, Lock, Pencil, Plus, TrendingUp, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { ErrorState, LoadingState } from "@/components/feedback/States";
@@ -20,6 +20,10 @@ import { formatCurrency, formatDate, formatDateTime, formatPercent, NOT_AVAILABL
 import { partnerService } from "../services/partnerService";
 import { usePartner, usePartnerMeta } from "../hooks/usePartners";
 import { TierReviewDialog } from "../components/TierReviewDialog";
+import { leadService } from "@/modules/leads/services/leadService";
+import { useLeadMeta } from "@/modules/leads/hooks/useLeads";
+import { useLeadActions } from "@/modules/leads/components/LeadDialogs";
+import { LeadTable } from "@/modules/leads/components/LeadTable";
 import type { Partner, PartnerPerformance, PartnerStatus, TierReviewHistoryEntry } from "../types/partner.types";
 
 const HISTORY_TONE: Record<TierReviewHistoryEntry["action"], "success" | "danger" | "warning" | "info"> = {
@@ -32,7 +36,7 @@ const HISTORY_TONE: Record<TierReviewHistoryEntry["action"], "success" | "danger
 
 export function PartnerDetailsPage() {
   const { id = "" } = useParams();
-  const { canWrite, canPerform } = useAuth();
+  const { canRead, canWrite, canPerform } = useAuth();
   const queryClient = useQueryClient();
   const partner = usePartner(id);
   const meta = usePartnerMeta();
@@ -250,10 +254,12 @@ export function PartnerDetailsPage() {
         </ContentCard>
       ) : null}
 
-      <ContentCard title="Linked records" description="Leads, estimates, invoices, payments and payouts for this partner.">
+      {canRead("LEADS") ? <PartnerLeads partnerId={p.id} partnerName={p.name} /> : null}
+
+      <ContentCard title="Other linked records" description="Estimates, invoices, payments and payouts for this partner.">
         <p className="text-sm text-muted-foreground">
-          These lists appear here as their modules are delivered: leads in Phase 6, estimates in Phase 8, invoices and payments in Phases 9–10, and
-          referral fee payouts in Phase 11.
+          These lists appear here as their modules are delivered: estimates in Phase 8, invoices and payments in Phases 9–10, and referral fee
+          payouts in Phase 11.
         </p>
       </ContentCard>
 
@@ -283,6 +289,56 @@ export function PartnerDetailsPage() {
 
       {canApprove ? <TierReviewDialog open={reviewing} onOpenChange={setReviewing} partnerIds={[p.id]} /> : null}
     </PageContainer>
+  );
+}
+
+/** The partner's leads, newest first, with the same inline actions as the Leads page. */
+function PartnerLeads({ partnerId, partnerName }: { partnerId: string; partnerName: string }) {
+  const { canWrite } = useAuth();
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+  const meta = useLeadMeta();
+  const actions = useLeadActions({ meta: meta.data });
+  const filters = { partnerId, page, size };
+  const leads = useQuery({
+    queryKey: queryKeys.leads.list(filters),
+    queryFn: ({ signal }) => leadService.list(filters, signal),
+    placeholderData: keepPreviousData,
+  });
+  return (
+    <section aria-labelledby="partner-leads-heading" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="partner-leads-heading" className="text-base font-semibold">
+          Leads
+        </h2>
+        {canWrite("LEADS") ? (
+          <Button asChild size="sm" variant="primary">
+            <Link to={`/leads/new?partnerId=${partnerId}`}>
+              <Plus aria-hidden="true" /> New lead
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+      <LeadTable
+        caption={`Leads from ${partnerName}`}
+        rows={leads.data?.content}
+        meta={meta.data}
+        actions={actions}
+        showPartner={false}
+        loading={leads.isPending}
+        fetching={leads.isFetching && !leads.isPending}
+        error={leads.error}
+        onRetry={() => leads.refetch()}
+        page={leads.data?.meta}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setSize(next);
+          setPage(0);
+        }}
+        empty={<p className="py-6 text-center text-sm text-muted-foreground">No leads from this partner yet.</p>}
+      />
+      {actions.dialogs}
+    </section>
   );
 }
 

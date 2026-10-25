@@ -21,6 +21,13 @@ export const queryKeys = {
     tierHistory: (id: string) => ["partners", id, "tier-reviews"] as const,
     tierReview: (ids: string[] | undefined) => ["partners", "tier-review", ids ?? "all"] as const,
   },
+  leads: {
+    all: ["leads"] as const,
+    list: (filters: Record<string, unknown>) => ["leads", "list", filters] as const,
+    meta: ["leads", "meta"] as const,
+    detail: (id: string) => ["leads", id] as const,
+    history: (id: string) => ["leads", id, "history"] as const,
+  },
   products: {
     all: ["products"] as const,
     list: (filters: Record<string, unknown>) => ["products", "list", filters] as const,

@@ -24,6 +24,9 @@ const ProductsPage = named(() => import("@/modules/products/pages/ProductsPage")
 const PartnersPage = named(() => import("@/modules/partners/pages/PartnersPage"), "PartnersPage");
 const PartnerDetailsPage = named(() => import("@/modules/partners/pages/PartnerDetailsPage"), "PartnerDetailsPage");
 const PartnerFormPage = named(() => import("@/modules/partners/pages/PartnerFormPage"), "PartnerFormPage");
+const LeadsPage = named(() => import("@/modules/leads/pages/LeadsPage"), "LeadsPage");
+const LeadDetailsPage = named(() => import("@/modules/leads/pages/LeadDetailsPage"), "LeadDetailsPage");
+const LeadFormPage = named(() => import("@/modules/leads/pages/LeadFormPage"), "LeadFormPage");
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
 const RolesPage = named(() => import("@/modules/settings/pages/RolesPage"), "RolesPage");
@@ -79,6 +82,10 @@ export const routes: RouteObject[] = [
         handle: handle({ nav: "/partners", crumb: "Edit" }),
         element: guard(<PartnerFormPage />, ["PARTNERS"]),
       },
+      { path: "leads", handle: handle({ nav: "/leads" }), element: guard(<LeadsPage />, ["LEADS"]) },
+      { path: "leads/new", handle: handle({ nav: "/leads", crumb: "New lead" }), element: guard(<LeadFormPage />, ["LEADS"]) },
+      { path: "leads/:id", handle: handle({ nav: "/leads", crumb: "Details" }), element: guard(<LeadDetailsPage />, ["LEADS"]) },
+      { path: "leads/:id/edit", handle: handle({ nav: "/leads", crumb: "Edit" }), element: guard(<LeadFormPage />, ["LEADS"]) },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
       { path: "users", handle: handle({ nav: "/users" }), element: guard(<UsersPage />, ["USER_MANAGEMENT"]) },
       {

@@ -50,7 +50,7 @@ public class PartnerMetricsRepository {
             return Map.of();
         }
         Map<UUID, Long> result = new HashMap<>();
-        jdbc.query("SELECT partner_id, COUNT(*) AS n FROM leads WHERE partner_id IN (:ids) GROUP BY partner_id",
+        jdbc.query("SELECT partner_id, COUNT(*) AS n FROM leads WHERE partner_id IN (:ids) AND deleted_at IS NULL GROUP BY partner_id",
                 new MapSqlParameterSource("ids", partnerIds),
                 rs -> {
                     result.put(rs.getObject("partner_id", UUID.class), rs.getLong("n"));

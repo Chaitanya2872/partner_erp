@@ -9,8 +9,8 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 2 | Database schema & seed data | COMPLETED (approved 2026-10-25) | 2026-10-24 | 2026-10-24 |
 | 3 | Authentication & authorization (incl. auth/admin screens) | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
 | 4 | Frontend foundation & design system | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
-| 5 | Partner management | COMPLETED (conditional approval items done; awaiting final approval) | 2026-10-25 | 2026-10-25 |
-| 6 | Lead management | NOT_STARTED | — | — |
+| 5 | Partner management | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
+| 6 | Lead management | COMPLETED (approved with final changes; awaiting final approval) | 2026-10-25 | 2026-10-25 |
 | 7 | Product & price sheet | NOT_STARTED | — | — |
 | 8 | Estimate management | NOT_STARTED | — | — |
 | 9 | Invoice management | NOT_STARTED | — | — |
@@ -612,4 +612,73 @@ Phase 5, partner management, after your approval.
 - **Mobile:** filters stack one per row on phones (shared Toolbar behaviour), so the table starts lower on the screen.
 
 ### Next phase
-Phase 6, lead management, after your approval.
+Phase 6, lead management (approved 2026-10-25; see below).
+
+## Phase 6: Lead management
+
+- **Status:** COMPLETED. Approved on 2026-10-25 subject to the final changes below, which are done; awaiting final approval.
+- **Start date:** 2026-10-25 · **Completed:** 2026-10-25
+- **Decisions:** D-04, D-05, D-26 and D-30 accepted with the recommended options; `docs/architecture/DECISIONS.md §G` (P6-01…P6-12). **API:** `docs/architecture/API_DESIGN.md §3.4`.
+- **Git:** committed as `feat: complete phase 6 lead management` on top of the Phase 5 commit `994047d`. Nothing was pushed.
+
+### Final approval changes (2026-10-25)
+1. **P6-06 approved:** the referring partner can change until the lead is acknowledged and never after, enforced by the API (field error on `partnerId`) and the form (read-only partner). No reassignment workflow. New tests: `LeadApiIT.thePartnerCanChangeBeforeAcknowledgement`, `Leads.test.tsx` "lets the partner change before acknowledgement".
+2. **P6-13, closed leads:** Won and Lost leads can no longer be acknowledged directly. The API returns `422 LEAD_CLOSED` and changes nothing (no fee lock, protection, history or audit row); the list and detail pages show no Acknowledge action and explain that the lead must be reopened. Reopening through the existing approve-gated workflow makes it acknowledgeable. Regression tests: `LeadApiIT.wonAndLostLeadsMustBeReopenedBeforeAcknowledgement` and two `Leads.test.tsx` cases. Documented as an approved deviation from the source.
+
+### Completed tasks
+1. **Backend.**
+   - CRUD with optimistic locking; search over client, city and partner name; stage, partner, conflict and SLA-breach filters; whitelisted sorting (newest first by default); pagination.
+   - Conflict check on every save (BR-L6, D-05): last-10 phone digits, another partner, `protection_until >= today`, live leads only. Saved with `conflict = true` and the protecting partner's name.
+   - Acknowledge (BR-L5, `LEADS:APPROVE`): locks the partner's current tier fee, protection = today + 90 days (setting), NEW → REGISTERED, row lock, `409` on a second call.
+   - Stage rules (D-04): free, except leaving Won/Lost needs `LEADS:APPROVE`; history row for every change with an optional reason.
+   - Soft delete (D-26, `LEADS:DELETE`, migration V14), refused while documents reference the lead.
+   - `LeadSla` calculator (§4.1) and the matching SQL breach filter; history endpoint with actor names; meta endpoint (stages, project types, partners with fee rates, SLA targets).
+   - Audit: `LEAD_CREATED`, `LEAD_UPDATED`, `LEAD_STAGE_CHANGED`, `LEAD_ACKNOWLEDGED`, `LEAD_DELETED`. Partner lead counts exclude deleted leads.
+2. **Frontend.**
+   - Leads list: the source columns (client/project with "Possible duplicate" pill, partner link, inline stage select, budget, registration with Acknowledge button or "N% locked · to date/expired", SLA pills), search, stage/partner/SLA/duplicate filters, Edit and Delete row actions.
+   - Confirmations: acknowledge (source wording with fee rate, tier and protection days), reopen of a Won/Lost lead with an optional reason, delete with the "mark it Lost instead" rule.
+   - Lead detail: registration, SLA block, client & project, stage history timeline, conflict and SLA alerts (§4.2), inline stage select.
+   - Lead form (new/edit): client, registration and follow-up sections; partner select showing tier and fee; read-only partner after acknowledgement; read-only stage for closed leads without approve; reason field when the stage changes; conflict warning toast "Saved. Same phone is already protected for X."
+   - Partner detail: the partner's leads with the same actions and a "New lead" button that pre-selects the partner (replaces the Phase 5 placeholder).
+   - Routes `/leads`, `/leads/new`, `/leads/:id`, `/leads/:id/edit`; Leads is live in the sidebar; audit log has lead actions and a "Leads" target filter.
+
+### Database changes
+- `V14__lead_soft_delete.sql`: `leads.deleted_at`, `leads.deleted_by` (FK users) and two partial indexes on live leads. No applied migration was modified.
+
+### Files
+- **Server:**
+  - `modules/leads/{controller/LeadController, service/LeadService, service/LeadSla, repository/LeadRepository, repository/LeadMetricsRepository, mapper/LeadMapper, dto/*, entity/Lead}`
+  - `AuditActions` (lead actions), `PartnerRepository.findAllByOrderByNameAsc`, `PartnerMetricsRepository.leadCounts` (live leads only)
+  - Tests: `unit/leads/LeadSlaTest`, `integration/leads/LeadApiIT`.
+- **Client:**
+  - `modules/leads/{types/lead.types, services/leadService, hooks/useLeads, utils/leadDisplay, components/LeadBadges, components/LeadDialogs, components/LeadForm, components/LeadTable, components/StageSelect, pages/LeadsPage, pages/LeadDetailsPage, pages/LeadFormPage, pages/Leads.test}`
+  - `services/api.ts` (`apiDelete`), `lib/queryKeys.ts`, `app/router.tsx`, `app/navigation.ts`, `modules/partners/pages/PartnerDetailsPage.tsx`, `modules/audit/pages/AuditLogsPage.tsx`; routing tests now use Estimates as the not-yet-built example.
+
+### Browser verification (2026-10-25)
+- **Setup:** a separate backend on port 8091 against **`partner_erp_test`** (confirmed in the Flyway log: schema version 14), a separate Vite on 5181 proxying to it. Accounts: integration-test fixture accounts only (Super Admin, Admin, an Admin granted Leads approve + delete by the Super Admin, User). Test partners and leads tagged "P6 …" were created through the API; created/acknowledged times and one estimate were back-dated in the test DB to exercise the SLA clocks. The server on 8080 was left alone. Screenshots were deleted, and both test servers and all browser sessions were stopped afterwards.
+- **Verified:**
+  - List: the source columns, "Possible duplicate" pills, "8.00% locked · to <date>" registration text, SLA pills; the SLA-late filter returned exactly the late-acknowledgement lead and the late-estimate lead (first estimate 7 days after acknowledgement); search; stage, partner and duplicate filters.
+  - Acknowledge (approver): confirmation "Acknowledge “Mehta Towers …” for Arc Builders …? The 8.00% (Registered) fee rate locks now and 90-day protection starts."; stage New → Registered; protection to 23 Jan 2027 (today + 90).
+  - Reopen (approver): Won → Negotiation asked for confirmation and a reason; the detail history shows "Reopened: Won → Negotiation" with the reason and actor.
+  - Delete of a lead with an estimate: refused with "This lead has estimates, invoices or payments, so it can't be deleted. Mark it Lost instead."
+  - Create (Admin): empty submit shows "Client name is required."; "New lead" from the partner pre-selects the partner; a phone protected for another partner saved with the toast "Saved. Same phone is already protected for Kumar Electricals …" and the detail alert.
+  - Permissions: the Admin sees no Acknowledge or Delete; after marking a lead Lost the Admin's inline select is disabled ("Reopening a Won or Lost lead needs Leads approve.") and the edit form shows the stage read-only. The User has no Leads in the navigation and gets the access-denied page on `/leads`.
+  - Partner detail: the partner's leads table with inline actions and "New lead".
+  - Layouts at 1440, 1024, 768 and 390 px on the list, detail, new and edit pages: no horizontal page overflow; the detail page stacks on phones.
+- **Issues found and fixed during the phase:** the Units and Budget fields were not labelled for assistive technology (the `Controller` sat inside `FormField`, so the label's `id` landed on the Controller); fixed and covered by the form test. No further issues were found in the browser pass.
+
+### Build and test results (2026-10-26, after the final approval changes)
+- `mvn verify`: **146 tests, 0 failures, 0 errors, 0 skipped** (43 unit, including `LeadSlaTest` 8; 103 integration, including `LeadApiIT` 21). Run **without `clean`** because a Spring Boot dev server on port 8080 (not started by this phase) runs from `target/classes`; as instructed, it was neither stopped nor modified.
+- `npm test`: **127 tests in 17 files, 0 failures** (`Leads.test.tsx` 15; `Partners.test.tsx` checks the new partner leads section).
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings as before).
+- `npm run build`: OK. Route chunks: LeadsPage 3.4 kB, LeadDetailsPage 6.7 kB, LeadFormPage 8.1 kB, shared LeadTable 3.0 kB (1.4 / 2.6 / 3.2 / 1.3 kB gzip).
+
+### Known issues / limitations
+- Approved deviations from the source: P6-06 (partner fixed after acknowledgement) and P6-13 (no acknowledgement of Won/Lost leads).
+- Unacknowledged Won/Lost leads show "Ack ok", as in the source (their SLA clock stops).
+- No partner reassignment workflow for acknowledged leads (out of Phase 6 scope).
+- Automatic stage changes from estimates and invoices arrive with Phases 8–9; the "Estimate" row action with Phase 8; lead alerts on the dashboard with Phase 12.
+- `lead_number` and client email wait for D-16, which stays open until those requirements are finalized.
+
+### Next phase
+Phase 7, product & price sheet, after your approval. Not started.

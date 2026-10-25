@@ -42,7 +42,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { path: "/dashboard", module: "DASHBOARD", icon: LayoutDashboard },
   { path: "/partners", module: "PARTNERS", icon: Handshake, group: "Funnel" },
-  { path: "/leads", module: "LEADS", icon: ClipboardList, group: "Funnel", phase: 6 },
+  { path: "/leads", module: "LEADS", icon: ClipboardList, group: "Funnel" },
   { path: "/estimates", module: "ESTIMATES", icon: FileSpreadsheet, group: "Sales", phase: 8 },
   { path: "/invoices", module: "INVOICES", icon: FileText, group: "Sales", phase: 9 },
   { path: "/payments", module: "PAYMENTS", icon: Wallet, group: "Sales", phase: 10 },

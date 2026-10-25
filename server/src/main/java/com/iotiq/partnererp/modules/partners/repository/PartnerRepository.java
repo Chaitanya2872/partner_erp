@@ -23,6 +23,9 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID>, JpaSpec
     List<Partner> findByStatusNotOrderByNameAsc(PartnerStatus status);
 
     @EntityGraph(attributePaths = "tier")
+    List<Partner> findAllByOrderByNameAsc();
+
+    @EntityGraph(attributePaths = "tier")
     List<Partner> findByIdInOrderByNameAsc(Collection<UUID> ids);
 
     /** Locks the partners while a tier review is applied, so concurrent edits wait. */

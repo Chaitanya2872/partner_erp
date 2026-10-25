@@ -6,6 +6,7 @@ import { catalog, makeMe, row } from "@/test/fixtures";
 import { authService } from "@/services/auth.service";
 import { ApiRequestError } from "@/services/api";
 import { partnerService } from "../services/partnerService";
+import { leadService } from "@/modules/leads/services/leadService";
 import type { Partner, PartnerMeta, PartnerPerformance, PartnerSummary, TierReviewItem } from "../types/partner.types";
 
 vi.mock("@/services/auth.service", () => ({
@@ -25,6 +26,9 @@ vi.mock("../services/partnerService", () => ({
     applyTierReview: vi.fn(),
   },
 }));
+
+// The detail page lists the partner's leads.
+vi.mock("@/modules/leads/services/leadService", () => ({ leadService: { list: vi.fn(), meta: vi.fn() } }));
 
 const tier = (level: number) => ({ level, name: ["", "Registered", "Preferred", "Elite", "Strategic"][level], commissionPercent: [0, 8, 10, 12, 15][level] });
 
@@ -134,6 +138,8 @@ beforeEach(() => {
   vi.mocked(partnerService.get).mockResolvedValue(partner);
   vi.mocked(partnerService.performance).mockResolvedValue(performance);
   vi.mocked(partnerService.tierHistory).mockResolvedValue([]);
+  vi.mocked(leadService.list).mockResolvedValue({ content: [], meta: { page: 0, size: 20, totalElements: 0, totalPages: 0 } });
+  vi.mocked(leadService.meta).mockResolvedValue({ stages: [], projectTypes: [], partners: [], ackTargetHours: 48, estimateTargetDays: 5, protectionDays: 90 });
 });
 
 const signIn = (me: ReturnType<typeof makeMe>) => {
@@ -201,6 +207,10 @@ describe("partner details", () => {
     expect(screen.getByText(/Add the bank account before any referral fee/)).toBeInTheDocument();
     expect(screen.getByText(/CoA conduct rules/)).toBeInTheDocument();
     expect(await screen.findByRole("progressbar", { name: "Progress to Preferred" })).toHaveAttribute("aria-valuenow", "100");
+    // The partner's leads replace the Phase 6 placeholder.
+    expect(await screen.findByText("No leads from this partner yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /New lead/ })).toHaveAttribute("href", "/leads/new?partnerId=p1");
+    expect(leadService.list).toHaveBeenCalledWith(expect.objectContaining({ partnerId: "p1" }), expect.anything());
   });
 
   it("confirms before deactivating and sends the version", async () => {

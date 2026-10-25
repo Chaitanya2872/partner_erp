@@ -93,6 +93,13 @@ public class Lead extends AuditableEntity {
     @Column(name = "conflict", nullable = false)
     private boolean conflict;
 
+    /** Set when the lead is deleted (D-26); deleted leads are hidden everywhere. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @Column(name = "deleted_by")
+    private UUID deletedBy;
+
     public String getLeadNumber() {
         return leadNumber;
     }
@@ -247,5 +254,21 @@ public class Lead extends AuditableEntity {
 
     public void setConflict(boolean conflict) {
         this.conflict = conflict;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public UUID getDeletedBy() {
+        return deletedBy;
+    }
+
+    public void setDeletedBy(UUID deletedBy) {
+        this.deletedBy = deletedBy;
     }
 }

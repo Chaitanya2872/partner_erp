@@ -101,19 +101,21 @@ Legend: **Perm** = required permission. **Src** = originating source action.
 | GET | /partners/{id}/tier-reviews | PARTNERS:READ | tier history with actor names |
 | POST | /partners/tier-review/preview | PARTNERS:APPROVE | `{partnerIds?}` (default: all non-Inactive) → proposed changes |
 | POST | /partners/tier-review/apply | PARTNERS:APPROVE | `{items: [{partnerId, action, toLevel}]}`; recomputed under lock, `409 TIER_REVIEW_STALE` on any mismatch |
-| GET | /partners/{id}/leads, /estimates, /invoices, /payments, /payouts | respective READ | Phases 6–11 |
+| GET | /partners/{id}/estimates, /invoices, /payments, /payouts | respective READ | Phases 8–11. A partner's leads use `GET /leads?partnerId=` (Phase 6) |
 | GET | /partners/{id}/statement.csv | PAYOUTS:EXPORT | Phase 11 (BR-O8) |
 
-### 3.4 Leads (src: newLead, editLead, ackLead, delLead, stage change)
-| GET | /leads | LEAD_READ | `q`, `stage`, `partnerId`, `conflict`, `slaBreach`. Rows include SLA flags & protection status |
+### 3.4 Leads (implemented, Phase 6; src: newLead, editLead, ackLead, delLead, stage change)
+| Method | Path | Authority | Notes |
 |---|---|---|---|
-| POST | /leads | LEAD_WRITE | returns `conflict` + `conflictPartnerName` warning |
-| GET | /leads/{id} | LEAD_READ | + SLA block + history |
-| PUT | /leads/{id} | LEAD_WRITE | re-runs conflict check |
-| PATCH | /leads/{id}/stage | LEAD_WRITE (+LEAD_REOPEN from Won/Lost, D-04) | `{stage, reason?}` |
-| POST | /leads/{id}/acknowledge | LEAD_ACK | locks fee, starts protection; 409 if already acknowledged |
-| DELETE | /leads/{id} | LEAD_DELETE | soft delete; 422 if documents exist (D-26) |
-| GET | /leads/{id}/history | LEAD_READ | stage history |
+| GET | /leads | LEADS:READ | `q` (client, city, partner name), `stage`, `partnerId`, `conflict`, `slaBreach` (true/false), `page`, `size` (20), `sort` ∈ createdAt, clientName, city, budget, expectedClose (default createdAt desc). Rows: partner, stage, budget, `acknowledgedAt`, `lockedFeePercent`, `protectionUntil`, `protectionActive`, `conflict`, `sla` block. Deleted leads never appear |
+| GET | /leads/meta | LEADS:READ | stages, project types, referring partners (name, status, tier name, current fee %), SLA targets and protection days |
+| POST | /leads | LEADS:WRITE | 201. Stage defaults to NEW. Phone protected for another partner: saved with `conflict: true` and `conflictPartnerName` (warning only, BR-L6/D-05) |
+| GET | /leads/{id} | LEADS:READ | + `sla` block (ackHours, ackBreach, estimateDays, estimateBreach, hasEstimate, targets, protectionDaysLeft), `acknowledgedByName`, current `conflictPartnerName` |
+| PUT | /leads/{id} | LEADS:WRITE (+APPROVE to leave Won/Lost) | with `version`; re-runs the conflict check; `stage` + optional `stageReason` follow D-04; the partner can change until acknowledgement, never after (P6-06, approved) |
+| PATCH | /leads/{id}/stage | LEADS:WRITE (+APPROVE to leave Won/Lost, else `403 STAGE_REOPEN_NOT_PERMITTED`) | `{stage, reason?, version}` |
+| POST | /leads/{id}/acknowledge | LEADS:APPROVE | open leads only: `422 LEAD_CLOSED` for Won/Lost (reopen first, P6-13). Locks the partner's current tier fee, protection = today + protection days, NEW → REGISTERED; `409 LEAD_ALREADY_ACKNOWLEDGED` |
+| DELETE | /leads/{id} | LEADS:DELETE | 204, soft delete (D-26); `409 LEAD_HAS_DOCUMENTS` while estimates, invoices, payments or internal documents point at it |
+| GET | /leads/{id}/history | LEADS:READ | stage history, oldest first, with actor names and reasons |
 
 ### 3.5 Products (src: newItem, editItem, delItem, impItems, expItems, tplItems)
 

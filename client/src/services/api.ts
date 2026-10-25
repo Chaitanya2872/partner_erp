@@ -149,6 +149,11 @@ export async function apiSend<T>(method: "post" | "put" | "patch", url: string, 
   return res.data.data as T;
 }
 
+/** DELETE endpoints answer 204 No Content. */
+export async function apiDelete(url: string): Promise<void> {
+  await http.delete(url);
+}
+
 function cleanParams(params?: Record<string, unknown>): Record<string, unknown> | undefined {
   if (!params) {
     return undefined;
