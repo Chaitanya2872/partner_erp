@@ -1,0 +1,15 @@
+package com.iotiq.partnererp.modules.products.repository;
+
+import com.iotiq.partnererp.modules.products.entity.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+import java.util.Optional;
+import java.util.UUID;
+
+public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
+
+    Optional<Product> findBySkuIgnoreCase(String sku);
+
+    boolean existsBySkuIgnoreCase(String sku);
+}

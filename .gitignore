@@ -1,0 +1,25 @@
+# Secrets and local environment (never commit credentials)
+.env
+*.env.local
+.env.*.local
+server/.env
+prd/.env
+prd/secrets/
+
+# Build output
+server/target/
+client/dist/
+client/node_modules/
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

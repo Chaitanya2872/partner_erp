@@ -1,0 +1,860 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script>(function(){
+const KEY='iotiq_erp_v1';let store=null;
+try{store=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+if(!store)store={"items": {"it_cp00": {"id": "it_cp00", "sku": "STI-2M", "category": "Smart Touch Interfaces", "b2cName": "2 Module With Edge", "cpName": "Smart Touch Interface - 2M (STI-2M)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 5749, "cost": 0, "placeholder": false}, "it_cp01": {"id": "it_cp01", "sku": "STI-4M", "category": "Smart Touch Interfaces", "b2cName": "4 Module With Edge", "cpName": "Smart Touch Interface - 4M (STI-4M)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 8049, "cost": 0, "placeholder": false}, "it_cp02": {"id": "it_cp02", "sku": "STI-6M", "category": "Smart Touch Interfaces", "b2cName": "6 Module With Edge", "cpName": "Smart Touch Interface - 6M (STI-6M)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 10349, "cost": 0, "placeholder": false}, "it_cp03": {"id": "it_cp03", "sku": "STI-8M", "category": "Smart Touch Interfaces", "b2cName": "8 Module With Edge", "cpName": "Smart Touch Interface - 8M (STI-8M)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 13799, "cost": 0, "placeholder": false}, "it_cp04": {"id": "it_cp04", "sku": "STI-12M", "category": "Smart Touch Interfaces", "b2cName": "12 Module With Edge", "cpName": "Smart Touch Interface - 12M (STI-12M)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 20699, "cost": 0, "placeholder": false}, "it_cp05": {"id": "it_cp05", "sku": "STI-18M", "category": "Smart Touch Interfaces", "b2cName": "18 Module With No Edge", "cpName": "Smart Touch Interface - 18M (STI-18M)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 27599, "cost": 0, "placeholder": false}, "it_cp06": {"id": "it_cp06", "sku": "SRC-6P1", "category": "Smart Relay & Sensing", "b2cName": "6+1 Switch Controller", "cpName": "6+1 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 8625, "cost": 0, "placeholder": false}, "it_cp07": {"id": "it_cp07", "sku": "SRC-6", "category": "Smart Relay & Sensing", "b2cName": "6 Switch Controller", "cpName": "6 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 8099, "cost": 0, "placeholder": false}, "it_cp08": {"id": "it_cp08", "sku": "SRC-5", "category": "Smart Relay & Sensing", "b2cName": "5 Switch Controller", "cpName": "5 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 7836, "cost": 0, "placeholder": false}, "it_cp09": {"id": "it_cp09", "sku": "SRC-4P1", "category": "Smart Relay & Sensing", "b2cName": "4+1 Switch Controller", "cpName": "4+1 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 6785, "cost": 0, "placeholder": false}, "it_cp10": {"id": "it_cp10", "sku": "SRC-4", "category": "Smart Relay & Sensing", "b2cName": "4 Switch Controller", "cpName": "4 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 6508, "cost": 0, "placeholder": false}, "it_cp11": {"id": "it_cp11", "sku": "SRC-3", "category": "Smart Relay & Sensing", "b2cName": "3 Switch Controller", "cpName": "3 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 5180, "cost": 0, "placeholder": false}, "it_cp12": {"id": "it_cp12", "sku": "SRC-2", "category": "Smart Relay & Sensing", "b2cName": "2 Switch Controller", "cpName": "2 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 3864, "cost": 0, "placeholder": false}, "it_cp13": {"id": "it_cp13", "sku": "SRC-1P1", "category": "Smart Relay & Sensing", "b2cName": "1+1 Switch Controller", "cpName": "1+1 Smart Relay controller", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 3501, "cost": 0, "placeholder": false}, "it_cp14": {"id": "it_cp14", "sku": "SRH-15A", "category": "Smart Relay & Sensing", "b2cName": "HDR 15A", "cpName": "Smart Relay Heavy Module - 15A", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 2625, "cost": 0, "placeholder": false}, "it_cp15": {"id": "it_cp15", "sku": "SRH-25A", "category": "Smart Relay & Sensing", "b2cName": "HDR 25A", "cpName": "Smart Relay Heavy Module - 25A", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 3289, "cost": 0, "placeholder": false}, "it_cp16": {"id": "it_cp16", "sku": "PIR-01", "category": "Smart Relay & Sensing", "b2cName": "Motion Sensor", "cpName": "Occupancy Detection Module(PIR)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 2530, "cost": 0, "placeholder": false}, "it_cp17": {"id": "it_cp17", "sku": "IRB-01", "category": "Smart Relay & Sensing", "b2cName": "IR Blaster", "cpName": "IR Bridge", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 3322, "cost": 0, "placeholder": false}, "it_cp18": {"id": "it_cp18", "sku": "TIK-01", "category": "Smart Relay & Sensing", "b2cName": "Automation Dongle", "cpName": "Touch Interface key", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 1299, "cost": 0, "placeholder": false}, "it_cp19": {"id": "it_cp19", "sku": "STI-RMT", "category": "Smart Relay & Sensing", "b2cName": "Touch Panel Remote", "cpName": "STI Remote", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 920, "cost": 0, "placeholder": false}, "it_cp20": {"id": "it_cp20", "sku": "SG-10F", "category": "Smart Glide", "b2cName": "3.2 Curtain Controller", "cpName": "Smart Glide 10F", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 22960, "cost": 0, "placeholder": false}, "it_cp21": {"id": "it_cp21", "sku": "SG-17F", "category": "Smart Glide", "b2cName": "5.2 Curtain Controller", "cpName": "Smart Glide 17F", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 25300, "cost": 0, "placeholder": false}, "it_cp22": {"id": "it_cp22", "sku": "SG-23F", "category": "Smart Glide", "b2cName": "7.2 Curtain Controller", "cpName": "Smart Glide 23F", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 27720, "cost": 0, "placeholder": false}, "it_cp23": {"id": "it_cp23", "sku": "SG-33F", "category": "Smart Glide", "b2cName": "10.2 Curtain Controller", "cpName": "Smart Glide 33F", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 31900, "cost": 0, "placeholder": false}, "it_cp24": {"id": "it_cp24", "sku": "LK-ZURI", "category": "Locks & Entry", "b2cName": "Yale Zuri Smart Lock", "cpName": "Yale Zuri Smart Lock", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 14500, "cost": 0, "placeholder": false}, "it_cp25": {"id": "it_cp25", "sku": "LK-KYRA", "category": "Locks & Entry", "b2cName": "Yale Kyra Pro Smart Lock", "cpName": "Yale Kyra Pro Smart Lock", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 32999, "cost": 0, "placeholder": false}, "it_cp26": {"id": "it_cp26", "sku": "VDB-01", "category": "Locks & Entry", "b2cName": "One Touch Video Doorbell with Screen", "cpName": "One Touch Video Doorbell with Screen", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 27560, "cost": 0, "placeholder": false}, "it_cp27": {"id": "it_cp27", "sku": "WIFI-BR", "category": "Locks & Entry", "b2cName": "Wi-Fi Bridge (Smart Lock Accessories)", "cpName": "Wi-Fi Bridge (Smart Lock Accessories)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 6473, "cost": 0, "placeholder": false}, "it_cp28": {"id": "it_cp28", "sku": "BT-MOD", "category": "Locks & Entry", "b2cName": "Bluetooth Module (Smart Lock Accessories)", "cpName": "Bluetooth Module (Smart Lock Accessories)", "aliases": [], "hsn": "", "gst": 18, "unit": "nos", "b2cPrice": 0, "cpPrice": 4055, "cost": 0, "placeholder": false}}, "settings": {"tiers": {"id": "tiers", "list": [{"n": 1, "name": "Registered", "fee": 8, "min": 0, "payoutDays": 15}, {"n": 2, "name": "Preferred", "fee": 10, "min": 1000000, "payoutDays": 12}, {"n": 3, "name": "Elite", "fee": 12, "min": 3000000, "payoutDays": 10}, {"n": 4, "name": "Strategic", "fee": 15, "min": 10000000, "payoutDays": 7}]}, "main": {"id": "main", "company": "IOTIQ", "protectDays": 90, "clawbackDays": 90, "tdsPct": 2, "tdsThreshold": 20000, "ackHours": 48, "estimateDays": 5, "validDays": 15, "dueDays": 15, "defaultGst": 18}}};
+const subs=[];const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){}};
+const fire=()=>subs.forEach(s=>s());
+const mk=path=>({
+ doc:id=>({
+  set:async d=>{(store[path]=store[path]||{})[id]=JSON.parse(JSON.stringify(d));save();fire()},
+  delete:async()=>{if(store[path])delete store[path][id];save();fire()}}),
+ onSnapshot:(next)=>{const f=()=>next({docs:Object.entries(store[path]||{}).map(([id,d])=>({id,data:()=>d}))});subs.push(f);setTimeout(f,0);return()=>{}}
+});
+const downloads={save:async({filename,data})=>{const b=new Blob([data],{type:'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);return {status:'saved'}}};
+window.__standalone=true;window.__store=store;
+window.claude={use:async n=>n==='db'?{collection:mk}:n==='user'?{can:()=>true}:n==='downloads'?downloads:null};
+})();</script></head><body><title>IOTIQ Partner ERP</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: fixed left rail (top scroller on phones) + working area; ivory/forest brand palette, gold used only for emphasis. */
+:root{
+  --bg:#f4efe2; --surface:#fbf8ef; --ink:#11271c; --muted:#5d6b61; --line:#ddd5c0;
+  --accent:#c39c67; --accent-ink:#7d5f2c; --nav:#11271c; --nav-ink:#f4efe2; --nav-mute:#9fb0a4;
+  --good:#2f7a4d; --warn:#a8680f; --bad:#b3402f; --info:#2f5f8a;
+  --good-bg:#e1efe5; --warn-bg:#f6e8cf; --bad-bg:#f5ddd8; --info-bg:#dce8f2; --zebra:#f7f2e5;
+  --display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --body:'Instrument Sans','Segoe UI',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1a13; --surface:#12291d; --ink:#f1ede1; --muted:#a3b2a7; --line:#27412f;
+  --accent:#c39c67; --accent-ink:#d9b887; --nav:#08130d; --nav-ink:#f1ede1; --nav-mute:#8fa296;
+  --good:#6cc08a; --warn:#e0a54d; --bad:#e8836f; --info:#7fb0dc;
+  --good-bg:#17382573; --warn-bg:#3d2f1280; --bad-bg:#47201a80; --info-bg:#17304880; --zebra:#0f2217; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1a13; --surface:#12291d; --ink:#f1ede1; --muted:#a3b2a7; --line:#27412f;
+  --accent:#c39c67; --accent-ink:#d9b887; --nav:#08130d; --nav-ink:#f1ede1; --nav-mute:#8fa296;
+  --good:#6cc08a; --warn:#e0a54d; --bad:#e8836f; --info:#7fb0dc;
+  --good-bg:#17382573; --warn-bg:#3d2f1280; --bad-bg:#47201a80; --info-bg:#17304880; --zebra:#0f2217; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);margin:0;padding-block:0;padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+.shell{display:grid;grid-template-columns:216px minmax(0,1fr);min-height:100vh}
+nav.rail{background:var(--nav);color:var(--nav-ink);padding:18px 10px;position:sticky;top:0;align-self:start;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.brand{font:700 20px var(--display);padding:4px 10px 2px;letter-spacing:.02em}
+.brand small{display:block;font:500 11px var(--body);color:var(--accent);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+.rail .grp{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--nav-mute);padding:14px 10px 4px}
+.rail button{all:unset;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:6px;color:var(--nav-ink);font-weight:500}
+.rail button:hover{background:#ffffff14}
+.rail button.on{background:var(--accent);color:#11271c}
+.rail button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.rail .badge{font:500 11px var(--mono);background:var(--bad);color:#fff;border-radius:9px;padding:0 6px}
+.rail .foot{margin-top:auto;font-size:11px;color:var(--nav-mute);padding:10px}
+main{padding:22px max(20px,env(safe-area-inset-right,0px)) 60px 24px;min-width:0}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.top h1{font-size:26px}
+.top p{margin:2px 0 0;color:var(--muted)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--nav);color:var(--nav-ink);border-color:var(--nav)}
+:root[data-theme="dark"] .btn.primary{background:var(--accent);color:#11271c;border-color:var(--accent)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{background:var(--accent);color:#11271c;border-color:var(--accent)}}
+.btn.sm{padding:3px 8px;font-size:12px}
+.btn.danger{color:var(--bad)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font:500 22px var(--mono);margin-top:4px;font-variant-numeric:tabular-nums}
+.tile .s{font-size:12px;color:var(--muted);margin-top:2px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.card h3{font-size:15px;margin-bottom:10px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.card .scroll{border:0}
+table.tbl{border-collapse:collapse;width:100%;min-width:560px}
+.tbl th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:600}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr:nth-child(even) td{background:var(--zebra)}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl .mono{font-family:var(--mono);font-size:12.5px}
+.tbl a,.lnk{color:var(--accent-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px;background:none;border:0;padding:0;font-weight:500}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:10px;white-space:nowrap;background:var(--line);color:var(--ink)}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}.pill.info{background:var(--info-bg);color:var(--info)}
+.pill.gold{background:var(--accent);color:#11271c}
+.bar{display:grid;grid-template-columns:110px 1fr 70px;gap:8px;align-items:center;margin:5px 0;font-size:13px}
+.bar i{display:block;height:14px;background:var(--accent);border-radius:3px;min-width:2px}
+.bar span:last-child{text-align:right;font-family:var(--mono);color:var(--muted)}
+.alert{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}
+.alert:last-child{border:0}
+.muted{color:var(--muted)}.small{font-size:12px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.tools input,.tools select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-width:0}
+.tools input[type=search]{flex:1 1 200px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.seg .btn.on{background:var(--accent);color:#11271c;border-color:var(--accent)}
+/* modal */
+#modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh max(12px,env(safe-area-inset-left,0px)) 4vh max(12px,env(safe-area-inset-right,0px));overflow:auto}
+#modal[hidden]{display:none}
+.mback{position:fixed;inset:0;background:#000a}
+.mbox{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:10px;width:min(620px,100%);box-shadow:0 20px 60px #0007;display:flex;flex-direction:column;max-height:92vh}
+.mbox.wide{width:min(980px,100%)}
+.mbox header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.mbox header h3{font-size:18px}
+.mbox .x{all:unset;cursor:pointer;font-size:22px;line-height:1;padding:2px 8px;color:var(--muted)}
+.mbox .body{padding:16px 18px;overflow:auto;min-height:0}
+.mbox footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;padding:16px 18px;overflow:auto}
+.mbox.wide .fgrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fld{display:flex;flex-direction:column;gap:3px;min-width:0}
+.fld.w2{grid-column:span 2}.fld.w4{grid-column:1/-1}
+.fld label{font-size:12px;color:var(--muted);font-weight:600}
+.fld input,.fld select,.fld textarea{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+.fld small{color:var(--muted);font-size:11.5px}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px!important;color:var(--ink)!important;font-weight:500!important}
+.chk input{width:auto}
+.fsec{grid-column:1/-1;font-size:13px;color:var(--accent-ink);border-bottom:1px solid var(--line);padding-bottom:4px;margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
+.err{color:var(--bad);padding:0 18px 8px;min-height:0}
+.lines input,.lines select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 7px;width:100%;min-width:0}
+.lines td{padding:4px 5px}
+.tot{margin:10px 0 0 auto;width:min(340px,100%);font-family:var(--mono);font-size:13px}
+.tot div{display:flex;justify-content:space-between;padding:2px 0}
+.tot .g{border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-weight:600;font-size:15px}
+.stamp{background:var(--warn-bg);color:var(--warn);border:1px dashed var(--warn);padding:6px 10px;border-radius:6px;font-weight:600;font-size:12.5px;margin-bottom:10px}
+/* printable document (kept light in both themes: it is a paper document) */
+.doc{background:#fff;color:#1a1a1a;padding:26px 28px;border-radius:4px;font:13px/1.45 'Instrument Sans',Arial,sans-serif;border:1px solid #d8d2c0}
+.doc h2{font:700 22px 'Bricolage Grotesque',Arial,sans-serif;margin:0;color:#11271c}
+.doc .hd{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:3px solid #c39c67;padding-bottom:10px;margin-bottom:12px}
+.doc .meta{text-align:right;font-size:12.5px}
+.doc .parties{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px}
+.doc .lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#6b6b6b}
+.doc table{border-collapse:collapse;width:100%;margin-bottom:8px}
+.doc th{background:#11271c;color:#f4efe2;text-align:left;padding:6px 8px;font-size:11.5px}
+.doc td{padding:6px 8px;border-bottom:1px solid #e4dfd0;vertical-align:top}
+.doc .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.doc .tt{margin-left:auto;width:min(300px,100%)}
+.doc .tt div{display:flex;justify-content:space-between;padding:2px 0}
+.doc .tt .g{border-top:2px solid #11271c;font-weight:700;font-size:15px;margin-top:4px;padding-top:5px}
+.doc .note{margin-top:12px;font-size:12px;color:#444;white-space:pre-wrap}
+.doc.int{border:2px dashed #a8680f}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--nav);color:var(--nav-ink);padding:9px 16px;border-radius:8px;z-index:80;max-width:90vw;box-shadow:0 8px 24px #0006}
+#toast[hidden]{display:none}
+.ro .w{display:none!important}
+@media (max-width:820px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  nav.rail{position:sticky;top:0;height:auto;flex-direction:row;overflow-x:auto;padding:8px 10px;z-index:20;align-items:center;gap:4px}
+  .rail .grp,.rail .foot,.brand small{display:none}
+  .rail button{white-space:nowrap}
+  main{padding:16px max(16px,env(safe-area-inset-left,0px)) 60px max(16px,env(safe-area-inset-right,0px))}
+  .fgrid,.mbox.wide .fgrid{grid-template-columns:minmax(0,1fr)}
+  .fld.w2{grid-column:auto}
+  .doc .parties{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="app"><div class="empty">Loading partner ERP…</div></div>
+<div id="modal" hidden></div>
+<div id="toast" hidden></div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2=n=>Math.round((+n||0)*100)/100;
+const inr=n=>'₹'+r2(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});
+const pad=(n,l)=>String(n).padStart(l,'0');
+const dstr=d=>d.getFullYear()+'-'+pad(d.getMonth()+1,2)+'-'+pad(d.getDate(),2);
+const today=()=>dstr(new Date());
+const pd=s=>{const [y,m,d]=String(s).slice(0,10).split('-').map(Number);return new Date(y,(m||1)-1,d||1)};
+const addDays=(s,n)=>{const d=pd(s);d.setDate(d.getDate()+n);return dstr(d)};
+const addBiz=(s,n)=>{const d=pd(s);let k=0;while(k<n){d.setDate(d.getDate()+1);const w=d.getDay();if(w!==0&&w!==6)k++}return dstr(d)};
+const diffDays=(a,b)=>Math.round((pd(a)-pd(b))/864e5);
+const fmtD=s=>{if(!s)return '—';const d=pd(s);return pad(d.getDate(),2)+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear()};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const fyOf=s=>{const d=pd(s);const y=d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;return y};
+const fyStart=s=>fyOf(s)+'-04-01';
+const fyTag=s=>{const y=fyOf(s);return pad(y%100,2)+pad((y+1)%100,2)};
+const digits=s=>String(s||'').replace(/\D/g,'').slice(-10);
+
+/* ---------- constants & defaults ---------- */
+const CATS=['Interior designer','Architect','Builder','Developer','Contractor (civil/electrical/MEP)','Electrical dealer','Kitchen / furniture showroom','Society / real-estate app','Other'];
+const STAGES=['New','Registered','Presales','Site visit','Estimate sent','Negotiation','Won','Lost'];
+const PTYPES=['Villa','Apartment','Multi-unit project','Office','Retrofit / renovation','Other'];
+const ICATS=['Smart Touch Interfaces','Smart Relay & Sensing','Smart Glide','Locks & Entry','Services'];
+const DEF={company:'IOTIQ',address:"6th Floor, Pardha's Picasa, Durgam Cheruvu Road, Kavuri Hills, Madhapur, Hyderabad, Telangana - 500081",gstin:'',phone:'8121234162',email:'gowtham.k@iotiq.co.in',
+ protectDays:90,clawbackDays:90,tdsPct:2,tdsThreshold:20000,ackHours:48,estimateDays:5,validDays:15,dueDays:15,defaultGst:18,terms:'Quote valid for the period shown. Prices exclude site civil, wiring and back-box work unless listed. Payment: as agreed in the order confirmation.'};
+const DEFTIERS=[{n:1,name:'Registered',fee:8,min:0,payoutDays:15},{n:2,name:'Preferred',fee:10,min:1000000,payoutDays:12},{n:3,name:'Elite',fee:12,min:3000000,payoutDays:10},{n:4,name:'Strategic',fee:15,min:10000000,payoutDays:7}];
+const COLS=['cps','leads','items','estimates','invoices','payments','payouts','b2c_docs','settings'];
+const S={};COLS.forEach(c=>S[c]=[]);
+const UI={view:'dashboard',cp:null,q:'',stage:'',cpf:'',pf:'',report:'funnel',loaded:0};
+let db=null,dl=null,canW=true,booted=false;
+try{const v=localStorage.getItem('iotiq_erp_view');if(v)UI.view=v}catch(e){}
+
+const cfg=()=>Object.assign({},DEF,(S.settings.find(x=>x.id==='main')||{}));
+const tiers=()=>{const t=S.settings.find(x=>x.id==='tiers');const l=(t&&t.list&&t.list.length?t.list:DEFTIERS).slice().sort((a,b)=>a.n-b.n);return l};
+const tierBy=n=>tiers().find(t=>t.n===+n)||tiers()[0];
+const tierForRev=rev=>{let r=tiers()[0];tiers().forEach(t=>{if(rev>=t.min)r=t});return r};
+const byId=(arr,id)=>arr.find(x=>x.id===id);
+const cpOf=id=>byId(S.cps,id);
+const cpName=id=>(cpOf(id)||{}).name||'—';
+const leadOf=id=>byId(S.leads,id);
+
+/* ---------- db access ---------- */
+const put=(c,o)=>db.collection(c).doc(o.id).set(JSON.parse(JSON.stringify(o)));
+const del=(c,id)=>db.collection(c).doc(id).delete();
+function subscribe(c){
+  db.collection(c).onSnapshot(snap=>{S[c]=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));UI.loaded++;sched()},
+    err=>{console.warn('db',c,err&&err.code);UI.loaded++;sched()});
+}
+
+/* ---------- domain logic ---------- */
+function totals(lines,disc,key){
+  let sub=0,tax=0;(lines||[]).forEach(l=>{const a=(+l.qty||0)*(+l[key]||0);sub+=a;tax+=a*(1-(+disc||0)/100)*(+l.gst||0)/100});
+  const d=sub*(+disc||0)/100;const taxable=sub-d;
+  return {sub:r2(sub),disc:r2(d),taxable:r2(taxable),tax:r2(tax),total:r2(taxable+tax)};
+}
+const pays=inv=>S.payments.filter(p=>p.invoiceId===inv.id);
+const paidOf=inv=>r2(pays(inv).reduce((a,p)=>a+(+p.amount||0),0));
+function invStatus(inv){
+  if(inv.status==='cancelled')return {t:'Cancelled',c:''};
+  const paid=paidOf(inv),tot=inv.cpT.total;
+  if(paid>=tot-0.5)return {t:'Paid',c:'good'};
+  const od=inv.dueDate&&inv.dueDate<today();
+  if(paid>0)return {t:od?'Partly paid · overdue':'Partly paid',c:od?'bad':'warn'};
+  return od?{t:'Overdue',c:'bad'}:{t:'Unpaid',c:'info'};
+}
+const cpRev=(cpId,since)=>r2(S.payments.filter(p=>p.cpId===cpId&&(!since||p.date>=since)).reduce((a,p)=>a+(+p.net||0),0));
+const cpRev12=cpId=>cpRev(cpId,addDays(today(),-365));
+const cpTier=cp=>tierBy(cp.tier||1);
+function nextNo(prefix,list,field,date){
+  const tag=prefix+'-'+fyTag(date||today())+'-';let max=0;
+  list.forEach(x=>{const n=String(x[field]||'');if(n.startsWith(tag)){const k=parseInt(n.slice(tag.length),10);if(k>max)max=k}});
+  return tag+pad(max+1,4);
+}
+function leadSla(l){
+  const c=cfg();const nowMs=Date.now();let ackBreach=false,ackHrs=null,estBreach=false,estDays=null;
+  if(l.ackAt){ackHrs=Math.round((l.ackAt-l.createdAt)/36e5);ackBreach=ackHrs>c.ackHours}
+  else if(!['Won','Lost'].includes(l.stage)){ackHrs=Math.round((nowMs-l.createdAt)/36e5);ackBreach=ackHrs>c.ackHours}
+  const est=S.estimates.filter(e=>e.leadId===l.id).sort((a,b)=>a.date<b.date?-1:1)[0];
+  if(l.ackAt){const ackD=dstr(new Date(l.ackAt));
+    if(est){estDays=diffDays(est.date,ackD);estBreach=estDays>c.estimateDays}
+    else if(!['Won','Lost'].includes(l.stage)){estDays=diffDays(today(),ackD);estBreach=estDays>c.estimateDays}}
+  return {ackBreach,ackHrs,estBreach,estDays,hasEst:!!est};
+}
+function alerts(){
+  const out=[];const t=today();
+  S.leads.filter(l=>!['Won','Lost'].includes(l.stage)).forEach(l=>{
+    const s=leadSla(l);
+    if(!l.ackAt&&s.ackBreach)out.push({lvl:'bad',text:`Lead “${l.client}” (${cpName(l.cpId)}) not acknowledged within ${cfg().ackHours} h`,go:'leads'});
+    if(l.ackAt&&!s.hasEst&&s.estBreach)out.push({lvl:'bad',text:`No estimate yet for “${l.client}”: ${s.estDays} days since acknowledgement (target ${cfg().estimateDays})`,go:'leads'});
+    if(l.protectedUntil){const left=diffDays(l.protectedUntil,t);if(left>=0&&left<=15)out.push({lvl:'warn',text:`Protection for “${l.client}” ends in ${left} day(s)`,go:'leads'});}
+  });
+  S.estimates.filter(e=>e.status==='sent'&&e.validTill&&e.validTill<t).forEach(e=>out.push({lvl:'warn',text:`Estimate ${e.no} expired on ${fmtD(e.validTill)}`,go:'estimates'}));
+  S.invoices.filter(i=>i.status!=='cancelled'&&invStatus(i).c==='bad').forEach(i=>out.push({lvl:'bad',text:`Invoice ${i.no} overdue: ${inr(i.cpT.total-paidOf(i))} outstanding`,go:'invoices'}));
+  S.payouts.filter(p=>p.status!=='paid'&&p.dueOn&&p.dueOn<t&&p.fee>0).forEach(p=>out.push({lvl:'bad',text:`Payout to ${cpName(p.cpId)} of ${inr(p.fee)} was due ${fmtD(p.dueOn)}`,go:'payouts'}));
+  S.cps.filter(c=>c.status==='Active'&&c.slaStatus!=='Signed').forEach(c=>out.push({lvl:'warn',text:`${c.name} is active but the partner agreement is not signed`,go:'partners'}));
+  return out;
+}
+/* tier review: upgrades immediately, downgrades after one grace quarter, one tier at a time */
+function reviewCp(cp){
+  const cur=cp.tier||1;const target=cp.programme?4:tierForRev(cpRev12(cp.id)).n;
+  if(target>cur)return {cp,from:cur,to:target,action:'upgrade'};
+  if(target<cur){return cp.grace?{cp,from:cur,to:cur-1,action:'downgrade'}:{cp,from:cur,to:cur,action:'grace'}}
+  return {cp,from:cur,to:cur,action:cp.grace?'recovered':'none'};
+}
+function tdsFor(cp,fee){
+  const c=cfg();if(fee<=0)return 0;
+  const prev=S.payouts.filter(p=>p.cpId===cp.id&&p.status==='paid'&&p.paidOn>=fyStart(today())).reduce((a,p)=>a+p.fee,0);
+  let base=0;if(prev>=c.tdsThreshold)base=fee;else if(prev+fee>c.tdsThreshold)base=prev+fee;
+  return r2(base*c.tdsPct/100);
+}
+
+/* ---------- save estimate / invoice, with the internal B2C twin ---------- */
+async function saveDoc(kind,doc){
+  doc.cpT=totals(doc.lines,doc.discount,'rate');
+  doc.b2cT=totals(doc.lines,doc.discount,'b2cRate');
+  doc.updatedAt=Date.now();
+  await put(kind,doc);
+  const twin={id:'b2c_'+doc.id,type:kind==='estimates'?'estimate':'invoice',parentId:doc.id,parentNo:doc.no,no:'INT-'+doc.no,
+    cpId:doc.cpId,leadId:doc.leadId,date:doc.date,discount:doc.discount,igst:doc.igst,
+    lines:doc.lines.map(l=>({name:l.b2cName,cpName:l.name,hsn:l.hsn,unit:l.unit,qty:l.qty,rate:l.b2cRate,gst:l.gst})),
+    t:doc.b2cT,cpT:doc.cpT,uplift:r2(doc.b2cT.taxable-doc.cpT.taxable),updatedAt:Date.now()};
+  await put('b2c_docs',twin);
+}
+
+/* ---------- UI plumbing ---------- */
+let rq=0;function sched(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;render()})}
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3200)}
+function openModal(html,cls){const m=$('#modal');m.innerHTML=`<div class="mback" data-act="closeModal"></div><div class="mbox ${cls||''}" role="dialog" aria-modal="true">${html}</div>`;m.hidden=false}
+function closeModal(){const m=$('#modal');m.hidden=true;m.innerHTML='';ED=null}
+function ask(msg,fn,label){
+  openModal(`<header><h3>Please confirm</h3><button class="x" data-act="closeModal">×</button></header><div class="body">${msg}</div><footer><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="askok">${label||'Confirm'}</button></footer>`);
+  $('#askok').onclick=async()=>{try{await fn();closeModal()}catch(e){toast(e.message||'Failed')}};
+}
+function form(o){
+  const h=o.fields.map(f=>{
+    if(f.t==='sec')return `<h4 class="fsec">${f.l}</h4>`;
+    const v=(o.values&&o.values[f.k]!=null)?o.values[f.k]:(f.d!=null?f.d:'');const id='f_'+f.k;let inp;
+    if(f.t==='select')inp=`<select id="${id}">${f.o.map(x=>{const a=Array.isArray(x)?x:[x,x];return `<option value="${esc(a[0])}" ${String(v)===String(a[0])?'selected':''}>${esc(a[1])}</option>`}).join('')}</select>`;
+    else if(f.t==='area')inp=`<textarea id="${id}" rows="${f.rows||3}">${esc(v)}</textarea>`;
+    else if(f.t==='check')inp=`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''}> ${f.cl||''}</label>`;
+    else inp=`<input id="${id}" type="${f.t||'text'}" value="${esc(v)}" ${f.step?`step="${f.step}"`:''} ${f.ph?`placeholder="${esc(f.ph)}"`:''}>`;
+    return `<div class="fld ${f.w||''}">${f.t==='check'?'':`<label for="${id}">${f.l}</label>`}${inp}${f.help?`<small>${f.help}</small>`:''}</div>`;
+  }).join('');
+  openModal(`<header><h3>${o.title}</h3><button class="x" data-act="closeModal" aria-label="Close">×</button></header><div class="fgrid">${h}</div><div id="ferr" class="err"></div><footer><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="fsave">${o.submit||'Save'}</button></footer>`,o.wide?'wide':'');
+  $('#fsave').onclick=async()=>{
+    const v={};o.fields.forEach(f=>{if(f.t==='sec')return;const el=$('#f_'+f.k);v[f.k]=f.t==='check'?el.checked:f.t==='number'?(el.value===''?null:parseFloat(el.value)):el.value.trim()});
+    try{$('#fsave').disabled=true;const r=await o.save(v);if(r!==false)closeModal();else $('#fsave').disabled=false}
+    catch(e){$('#ferr').textContent=e.message||String(e);$('#fsave').disabled=false}
+  };
+}
+const pill=(t,c)=>`<span class="pill ${c||''}">${esc(t)}</span>`;
+function tbl(cols,rows,empty){
+  if(!rows.length)return `<div class="scroll"><div class="empty">${empty||'Nothing here yet.'}</div></div>`;
+  return `<div class="scroll"><table class="tbl"><thead><tr>${cols.map(c=>`<th class="${c.r?'r':''}">${c.h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((x,i)=>`<td class="${cols[i]&&cols[i].r?'r':''}">${x}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+const btn=(act,id,label,cls)=>`<button class="btn sm ${cls||''}" data-act="${act}" data-id="${esc(id||'')}">${label}</button>`;
+const lnk=(act,id,label)=>`<button class="lnk" data-act="${act}" data-id="${esc(id||'')}">${esc(label)}</button>`;
+function download(name,data,label){
+  if(!dl){toast('Downloads are not available in this view');return}
+  dl.save({filename:name,data}).then(()=>toast((label||'File')+' saved')).catch(e=>{if(e&&e.code!=='declined')toast('Could not save: '+(e.message||e.code))});
+}
+function csv(cols,rows){
+  const q=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  return [cols.map(q).join(',')].concat(rows.map(r=>r.map(q).join(','))).join('\n');
+}
+function parseCsv(text){
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}
+    else if(ch==='"')q=true;else if(ch===','){row.push(cur);cur=''}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(x=>x!==''))rows.push(row);row=[]}
+    else cur+=ch}
+  if(cur!==''||row.length){row.push(cur);if(row.some(x=>x!==''))rows.push(row)}
+  return rows;
+}
+
+/* ---------- views ---------- */
+const NAV=[['dashboard','Dashboard'],['grp','Funnel'],['partners','Partners'],['leads','Leads'],['grp','Sales'],['estimates','Estimates'],['invoices','Invoices'],['payments','Payments'],['payouts','Partner payouts'],['grp','Master'],['items','Item & price sheet'],['reports','Reports'],['settings','Settings']];
+function shell(body){
+  const al=alerts().length;
+  return `<div class="shell ${canW?'':'ro'}"><nav class="rail" aria-label="Main"><div class="brand">IOTIQ<small>Partner ERP</small></div>${NAV.map(n=>n[0]==='grp'?`<div class="grp">${n[1]}</div>`:`<button data-act="nav" data-id="${n[0]}" class="${UI.view===n[0]?'on':''}">${n[1]}${n[0]==='dashboard'&&al?`<span class="badge">${al}</span>`:''}</button>`).join('')}<div class="foot">Internal use only.<br>Partner copies never show B2C names or prices.</div></nav><main>${body}</main></div>`;
+}
+function head(title,sub,acts){return `<div class="top"><div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div><div class="acts">${acts||''}</div></div>`}
+
+function vDash(){
+  const t=today(),c=cfg();
+  const active=S.cps.filter(x=>x.status==='Active').length;
+  const open=S.leads.filter(l=>!['Won','Lost'].includes(l.stage));
+  const pipeline=open.reduce((a,l)=>a+(+l.budget||0),0);
+  const invs=S.invoices.filter(i=>i.status!=='cancelled');
+  const fy0=fyStart(t);
+  const invFY=invs.filter(i=>i.date>=fy0).reduce((a,i)=>a+i.cpT.taxable,0);
+  const recv=invs.reduce((a,i)=>a+Math.max(0,i.cpT.total-paidOf(i)),0);
+  const collFY=S.payments.filter(p=>p.date>=fy0).reduce((a,p)=>a+(+p.net||0),0);
+  const owed=S.payouts.filter(p=>p.status!=='paid').reduce((a,p)=>a+p.fee,0);
+  const uplift=S.b2c_docs.filter(d=>d.type==='invoice'&&d.date>=fy0).reduce((a,d)=>a+(+d.uplift||0),0);
+  const funnel=STAGES.map(s=>({s,n:S.leads.filter(l=>l.stage===s).length,v:S.leads.filter(l=>l.stage===s).reduce((a,l)=>a+(+l.budget||0),0)}));
+  const mx=Math.max(1,...funnel.map(f=>f.n));
+  const al=alerts();
+  const top=S.cps.map(cp=>({cp,rev:cpRev12(cp.id)})).sort((a,b)=>b.rev-a.rev).slice(0,5);
+  const dist=tiers().map(tt=>({tt,n:S.cps.filter(x=>(x.tier||1)===tt.n&&x.status!=='Inactive').length}));
+  return head('Dashboard',`Financial year ${fyOf(t)}-${String(fyOf(t)+1).slice(2)} · ${fmtD(t)}`,`<button class="btn primary w" data-act="newLead">+ Lead</button><button class="btn w" data-act="newEst">+ Estimate</button><button class="btn w" data-act="newCp">+ Partner</button>`)+
+  `<div class="tiles">
+    <div class="tile"><div class="k">Active partners</div><div class="v">${active}</div><div class="s">${S.cps.length} on record</div></div>
+    <div class="tile"><div class="k">Open leads</div><div class="v">${open.length}</div><div class="s">${inr(pipeline)} budget</div></div>
+    <div class="tile"><div class="k">Invoiced (FY, ex-GST)</div><div class="v">${inr(invFY)}</div><div class="s">partner price</div></div>
+    <div class="tile"><div class="k">Collected (FY, ex-GST)</div><div class="v">${inr(collFY)}</div><div class="s">basis for tiers</div></div>
+    <div class="tile"><div class="k">Receivables</div><div class="v">${inr(recv)}</div><div class="s">incl. GST</div></div>
+    <div class="tile"><div class="k">Partner fees unpaid</div><div class="v">${inr(owed)}</div><div class="s">accrued + due</div></div>
+    <div class="tile"><div class="k">Discount vs B2C list</div><div class="v">${inr(uplift)}</div><div class="s">FY, from internal copies</div></div>
+  </div>
+  <div class="cols">
+   <div class="card"><h3>Lead funnel</h3>${funnel.map(f=>`<div class="bar"><span>${f.s}</span><div><i style="width:${Math.round(f.n/mx*100)}%"></i></div><span>${f.n}</span></div>`).join('')}
+     <p class="small muted">Won ${funnel[6].n} of ${S.leads.length} leads${S.leads.length?` (${Math.round(funnel[6].n/S.leads.length*100)}%)`:''}.</p></div>
+   <div class="card"><h3>Needs attention ${al.length?pill(al.length,'bad'):''}</h3>${al.length?al.slice(0,9).map(a=>`<div class="alert">${pill(a.lvl==='bad'?'Late':'Watch',a.lvl)}<span>${esc(a.text)}</span></div>`).join('')+(al.length>9?`<p class="small muted">and ${al.length-9} more</p>`:''):'<div class="empty">All SLA clocks, invoices and payouts are on track.</div>'}</div>
+  </div>
+  <div class="cols">
+   <div class="card"><h3>Top partners · paid referred revenue, last 12 months</h3>${tbl([{h:'Partner'},{h:'Tier'},{h:'Revenue',r:1}],top.map(x=>[lnk('openCp',x.cp.id,x.cp.name),esc(cpTier(x.cp).name),inr(x.rev)]),'No payments recorded yet.')}</div>
+   <div class="card"><h3>Tier mix</h3>${tbl([{h:'Tier'},{h:'Fee',r:1},{h:'Partners',r:1}],dist.map(d=>[esc(d.tt.name),d.tt.fee+'%',d.n]))}
+     <p class="small muted">Tier thresholds are on paid referred revenue (ex-GST), trailing 12 months.</p></div>
+  </div>`;
+}
+
+function vPartners(){
+  if(UI.cp&&cpOf(UI.cp))return vPartnerDetail(cpOf(UI.cp));
+  const q=UI.q.toLowerCase();
+  const rows=S.cps.filter(c=>!q||(c.name+' '+c.city+' '+c.category+' '+c.contact).toLowerCase().includes(q)).sort((a,b)=>a.name<b.name?-1:1).map(c=>{
+    const tt=cpTier(c),rev=cpRev12(c.id),calc=c.programme?tiers()[3]:tierForRev(rev);
+    return [lnk('openCp',c.id,c.name)+(c.sample?' '+pill('sample'):''),esc(c.category||''),esc(c.city||''),pill(tt.name,'gold')+(calc.n!==tt.n?` <span class="small muted">→ ${calc.name}</span>`:''),inr(rev),S.leads.filter(l=>l.cpId===c.id).length,
+      pill(c.slaStatus||'Not sent',c.slaStatus==='Signed'?'good':c.slaStatus==='Sent'?'warn':''),pill(c.status||'Prospect',c.status==='Active'?'good':'')];
+  });
+  return head('Partners','Channel partner master, tier and agreement status',`<button class="btn w" data-act="tierAll">Run tier review</button><button class="btn primary w" data-act="newCp">+ New partner</button>`)+
+  `<div class="tools"><input type="search" id="q" placeholder="Search partners" value="${esc(UI.q)}"></div>`+
+  tbl([{h:'Partner'},{h:'Category'},{h:'City'},{h:'Tier'},{h:'Paid revenue (12 m)',r:1},{h:'Leads',r:1},{h:'Agreement'},{h:'Status'}],rows,'No partners yet. Add the first one with “New partner”.');
+}
+function vPartnerDetail(cp){
+  const tt=cpTier(cp),rev=cpRev12(cp.id),nxt=tiers().find(t=>t.n===tt.n+1);
+  const leads=S.leads.filter(l=>l.cpId===cp.id),ests=S.estimates.filter(e=>e.cpId===cp.id),invs=S.invoices.filter(i=>i.cpId===cp.id),pos=S.payouts.filter(p=>p.cpId===cp.id);
+  const bal=pos.filter(p=>p.status!=='paid').reduce((a,p)=>a+p.fee,0),paid=pos.filter(p=>p.status==='paid').reduce((a,p)=>a+p.fee,0);
+  const pct=nxt?Math.min(100,Math.round(rev/nxt.min*100)):100;
+  return head(esc(cp.name),`${esc(cp.category||'')} · ${esc(cp.city||'')} · ${pill(cp.status||'Prospect',cp.status==='Active'?'good':'')}`,`<button class="btn" data-act="backCp">← All partners</button><button class="btn w" data-act="tierOne" data-id="${cp.id}">Tier review</button><button class="btn w" data-act="newLead" data-id="${cp.id}">+ Lead</button><button class="btn w" data-act="editCp" data-id="${cp.id}">Edit</button><button class="btn" data-act="stmt" data-id="${cp.id}">Fee statement (CSV)</button>`)+
+  `<div class="tiles">
+    <div class="tile"><div class="k">Tier</div><div class="v" style="font-family:var(--display)">${esc(tt.name)}</div><div class="s">${tt.fee}% fee · payout in ${tt.payoutDays} business days</div></div>
+    <div class="tile"><div class="k">Paid revenue (12 m)</div><div class="v">${inr(rev)}</div><div class="s">${nxt?`${inr(Math.max(0,nxt.min-rev))} to ${esc(nxt.name)} (${pct}%)`:'Top tier'}</div></div>
+    <div class="tile"><div class="k">Fees unpaid</div><div class="v">${inr(bal)}</div><div class="s">${inr(paid)} paid to date</div></div>
+    <div class="tile"><div class="k">Agreement</div><div class="v" style="font-family:var(--display);font-size:18px">${esc(cp.slaStatus||'Not sent')}</div><div class="s">${esc(cp.slaVersion||'')} ${cp.slaDate?fmtD(cp.slaDate):''}</div></div>
+  </div>
+  <div class="cols"><div class="card"><h3>Contact &amp; compliance</h3>
+   <p>${esc(cp.contact||'—')} · ${esc(cp.phone||'')} · ${esc(cp.email||'')}</p>
+   <p class="small">PAN ${esc(cp.pan||'missing')} · GSTIN ${esc(cp.gstin||'none')} · Bank ${cp.bankAcct?esc(cp.bankName||'')+' ••'+esc(String(cp.bankAcct).slice(-4))+' '+esc(cp.ifsc||''):'missing'}</p>
+   <p class="small">Licence / registration: ${esc(cp.licence||'—')}</p>
+   ${(!cp.pan||!cp.bankAcct)?`<p>${pill('PAN and bank details are needed before the first payout','warn')}</p>`:''}
+   ${cp.category==='Architect'?`<p>${pill('Architect: take legal advice before paying a cash referral fee (CoA conduct rules)','warn')}</p>`:''}
+   ${cp.notes?`<p class="muted">${esc(cp.notes)}</p>`:''}</div>
+   <div class="card"><h3>Leads (${leads.length})</h3>${tbl([{h:'Client'},{h:'Stage'},{h:'Budget',r:1}],leads.map(l=>[esc(l.client),pill(l.stage),inr(l.budget)]),'No leads yet.')}</div></div>
+  <div class="cols"><div class="card"><h3>Estimates (${ests.length})</h3>${tbl([{h:'No.'},{h:'Status'},{h:'Total',r:1}],ests.map(e=>[lnk('viewDoc','e:'+e.id,e.no),pill(e.status),inr(e.cpT.total)]),'None.')}</div>
+   <div class="card"><h3>Invoices (${invs.length})</h3>${tbl([{h:'No.'},{h:'Status'},{h:'Total',r:1}],invs.map(i=>{const s=invStatus(i);return [lnk('viewDoc','i:'+i.id,i.no),pill(s.t,s.c),inr(i.cpT.total)]}),'None.')}</div></div>`;
+}
+
+function vLeads(){
+  const q=UI.q.toLowerCase();
+  const rows=S.leads.filter(l=>(!UI.stage||l.stage===UI.stage)&&(!UI.cpf||l.cpId===UI.cpf)&&(!q||(l.client+' '+l.city+' '+cpName(l.cpId)).toLowerCase().includes(q))).sort((a,b)=>b.createdAt-a.createdAt).map(l=>{
+    const s=leadSla(l),t=today();const prot=l.protectedUntil?(l.protectedUntil>=t?`to ${fmtD(l.protectedUntil)}`:'expired'):'—';
+    return [`<b>${esc(l.client)}</b><br><span class="small muted">${esc(l.ptype||'')} ${l.units?'· '+l.units+' units':''} · ${esc(l.city||'')}</span>${l.conflict?'<br>'+pill('Possible duplicate','warn'):''}${l.sample?' '+pill('sample'):''}`,
+      lnk('openCp',l.cpId,cpName(l.cpId)),
+      `<select data-change="stage" data-id="${l.id}" ${canW?'':'disabled'}>${STAGES.map(x=>`<option ${x===l.stage?'selected':''}>${x}</option>`).join('')}</select>`,
+      inr(l.budget),
+      l.ackAt?`${pill('Acknowledged','good')}<br><span class="small muted">${l.lockedFeePct}% locked · ${prot}</span>`:`<button class="btn sm primary w" data-act="ackLead" data-id="${l.id}">Acknowledge</button>`,
+      `${s.ackBreach?pill('Ack late','bad'):pill('Ack ok','good')} ${s.estBreach?pill('Estimate late','bad'):s.hasEst?pill('Estimate ok','good'):''}`,
+      `<div class="acts">${btn('editLead',l.id,'Edit','w')}${btn('newEst',l.id,'Estimate','w')}${btn('delLead',l.id,'×','danger w')}</div>`];
+  });
+  return head('Leads','Deal registration, protection period and SLA clocks',`<button class="btn primary w" data-act="newLead">+ New lead</button>`)+
+  `<div class="tools"><input type="search" id="q" placeholder="Search leads" value="${esc(UI.q)}"><select data-change="fstage" aria-label="Stage"><option value="">All stages</option>${STAGES.map(s=>`<option ${UI.stage===s?'selected':''}>${s}</option>`).join('')}</select><select data-change="fcp" aria-label="Partner"><option value="">All partners</option>${S.cps.map(c=>`<option value="${c.id}" ${UI.cpf===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`+
+  tbl([{h:'Client / project'},{h:'Partner'},{h:'Stage'},{h:'Budget',r:1},{h:'Registration'},{h:'SLA'},{h:''}],rows,'No leads match. Add one with “New lead”.');
+}
+
+function docRows(kind){
+  const list=(kind==='e'?S.estimates:S.invoices).slice().sort((a,b)=>a.date<b.date?1:-1);
+  const q=UI.q.toLowerCase();
+  return list.filter(d=>!q||(d.no+' '+cpName(d.cpId)+' '+((leadOf(d.leadId)||{}).client||'')).toLowerCase().includes(q));
+}
+function vEstimates(){
+  const rows=docRows('e').map(e=>{const l=leadOf(e.leadId)||{};return [lnk('viewDoc','e:'+e.id,e.no),fmtD(e.date),esc(l.client||'—'),esc(cpName(e.cpId)),pill(e.status,e.status==='accepted'||e.status==='invoiced'?'good':e.status==='rejected'?'bad':e.status==='sent'?'info':''),inr(e.cpT.total),
+    `<div class="acts">${btn('viewDoc','e:'+e.id,'Open')}${btn('editDoc','e:'+e.id,'Edit','w')}${btn('delDoc','e:'+e.id,'×','danger w')}</div>`]});
+  return head('Estimates','Each estimate also creates an internal B2C copy automatically',`<button class="btn primary w" data-act="newEst">+ New estimate</button>`)+
+  `<div class="tools"><input type="search" id="q" placeholder="Search estimates" value="${esc(UI.q)}"></div>`+
+  tbl([{h:'No.'},{h:'Date'},{h:'Client'},{h:'Partner'},{h:'Status'},{h:'Total (incl. GST)',r:1},{h:''}],rows,'No estimates yet.');
+}
+function vInvoices(){
+  const rows=docRows('i').map(i=>{const l=leadOf(i.leadId)||{},s=invStatus(i),p=paidOf(i);return [lnk('viewDoc','i:'+i.id,i.no),fmtD(i.date),esc(l.client||'—'),esc(cpName(i.cpId)),pill(s.t,s.c),inr(i.cpT.total),inr(i.cpT.total-p),
+    `<div class="acts">${btn('viewDoc','i:'+i.id,'Open')}${btn('recPay',i.id,'Payment','w')}${btn('editDoc','i:'+i.id,'Edit','w')}</div>`]});
+  return head('Invoices','Partner-price invoices with the internal B2C copy kept alongside',`<button class="btn primary w" data-act="newInv">+ New invoice</button>`)+
+  `<div class="tools"><input type="search" id="q" placeholder="Search invoices" value="${esc(UI.q)}"></div>`+
+  tbl([{h:'No.'},{h:'Date'},{h:'Client'},{h:'Partner'},{h:'Status'},{h:'Total',r:1},{h:'Balance',r:1},{h:''}],rows,'No invoices yet. Convert an accepted estimate or create one directly.');
+}
+function vPayments(){
+  const rows=S.payments.slice().sort((a,b)=>a.date<b.date?1:-1).map(p=>{const i=byId(S.invoices,p.invoiceId)||{};return [fmtD(p.date),esc(i.no||'—'),esc(cpName(p.cpId)),esc(p.mode||''),esc(p.ref||''),(p.amount<0?pill('Refund','bad')+' ':'')+inr(p.amount),inr(p.net),btn('delPay',p.id,'×','danger w')]});
+  return head('Payments','Money received. Partner fees accrue on realised payments only',`<button class="btn primary w" data-act="recPay">+ Record payment</button>`)+
+  tbl([{h:'Date'},{h:'Invoice'},{h:'Partner'},{h:'Mode'},{h:'Reference'},{h:'Amount',r:1},{h:'Net of GST',r:1},{h:''}],rows,'No payments recorded.');
+}
+function poStatus(p){
+  if(p.status==='paid')return pill('Paid','good');
+  if(p.fee<0)return pill('Clawback','bad');
+  return p.dueOn&&p.dueOn<=today()?pill('Due','warn'):pill('Accrued','info');
+}
+function vPayouts(){
+  const f=UI.pf;
+  const list=S.payouts.slice().sort((a,b)=>(a.dueOn||'')<(b.dueOn||'')?-1:1).filter(p=>!f||(f==='open'?p.status!=='paid':p.status==='paid'));
+  const rows=list.map(p=>{const cp=cpOf(p.cpId)||{};return [esc(cp.name||'—')+(cp.category==='Architect'?' '+pill('CoA check','warn'):''),esc((byId(S.invoices,p.invoiceId)||{}).no||'—'),inr(p.base),p.pct+'%',inr(p.fee),fmtD(p.dueOn),poStatus(p),p.status==='paid'?`${inr(p.net)}<br><span class="small muted">TDS ${inr(p.tds)} · ${fmtD(p.paidOn)}</span>`:btn('payPayout',p.id,p.fee<0?'Set off':'Mark paid','w')]});
+  const bal={};S.payouts.filter(p=>p.status!=='paid').forEach(p=>bal[p.cpId]=(bal[p.cpId]||0)+p.fee);
+  return head('Partner payouts','Referral fee accrues on each realised payment; speed follows the partner’s tier',``)+
+  `<div class="tiles">${Object.keys(bal).map(k=>`<div class="tile"><div class="k">${esc(cpName(k))}</div><div class="v">${inr(bal[k])}</div><div class="s">unpaid, net of clawbacks</div></div>`).join('')||''}</div>`+
+  `<div class="seg"><button class="btn ${!f?'on':''}" data-change="pf" data-val="">All</button><button class="btn ${f==='open'?'on':''}" data-change="pf" data-val="open">Unpaid</button><button class="btn ${f==='paid'?'on':''}" data-change="pf" data-val="paid">Paid</button></div>`+
+  tbl([{h:'Partner'},{h:'Invoice'},{h:'Net base',r:1},{h:'Rate',r:1},{h:'Fee',r:1},{h:'Due'},{h:'Status'},{h:''}],rows,'No payouts yet. They appear when a client payment is recorded.');
+}
+function vItems(){
+  const q=UI.q.toLowerCase();
+  const rows=S.items.slice().sort((a,b)=>(a.category+a.sku)<(b.category+b.sku)?-1:1).filter(i=>!q||(i.sku+' '+i.b2cName+' '+i.cpName+' '+i.category).toLowerCase().includes(q)).map(i=>[
+    `<span class="mono">${esc(i.sku)}</span>`,esc(i.category||''),`<b>${esc(i.cpName||'—')}</b><br><span class="small muted">B2C: ${esc(i.b2cName)}</span>${i.cpName===i.b2cName?' '+pill('same as B2C','warn'):''}`,`<span class="small muted">${(i.aliases||[]).length} options</span>`,esc(i.hsn||''),(i.gst||0)+'%',(i.b2cPrice?inr(i.b2cPrice):pill('B2C price needed','bad')),inr(i.cpPrice),
+    (i.b2cPrice?Math.round((1-i.cpPrice/i.b2cPrice)*100):0)+'%',`<div class="acts">${btn('editItem',i.id,'Edit','w')}${btn('delItem',i.id,'×','danger w')}</div>`]);
+  return head('Item &amp; price sheet','One master: B2C name and price for internal use, partner name and price for CP documents',`<button class="btn w" data-act="impItems">Import CSV</button><button class="btn" data-act="expItems">Export CSV</button><button class="btn" data-act="tplItems">CSV template</button><button class="btn primary w" data-act="newItem">+ New item</button>`)+
+  `<input type="file" id="impfile" accept=".csv,text/csv" hidden>`+
+  `<div class="tools"><input type="search" id="q" placeholder="Search SKU, name or category" value="${esc(UI.q)}"></div>`+
+  tbl([{h:'SKU'},{h:'Category'},{h:'Partner-facing name'},{h:'Alt. names'},{h:'HSN'},{h:'GST',r:1},{h:'B2C price',r:1},{h:'Partner price',r:1},{h:'Disc.',r:1},{h:''}],rows,'No items yet.');
+}
+
+/* ---------- reports ---------- */
+const REPORTS={
+ funnel:{n:'Funnel',f(){return {cols:['Stage','Leads','Budget (₹)','% of leads'],t:['','n','m','p'],rows:STAGES.map(s=>{const L=S.leads.filter(l=>l.stage===s);return [s,L.length,L.reduce((a,l)=>a+(+l.budget||0),0),S.leads.length?Math.round(L.length/S.leads.length*100):0]})}}},
+ score:{n:'Partner scorecard',f(){return {cols:['Partner','Category','Tier','Leads','Won','Win rate %','Paid revenue 12 m (₹)','Invoiced ex-GST (₹)','Fee earned (₹)','Fee paid (₹)','Fee unpaid (₹)'],t:['','','','n','n','p','m','m','m','m','m'],rows:S.cps.map(c=>{const L=S.leads.filter(l=>l.cpId===c.id),W=L.filter(l=>l.stage==='Won').length,P=S.payouts.filter(p=>p.cpId===c.id);return [c.name,c.category||'',cpTier(c).name,L.length,W,L.length?Math.round(W/L.length*100):0,cpRev12(c.id),r2(S.invoices.filter(i=>i.cpId===c.id&&i.status!=='cancelled').reduce((a,i)=>a+i.cpT.taxable,0)),r2(P.reduce((a,p)=>a+p.fee,0)),r2(P.filter(p=>p.status==='paid').reduce((a,p)=>a+p.fee,0)),r2(P.filter(p=>p.status!=='paid').reduce((a,p)=>a+p.fee,0))]})}}},
+ recv:{n:'Receivables ageing',f(){const t=today();return {cols:['Invoice','Partner','Client','Date','Due','Total (₹)','Paid (₹)','Balance (₹)','Days overdue','Bucket'],t:['','','','d','d','m','m','m','n',''],rows:S.invoices.filter(i=>i.status!=='cancelled'&&i.cpT.total-paidOf(i)>0.5).map(i=>{const age=Math.max(0,diffDays(t,i.dueDate||i.date));return [i.no,cpName(i.cpId),(leadOf(i.leadId)||{}).client||'',i.date,i.dueDate||'',i.cpT.total,paidOf(i),r2(i.cpT.total-paidOf(i)),age,age===0?'Not due':age<=30?'1-30':age<=60?'31-60':age<=90?'61-90':'90+']})}}},
+ payout:{n:'Payout ledger',f(){return {cols:['Partner','Invoice','Net base (₹)','Rate %','Fee (₹)','TDS (₹)','Net paid (₹)','Due','Paid on','Status','UTR'],t:['','','m','n','m','m','m','d','d','',''],rows:S.payouts.slice().sort((a,b)=>(a.dueOn||'')<(b.dueOn||'')?-1:1).map(p=>[cpName(p.cpId),(byId(S.invoices,p.invoiceId)||{}).no||'',p.base,p.pct,p.fee,p.tds||0,p.net||'',p.dueOn||'',p.paidOn||'',p.status,p.utr||''])}}},
+ margin:{n:'Partner price vs B2C (internal)',f(){return {cols:['Invoice','Partner','Date','Partner taxable (₹)','B2C taxable (₹)','Discount vs B2C (₹)','Discount %'],t:['','','d','m','m','m','p'],rows:S.b2c_docs.filter(d=>d.type==='invoice').map(d=>[d.parentNo,cpName(d.cpId),d.date,d.cpT.taxable,d.t.taxable,d.uplift,d.t.taxable?Math.round(d.uplift/d.t.taxable*1000)/10:0])}}},
+ monthly:{n:'Monthly sales',f(){const m={};const g=k=>m[k]=m[k]||{inv:0,col:0,fee:0};S.invoices.filter(i=>i.status!=='cancelled').forEach(i=>g(i.date.slice(0,7)).inv+=i.cpT.taxable);S.payments.forEach(p=>g(p.date.slice(0,7)).col+=+p.net||0);S.payouts.forEach(p=>g((p.accruedOn||p.dueOn||today()).slice(0,7)).fee+=p.fee);return {cols:['Month','Invoiced ex-GST (₹)','Collected ex-GST (₹)','Fee accrued (₹)'],t:['','m','m','m'],rows:Object.keys(m).sort().map(k=>[k,r2(m[k].inv),r2(m[k].col),r2(m[k].fee)])}}},
+ sla:{n:'SLA performance',f(){return {cols:['Client','Partner','Stage','Ack hours','Ack within target','Days to estimate','Estimate within target'],t:['','','','n','','n',''],rows:S.leads.map(l=>{const s=leadSla(l);return [l.client,cpName(l.cpId),l.stage,s.ackHrs==null?'':s.ackHrs,s.ackBreach?'No':'Yes',s.estDays==null?'':s.estDays,s.hasEst||s.estDays!=null?(s.estBreach?'No':'Yes'):'']})}}},
+ tiers:{n:'Tier summary',f(){return {cols:['Tier','Fee %','Partners','Paid revenue 12 m (₹)','Fees earned (₹)'],t:['','n','n','m','m'],rows:tiers().map(tt=>{const C=S.cps.filter(c=>(c.tier||1)===tt.n);return [tt.name,tt.fee,C.length,r2(C.reduce((a,c)=>a+cpRev12(c.id),0)),r2(S.payouts.filter(p=>C.some(c=>c.id===p.cpId)).reduce((a,p)=>a+p.fee,0))]})}}}
+};
+function fmtCell(v,t){if(v===''||v==null)return '';if(t==='m')return inr(v);if(t==='d')return fmtD(v);if(t==='p')return v+'%';return esc(v)}
+function vReports(){
+  const R=REPORTS[UI.report]||REPORTS.funnel,d=R.f();
+  return head('Reports','Every report downloads as CSV',`<button class="btn primary" data-act="repCsv">Download CSV</button>`)+
+  `<div class="seg">${Object.keys(REPORTS).map(k=>`<button class="btn ${UI.report===k?'on':''}" data-change="report" data-val="${k}">${REPORTS[k].n}</button>`).join('')}</div>`+
+  tbl(d.cols.map((h,i)=>({h,r:['m','n','p'].includes(d.t[i])})),d.rows.map(r=>r.map((v,i)=>fmtCell(v,d.t[i]))),'No data for this report yet.');
+}
+function vSettings(){
+  const c=cfg();
+  return head('Settings','Company details, tiers, SLA targets and tax rules',`<button class="btn primary w" data-act="saveSettings">Save settings</button>`)+
+  `<div class="cols"><div class="card"><h3>Company on documents</h3><div class="fgrid" style="padding:0">${[['company','Company name'],['gstin','GSTIN'],['phone','Phone'],['email','Email']].map(([k,l])=>`<div class="fld"><label for="s_${k}">${l}</label><input id="s_${k}" value="${esc(c[k])}"></div>`).join('')}<div class="fld w2"><label for="s_address">Address</label><input id="s_address" value="${esc(c.address)}"></div><div class="fld w2"><label for="s_terms">Document terms</label><textarea id="s_terms" rows="3">${esc(c.terms)}</textarea></div></div>
+   <p class="small muted">Confirm the contracting entity name before sharing documents with partners.</p></div>
+   <div class="card"><h3>Rules &amp; SLA targets</h3><div class="fgrid" style="padding:0">${[['protectDays','Protection period (days)'],['clawbackDays','Refund clawback window (days)'],['tdsPct','TDS on referral fee (%)'],['tdsThreshold','TDS threshold per partner per FY (₹)'],['ackHours','Acknowledge lead within (hours)'],['estimateDays','Send estimate within (days)'],['validDays','Estimate validity (days)'],['dueDays','Invoice payment terms (days)'],['defaultGst','Default GST %']].map(([k,l])=>`<div class="fld"><label for="s_${k}">${l}</label><input id="s_${k}" type="number" value="${c[k]}"></div>`).join('')}</div>
+   <p class="small muted">SLA targets are placeholders: set them from Annexure B of the agreement. Verify the TDS section and threshold with your CA.</p></div></div>
+   <div class="card"><h3>Partner tiers</h3><div class="scroll"><table class="tbl lines"><thead><tr><th>Tier</th><th>Name</th><th>Fee %</th><th>Min. paid revenue (₹, 12 m)</th><th>Payout (business days)</th></tr></thead><tbody>${tiers().map(t=>`<tr><td>${t.n}</td><td><input id="t_name${t.n}" value="${esc(t.name)}"></td><td><input id="t_fee${t.n}" type="number" step="0.5" value="${t.fee}"></td><td><input id="t_min${t.n}" type="number" value="${t.min}"></td><td><input id="t_days${t.n}" type="number" value="${t.payoutDays}"></td></tr>`).join('')}</tbody></table></div>
+   <p class="small muted">Strategic also applies to signed builder, developer or contractor programmes (tick that box on the partner).</p></div>
+   ${window.__standalone?`<div class="card" style="margin-top:14px"><h3>Backup (this browser)</h3><p class="muted">Data is stored in this browser only. Download a backup regularly and restore it on another computer or browser.</p><div class="acts"><button class="btn" data-act="backup">Download backup</button><button class="btn w" data-act="restore">Restore backup</button></div><input type="file" id="bkfile" accept=".json,application/json" hidden></div>`:''}
+   ${S.cps.some(c=>c.sample)||S.leads.some(c=>c.sample)?`<div class="card" style="margin-top:14px"><h3>Sample data</h3><p class="muted">Example partners and leads were loaded so the screens are not empty.</p><button class="btn danger w" data-act="clearSamples">Delete sample partners and leads</button></div>`:''}`;
+}
+
+const VIEWS={dashboard:vDash,partners:vPartners,leads:vLeads,estimates:vEstimates,invoices:vInvoices,payments:vPayments,payouts:vPayouts,items:vItems,reports:vReports,settings:vSettings};
+function render(){
+  const a=document.activeElement,id=a&&a.id,pos=a&&a.selectionStart;
+  if(!db&&booted){$('#app').innerHTML='<div class="empty">Sign in to claude.ai to use the partner ERP.</div>';return}
+  if(!db){return}
+  let body;try{body=(VIEWS[UI.view]||vDash)()}catch(e){console.error(e);body=`<div class="empty">Something went wrong drawing this screen: ${esc(e.message)}</div>`}
+  $('#app').innerHTML=shell(body);
+  if(id){const el=document.getElementById(id);if(el&&el.focus){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}
+}
+
+/* ---------- estimate / invoice editor ---------- */
+let ED=null;
+function blankLine(){return {itemId:'',name:'',b2cName:'',hsn:'',unit:'nos',qty:1,rate:0,b2cRate:0,gst:cfg().defaultGst}}
+function edLines(){
+  return `<div class="scroll"><table class="tbl lines"><thead><tr><th style="min-width:220px">Item</th><th style="width:70px">Qty</th><th style="width:110px">Partner rate</th><th style="width:70px">GST %</th><th class="r">Amount</th><th></th></tr></thead><tbody>${ED.lines.map((l,i)=>`<tr><td><select data-li="${i}" data-lf="item" aria-label="Item"><option value="">Select item…</option>${ICATS.concat(['Other']).map(cat=>{const its=S.items.filter(x=>(x.category||'Other')===cat||(cat==='Other'&&!ICATS.includes(x.category)));return its.length?`<optgroup label="${cat}">${its.map(x=>`<option value="${x.id}" ${x.id===l.itemId?'selected':''}>${esc(x.sku)} · ${esc(x.cpName||x.b2cName)}</option>`).join('')}</optgroup>`:''}).join('')}</select>${l.itemId?`<div class="small muted">B2C ${inr(l.b2cRate)} per ${esc(l.unit)} (internal)</div>`:''}</td>
+   <td><input type="number" min="0" step="any" value="${l.qty}" data-li="${i}" data-lf="qty" aria-label="Quantity"></td><td><input type="number" min="0" step="any" value="${l.rate}" data-li="${i}" data-lf="rate" aria-label="Rate"></td><td><input type="number" min="0" step="any" value="${l.gst}" data-li="${i}" data-lf="gst" aria-label="GST"></td>
+   <td class="r" id="amt${i}">${inr(l.qty*l.rate)}</td><td><button class="btn sm danger" data-act="rmLine" data-id="${i}" aria-label="Remove line">×</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+function edMiss(){const m=ED.lines.filter(l=>l.itemId&&!l.b2cRate);return m.length?`<div class="stamp">${m.length} line(s) have no B2C price, so the internal B2C copy will show ₹0 for them. Add the B2C price on the Item &amp; price sheet and re-save.</div>`:''}
+function edTot(){
+  const t=totals(ED.lines,ED.discount,'rate'),b=totals(ED.lines,ED.discount,'b2cRate');
+  const tax=ED.igst?`<div><span>IGST</span><span>${inr(t.tax)}</span></div>`:`<div><span>CGST</span><span>${inr(t.tax/2)}</span></div><div><span>SGST</span><span>${inr(t.tax/2)}</span></div>`;
+  return `<div class="tot"><div><span>Subtotal</span><span>${inr(t.sub)}</span></div>${t.disc?`<div><span>Discount</span><span>−${inr(t.disc)}</span></div>`:''}<div><span>Taxable</span><span>${inr(t.taxable)}</span></div>${tax}<div class="g"><span>Total</span><span>${inr(t.total)}</span></div><div class="muted" style="margin-top:6px"><span>Internal B2C copy total</span><span>${inr(b.total)}</span></div></div>`;
+}
+function openEditor(kind,seed){
+  ED=clone(seed);ED.kind=kind;drawEditor();
+}
+function drawEditor(){
+  const k=ED.kind,isE=k==='estimates';
+  const leads=S.leads.filter(l=>l.stage!=='Lost'||l.id===ED.leadId);
+  openModal(`<header><h3>${ED.isNew?'New':'Edit'} ${isE?'estimate':'invoice'} <span class="muted small">${esc(ED.no)}</span></h3><button class="x" data-act="closeModal" aria-label="Close">×</button></header>
+  <div class="body"><div class="fgrid" style="padding:0 0 12px">
+   <div class="fld w2"><label for="e_lead">Lead / client</label><select id="e_lead"><option value="">Select lead…</option>${leads.map(l=>`<option value="${l.id}" ${l.id===ED.leadId?'selected':''}>${esc(l.client)} · ${esc(cpName(l.cpId))}</option>`).join('')}</select></div>
+   <div class="fld"><label for="e_date">Date</label><input id="e_date" type="date" value="${ED.date}"></div>
+   <div class="fld"><label for="e_due">${isE?'Valid till':'Due date'}</label><input id="e_due" type="date" value="${(isE?ED.validTill:ED.dueDate)||''}"></div>
+   <div class="fld"><label for="e_disc">Discount %</label><input id="e_disc" type="number" min="0" step="any" value="${ED.discount||0}"></div>
+   <div class="fld"><label for="e_igst">Tax type</label><select id="e_igst"><option value="0" ${!ED.igst?'selected':''}>CGST + SGST (Telangana)</option><option value="1" ${ED.igst?'selected':''}>IGST (other state)</option></select></div>
+   <div class="fld"><label for="e_bill">Who buys</label><select id="e_bill"><option value="client" ${ED.billTo!=='partner'?'selected':''}>Client buys from IOTIQ</option><option value="partner" ${ED.billTo==='partner'?'selected':''}>Partner buys (bulk)</option></select></div>
+   <div class="fld"><label for="e_fee">Referral fee %</label><input id="e_fee" type="number" min="0" step="any" value="${ED.feePct}"><small>Locked rate from registration</small></div>
+  </div>
+  <div id="e_miss">${edMiss()}</div><div id="e_lines">${edLines()}</div><button class="btn sm" data-act="addLine" style="margin-top:8px">+ Add item</button>
+  <div id="e_tot">${edTot()}</div>
+  <div class="fld" style="margin-top:10px"><label for="e_notes">Notes / terms on the document</label><textarea id="e_notes" rows="2">${esc(ED.notes||'')}</textarea></div><div id="ferr" class="err" style="padding:8px 0 0"></div></div>
+  <footer><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="e_save">Save ${isE?'estimate':'invoice'}</button></footer>`,'wide');
+  $('#e_save').onclick=edSave;
+}
+async function edSave(){
+  try{
+    if(!ED.leadId)throw new Error('Choose a lead so the document knows the client and the partner.');
+    const lines=ED.lines.filter(l=>l.itemId);if(!lines.length)throw new Error('Add at least one item.');
+    ED.lines=lines;$('#e_save').disabled=true;
+    const isE=ED.kind==='estimates';
+    const doc={id:ED.id,no:ED.no,date:ED.date,leadId:ED.leadId,cpId:ED.cpId,lines:ED.lines,discount:+ED.discount||0,igst:!!ED.igst,billTo:ED.billTo||'client',feePct:+ED.feePct||0,notes:ED.notes||'',status:ED.status,createdAt:ED.createdAt||Date.now()};
+    if(isE){doc.validTill=ED.validTill;if(ED.sentOn)doc.sentOn=ED.sentOn}else{doc.dueDate=ED.dueDate;doc.estimateId=ED.estimateId||'';}
+    await saveDoc(ED.kind,doc);
+    const lead=leadOf(doc.leadId);
+    if(!isE){
+      if(doc.estimateId){const e=byId(S.estimates,doc.estimateId);if(e&&e.status!=='invoiced'){await put('estimates',Object.assign({},e,{status:'invoiced'}))}}
+      if(lead&&lead.stage!=='Won')await put('leads',Object.assign({},lead,{stage:'Won'}));
+    }
+    toast(`${doc.no} saved with internal B2C copy ${'INT-'+doc.no}`);closeModal();
+  }catch(e){const el=$('#ferr');if(el)el.textContent=e.message||String(e);const b=$('#e_save');if(b)b.disabled=false}
+}
+function seedDoc(kind,lead,from){
+  const c=cfg(),t=today(),cp=lead?cpOf(lead.cpId):null;
+  const isE=kind==='estimates';
+  const base={isNew:true,id:(isE?'est_':'inv_')+uid(),no:nextNo(isE?'EST':'INV',isE?S.estimates:S.invoices,'no',t),date:t,leadId:lead?lead.id:'',cpId:lead?lead.cpId:'',lines:[blankLine()],discount:0,igst:false,billTo:'client',
+    feePct:lead?(lead.lockedFeePct!=null?lead.lockedFeePct:cpTier(cp||{}).fee):0,notes:c.terms,status:isE?'draft':'open'};
+  if(isE)base.validTill=addDays(t,c.validDays);else{base.dueDate=addDays(t,c.dueDays);base.estimateId=''}
+  if(from){base.lines=clone(from.lines);base.discount=from.discount;base.igst=from.igst;base.billTo=from.billTo;base.feePct=from.feePct;base.notes=from.notes||c.terms;base.leadId=from.leadId;base.cpId=from.cpId;if(!isE)base.estimateId=from.id}
+  return base;
+}
+
+/* ---------- document viewer ---------- */
+function vm(d,kind,mode){
+  const c=cfg();
+  if(mode==='int'){const tw=byId(S.b2c_docs,'b2c_'+d.id);if(!tw)return null;return {tw,title:(kind==='e'?'Estimate':'Invoice')+' (internal B2C copy)',no:tw.no,date:tw.date,lines:tw.lines,t:tw.t,igst:tw.igst,discount:tw.discount,int:true}}
+  return {title:kind==='e'?'Estimate':'Tax invoice',no:d.no,date:d.date,lines:d.lines.map(l=>({name:l.name,hsn:l.hsn,unit:l.unit,qty:l.qty,rate:l.rate,gst:l.gst})),t:d.cpT,igst:d.igst,discount:d.discount,
+    extra:kind==='e'?`Valid till ${fmtD(d.validTill)}`:`Due ${fmtD(d.dueDate)}`,notes:d.notes};
+}
+function docHtml(d,kind,mode){
+  const v=vm(d,kind,mode);if(!v)return '';const c=cfg(),l=leadOf(d.leadId)||{},cp=cpOf(d.cpId)||{};
+  const tax=v.igst?`<div><span>IGST</span><span>${inr(v.t.tax)}</span></div>`:`<div><span>CGST</span><span>${inr(v.t.tax/2)}</span></div><div><span>SGST</span><span>${inr(v.t.tax/2)}</span></div>`;
+  return `<div class="doc ${v.int?'int':''}"><div class="hd"><div><h2>${esc(c.company)}</h2><div>${esc(c.address)}</div><div>${esc(c.phone)} · ${esc(c.email)}${c.gstin?' · GSTIN '+esc(c.gstin):''}</div></div><div class="meta"><h2 style="font-size:18px">${v.title.toUpperCase()}</h2><div><b>${esc(v.no)}</b></div><div>Date ${fmtD(v.date)}</div>${v.extra?`<div>${v.extra}</div>`:''}${v.int?`<div>Partner document: ${esc(d.no)}</div>`:''}</div></div>
+  <div class="parties"><div><div class="lab">${d.billTo==='partner'?'Billed to partner':'Client'}</div><b>${esc(d.billTo==='partner'?cp.name:l.client||'—')}</b><div>${esc(d.billTo==='partner'?'':(l.phone||''))} ${esc(l.city||'')}</div>${l.ptype?`<div>${esc(l.ptype)}</div>`:''}</div><div><div class="lab">Referred by</div><b>${esc(cp.name||'—')}</b><div>${esc(cp.category||'')}</div></div></div>
+  <table><thead><tr><th>#</th><th>Description</th><th>HSN</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">GST</th><th class="n">Amount</th></tr></thead><tbody>${v.lines.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}${v.int&&x.cpName?`<div style="font-size:11px;color:#777">Partner copy name: ${esc(x.cpName)}</div>`:''}</td><td>${esc(x.hsn||'')}</td><td class="n">${x.qty} ${esc(x.unit||'')}</td><td class="n">${inr(x.rate)}</td><td class="n">${x.gst}%</td><td class="n">${inr(x.qty*x.rate)}</td></tr>`).join('')}</tbody></table>
+  <div class="tt"><div><span>Subtotal</span><span>${inr(v.t.sub)}</span></div>${v.t.disc?`<div><span>Discount (${v.discount}%)</span><span>−${inr(v.t.disc)}</span></div>`:''}<div><span>Taxable value</span><span>${inr(v.t.taxable)}</span></div>${tax}<div class="g"><span>Total</span><span>${inr(v.t.total)}</span></div></div>
+  ${v.notes?`<div class="note">${esc(v.notes)}</div>`:''}</div>`;
+}
+const DOC_CSS=`body{font-family:Arial,sans-serif;margin:24px;background:#fff}.doc{background:#fff;color:#1a1a1a;font:13px/1.45 Arial,sans-serif}.doc h2{margin:0;color:#11271c}.hd{display:flex;justify-content:space-between;gap:16px;border-bottom:3px solid #c39c67;padding-bottom:10px;margin-bottom:12px}.meta{text-align:right}.parties{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px}.lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#6b6b6b}table{border-collapse:collapse;width:100%}th{background:#11271c;color:#f4efe2;text-align:left;padding:6px 8px;font-size:11.5px}td{padding:6px 8px;border-bottom:1px solid #e4dfd0;vertical-align:top}.n{text-align:right}.tt{margin-left:auto;width:300px}.tt div{display:flex;justify-content:space-between;padding:2px 0}.tt .g{border-top:2px solid #11271c;font-weight:700;font-size:15px}.note{margin-top:12px;font-size:12px;white-space:pre-wrap}.int{border:2px dashed #a8680f;padding:10px}`;
+function openDoc(ref,mode){
+  const [k,id]=ref.split(':');const d=byId(k==='e'?S.estimates:S.invoices,id);if(!d)return;
+  mode=mode||'cp';const hasTw=!!byId(S.b2c_docs,'b2c_'+d.id);
+  let acts='';
+  if(k==='e'){
+    if(d.status==='draft')acts+=`<button class="btn w" data-act="estStatus" data-id="${d.id}" data-val="sent">Mark sent</button>`;
+    if(d.status==='sent')acts+=`<button class="btn w" data-act="estStatus" data-id="${d.id}" data-val="accepted">Accepted</button><button class="btn w" data-act="estStatus" data-id="${d.id}" data-val="rejected">Rejected</button>`;
+    if(['sent','accepted'].includes(d.status))acts+=`<button class="btn primary w" data-act="toInv" data-id="${d.id}">Convert to invoice</button>`;
+  }else{
+    const s=invStatus(d),p=paidOf(d);
+    acts+=`<span class="muted small" style="margin-right:auto">${pill(s.t,s.c)} Paid ${inr(p)} · balance ${inr(d.cpT.total-p)}</span><button class="btn primary w" data-act="recPay" data-id="${d.id}">Record payment</button>`;
+    if(d.status!=='cancelled'&&!p)acts+=`<button class="btn danger w" data-act="cancelInv" data-id="${d.id}">Cancel invoice</button>`;
+  }
+  openModal(`<header><h3>${esc(d.no)}</h3><button class="x" data-act="closeModal" aria-label="Close">×</button></header>
+  <div class="body"><div class="seg"><button class="btn ${mode==='cp'?'on':''}" data-act="docMode" data-id="${ref}" data-val="cp">Partner copy</button><button class="btn ${mode==='int'?'on':''}" data-act="docMode" data-id="${ref}" data-val="int" ${hasTw?'':'disabled'}>Internal B2C copy</button></div>
+  ${mode==='int'?`<div class="stamp">INTERNAL ONLY. Shows B2C product names and prices. Never send to the partner or client.${byId(S.b2c_docs,'b2c_'+d.id)?` Partner discount vs B2C list: ${inr(byId(S.b2c_docs,'b2c_'+d.id).uplift)}`:''}</div>`:''}
+  ${docHtml(d,k,mode)}</div>
+  <footer>${acts}<button class="btn" data-act="dlDoc" data-id="${ref}" data-val="${mode}">Download HTML</button><button class="btn w" data-act="editDoc" data-id="${ref}">Edit</button></footer>`,'wide');
+}
+
+/* ---------- partner / lead / item forms ---------- */
+function cpForm(cp){
+  const isNew=!cp;cp=cp||{};
+  form({title:isNew?'New partner':'Edit partner',values:cp,wide:true,fields:[
+   {t:'sec',l:'Partner'},{k:'name',l:'Firm / person name',w:'w2'},{k:'category',l:'Category',t:'select',o:CATS},{k:'status',l:'Status',t:'select',o:['Prospect','Onboarding','Active','Inactive']},
+   {k:'contact',l:'Contact person'},{k:'phone',l:'Phone',t:'tel'},{k:'email',l:'Email',t:'email'},{k:'city',l:'City'},
+   {t:'sec',l:'Tier & agreement'},{k:'tier',l:'Assigned tier',t:'select',o:tiers().map(t=>[t.n,`${t.n} · ${t.name} (${t.fee}%)`]),d:1},{k:'programme',t:'check',cl:'Signed builder / developer / contractor programme (Strategic)',w:'w2'},
+   {k:'slaStatus',l:'Agreement',t:'select',o:['Not sent','Sent','Signed'],d:'Not sent'},{k:'slaVersion',l:'Agreement version',d:'v2.1'},{k:'slaDate',l:'Signed / sent on',t:'date'},
+   {t:'sec',l:'Tax & bank (needed before first payout)'},{k:'pan',l:'PAN'},{k:'gstin',l:'GSTIN'},{k:'licence',l:'Licence / CoA / RERA no.'},{k:'bankName',l:'Bank'},{k:'bankAcct',l:'Account number'},{k:'ifsc',l:'IFSC'},
+   {k:'notes',l:'Notes',t:'area',w:'w4'}],
+   save:async v=>{
+    if(!v.name)throw new Error('Name is required.');
+    const o=Object.assign({},cp,v,{id:cp.id||'cp_'+uid(),tier:+v.tier||1,createdAt:cp.createdAt||Date.now()});
+    if(o.programme)o.tier=4;
+    await put('cps',o);toast('Partner saved');
+  }});
+}
+function leadForm(lead,cpId){
+  const isNew=!lead;lead=lead||{};
+  if(!S.cps.length){toast('Add a partner first');return false}
+  form({title:isNew?'New lead':'Edit lead',values:Object.assign({cpId:cpId||''},lead),wide:true,fields:[
+   {k:'client',l:'Client name',w:'w2'},{k:'phone',l:'Client phone',t:'tel'},{k:'city',l:'City / locality'},
+   {k:'cpId',l:'Referred by (partner)',t:'select',o:[['','Select partner…']].concat(S.cps.map(c=>[c.id,c.name])),w:'w2'},{k:'ptype',l:'Project type',t:'select',o:PTYPES},{k:'units',l:'Units',t:'number'},
+   {k:'budget',l:'Budget (₹)',t:'number'},{k:'stage',l:'Stage',t:'select',o:STAGES,d:'New'},{k:'owner',l:'Presales owner'},{k:'closeBy',l:'Expected close',t:'date'},
+   {k:'source',l:'Source',w:'w2',ph:'Partner referral, builder tie-up…'},{k:'notes',l:'Notes',t:'area',w:'w4'}],
+   save:async v=>{
+    if(!v.client)throw new Error('Client name is required.');if(!v.cpId)throw new Error('Choose the referring partner.');
+    const o=Object.assign({},lead,v,{id:lead.id||'ld_'+uid(),createdAt:lead.createdAt||Date.now()});
+    const dup=S.leads.find(l=>l.id!==o.id&&digits(l.phone)&&digits(l.phone)===digits(o.phone)&&l.cpId!==o.cpId&&l.protectedUntil&&l.protectedUntil>=today());
+    o.conflict=!!dup;
+    await put('leads',o);toast(dup?`Saved. Same phone is already protected for ${cpName(dup.cpId)}.`:'Lead saved');
+  }});
+}
+function itemForm(it){
+  const isNew=!it;it=it||{};
+  form({title:isNew?'New item':'Edit item',wide:true,values:Object.assign({},it,{aliases:(it.aliases||[]).join('\n')}),fields:[
+   {t:'sec',l:'Identity'},{k:'sku',l:'SKU'},{k:'category',l:'Category',t:'select',o:ICATS},{k:'unit',l:'Unit',d:'nos'},{k:'hsn',l:'HSN / SAC'},
+   {k:'b2cName',l:'B2C name (internal reference)',w:'w2'},{k:'cpName',l:'Partner-facing name (used on CP documents)',w:'w2'},
+   {k:'aliases',l:'Alternative partner names, one per line (6 to 7 options)',t:'area',rows:6,w:'w4',help:'Pick one as the partner-facing name above. Use technical wording so partners cannot match it to B2C listings.'},
+   {t:'sec',l:'Price & tax'},{k:'b2cPrice',l:'B2C price (₹, ex-GST)',t:'number',step:'any'},{k:'cpPrice',l:'Partner price (₹, ex-GST)',t:'number',step:'any'},{k:'gst',l:'GST %',t:'number',d:18},{k:'cost',l:'Landed cost (₹, optional)',t:'number',step:'any'}],
+   save:async v=>{
+    if(!v.sku||!v.b2cName)throw new Error('SKU and B2C name are required.');
+    if(!v.cpName)throw new Error('Set a partner-facing name.');
+    const dupe=S.items.find(x=>x.id!==it.id&&x.sku.toLowerCase()===v.sku.toLowerCase());if(dupe)throw new Error('That SKU already exists.');
+    const al=v.aliases.split('\n').map(s=>s.trim()).filter(Boolean);
+    const o=Object.assign({},it,v,{id:it.id||'it_'+uid(),aliases:al,placeholder:false});
+    await put('items',o);toast('Item saved');
+  }});
+}
+function recPayForm(invId){
+  const open=S.invoices.filter(i=>i.status!=='cancelled');if(!open.length){toast('Create an invoice first');return}
+  const inv0=byId(S.invoices,invId)||open[0];
+  form({title:'Record payment',values:{invoiceId:inv0.id,date:today(),amount:Math.max(0,r2(inv0.cpT.total-paidOf(inv0))),mode:'UPI'},fields:[
+   {k:'invoiceId',l:'Invoice',t:'select',o:open.map(i=>[i.id,`${i.no} · ${cpName(i.cpId)} · balance ${inr(i.cpT.total-paidOf(i))}`]),w:'w2'},
+   {k:'date',l:'Received on',t:'date'},{k:'amount',l:'Amount received (₹, incl. GST)',t:'number',step:'any'},{k:'mode',l:'Mode',t:'select',o:['UPI','NEFT / RTGS','Cheque','Cash','Card']},{k:'ref',l:'Reference / UTR'},
+   {k:'refund',t:'check',cl:'This is a refund / cancellation (reverses fee within the clawback window)',w:'w2'}],
+   save:async v=>{
+    const inv=byId(S.invoices,v.invoiceId);if(!inv)throw new Error('Choose an invoice.');
+    let amt=Math.abs(+v.amount||0);if(!amt)throw new Error('Enter the amount.');if(v.refund)amt=-amt;
+    if(!v.date)throw new Error('Enter the date.');
+    const cp=cpOf(inv.cpId)||{};const net=r2(amt*(inv.cpT.taxable/inv.cpT.total));
+    const pay={id:'pay_'+uid(),invoiceId:inv.id,cpId:inv.cpId,leadId:inv.leadId,date:v.date,amount:amt,net,mode:v.mode,ref:v.ref,createdAt:Date.now()};
+    await put('payments',pay);
+    let msg='Payment recorded';
+    const fee=r2(net*(inv.feePct||0)/100);
+    if(inv.cpId&&fee!==0){
+      const first=pays(inv).filter(p=>p.amount>0).sort((a,b)=>a.date<b.date?1:-1).pop();
+      const inWindow=!v.refund||(first&&diffDays(v.date,first.date)<=cfg().clawbackDays);
+      if(inWindow){
+        const tt=cpTier(cp);
+        await put('payouts',{id:'po_'+pay.id,paymentId:pay.id,cpId:inv.cpId,invoiceId:inv.id,base:net,pct:inv.feePct,fee,accruedOn:v.date,dueOn:fee<0?v.date:addBiz(v.date,tt.payoutDays),status:'accrued',createdAt:Date.now()});
+        msg+=fee<0?`. Clawback of ${inr(-fee)} created`:`. Fee ${inr(fee)} due ${fmtD(addBiz(v.date,tt.payoutDays))}`;
+      }else msg+='. Refund is outside the clawback window, so no fee reversal';
+      if(!v.refund&&cp.id&&!cp.programme){const rev=cpRev12(cp.id)+net,tg=tierForRev(rev);if(tg.n>(cp.tier||1)){await put('cps',Object.assign({},cp,{tier:tg.n,grace:false}));msg+=`. ${cp.name} upgraded to ${tg.name}`}}
+    }
+    toast(msg);
+  }});
+}
+function payoutForm(id){
+  const p=byId(S.payouts,id),cp=cpOf(p.cpId)||{};
+  const missing=[];if(!cp.pan)missing.push('PAN');if(!cp.bankAcct)missing.push('bank account');
+  if(missing.length&&p.fee>0){openModal(`<header><h3>Cannot pay yet</h3><button class="x" data-act="closeModal">×</button></header><div class="body"><p>${esc(cp.name)} has no ${missing.join(' or ')} on record. Collect and save these on the partner profile before the first payout.</p></div><footer><button class="btn primary" data-act="closeModal">OK</button></footer>`);return}
+  const tds=tdsFor(cp,p.fee);
+  form({title:'Mark payout paid',values:{paidOn:today(),tds},fields:[
+   {k:'paidOn',l:'Paid on',t:'date'},{k:'utr',l:'UTR / reference'},{k:'tds',l:'TDS deducted (₹)',t:'number',step:'any',help:`Suggested at ${cfg().tdsPct}% once the FY total passes ${inr(cfg().tdsThreshold)}. Verify with your CA.`}],
+   save:async v=>{const t=+v.tds||0;await put('payouts',Object.assign({},p,{status:'paid',paidOn:v.paidOn,utr:v.utr,tds:t,net:r2(p.fee-t)}));toast('Payout marked paid')}});
+}
+
+/* ---------- actions ---------- */
+const ACT={
+ nav(el){UI.view=el.dataset.id;UI.q='';UI.cp=null;try{localStorage.setItem('iotiq_erp_view',UI.view)}catch(e){}render();window.scrollTo(0,0)},
+ closeModal,
+ openCp(el){UI.view='partners';UI.cp=el.dataset.id;closeModal();render();window.scrollTo(0,0)},
+ backCp(){UI.cp=null;render()},
+ newCp(){cpForm()},editCp(el){cpForm(cpOf(el.dataset.id))},
+ newLead(el){leadForm(null,el&&el.dataset?el.dataset.id:'')},editLead(el){leadForm(leadOf(el.dataset.id))},
+ ackLead(el){const l=leadOf(el.dataset.id),cp=cpOf(l.cpId)||{};const tt=cpTier(cp);
+   ask(`Acknowledge “${esc(l.client)}” for ${esc(cp.name)}? The ${tt.fee}% (${esc(tt.name)}) fee rate locks now and ${cfg().protectDays}-day protection starts.`,async()=>{
+    await put('leads',Object.assign({},l,{ackAt:Date.now(),lockedFeePct:tt.fee,protectedUntil:addDays(today(),cfg().protectDays),stage:l.stage==='New'?'Registered':l.stage}));toast('Registration acknowledged')},'Acknowledge')},
+ delLead(el){const l=leadOf(el.dataset.id);ask(`Delete lead “${esc(l.client)}”? Linked estimates and invoices stay.`,()=>del('leads',l.id),'Delete')},
+ newEst(el){const l=el&&el.dataset&&el.dataset.id?leadOf(el.dataset.id):null;if(!S.items.length){toast('Add items first');return}openEditor('estimates',seedDoc('estimates',l))},
+ newInv(){if(!S.items.length){toast('Add items first');return}openEditor('invoices',seedDoc('invoices',null))},
+ viewDoc(el){openDoc(el.dataset.id)},
+ docMode(el){openDoc(el.dataset.id,el.dataset.val)},
+ editDoc(el){const [k,id]=el.dataset.id.split(':');const d=byId(k==='e'?S.estimates:S.invoices,id);if(!d)return;const e=clone(d);e.isNew=false;openEditor(k==='e'?'estimates':'invoices',e)},
+ delDoc(el){const [k,id]=el.dataset.id.split(':');const d=byId(S.estimates,id);ask(`Delete estimate ${esc(d.no)} and its internal B2C copy?`,async()=>{await del('estimates',id);await del('b2c_docs','b2c_'+id)},'Delete')},
+ async estStatus(el){const e=byId(S.estimates,el.dataset.id),s=el.dataset.val;const o=Object.assign({},e,{status:s});if(s==='sent')o.sentOn=today();await put('estimates',o);
+   const l=leadOf(e.leadId);if(l){let st=l.stage;if(s==='sent'&&STAGES.indexOf(st)<4)st='Estimate sent';if(s==='accepted')st='Won';if(s==='rejected'&&st!=='Won')st='Lost';if(st!==l.stage)await put('leads',Object.assign({},l,{stage:st}))}
+   toast('Estimate '+s);openDoc('e:'+e.id)},
+ toInv(el){const e=byId(S.estimates,el.dataset.id);closeModal();openEditor('invoices',seedDoc('invoices',leadOf(e.leadId),e))},
+ cancelInv(el){const i=byId(S.invoices,el.dataset.id);ask(`Cancel invoice ${esc(i.no)}?`,async()=>{await put('invoices',Object.assign({},i,{status:'cancelled'}))},'Cancel invoice')},
+ dlDoc(el){const [k,id]=el.dataset.id.split(':');const d=byId(k==='e'?S.estimates:S.invoices,id);const mode=el.dataset.val;
+   download(`${mode==='int'?'INTERNAL-':''}${d.no}.html`,`<!doctype html><meta charset="utf-8"><title>${esc(d.no)}</title><style>${DOC_CSS}</style>${docHtml(d,k,mode)}`,'Document')},
+ addLine(){ED.lines.push(blankLine());$('#e_lines').innerHTML=edLines()},
+ rmLine(el){ED.lines.splice(+el.dataset.id,1);if(!ED.lines.length)ED.lines.push(blankLine());$('#e_lines').innerHTML=edLines();$('#e_tot').innerHTML=edTot()},
+ recPay(el){recPayForm(el&&el.dataset?el.dataset.id:'')},
+ delPay(el){const p=byId(S.payments,el.dataset.id);const po=byId(S.payouts,'po_'+p.id);
+   if(po&&po.status==='paid'){toast('Its fee was already paid out. Reverse that first.');return}
+   ask(`Delete this ${inr(p.amount)} payment${po?' and its accrued fee':''}?`,async()=>{await del('payments',p.id);if(po)await del('payouts',po.id)},'Delete')},
+ payPayout(el){payoutForm(el.dataset.id)},
+ newItem(){itemForm()},editItem(el){itemForm(byId(S.items,el.dataset.id))},
+ delItem(el){const i=byId(S.items,el.dataset.id);ask(`Delete item ${esc(i.sku)}? Existing documents keep their copied lines.`,()=>del('items',i.id),'Delete')},
+ impItems(){$('#impfile').click()},
+ expItems(){const cols=['sku','category','b2c_name','cp_name','cp_alternatives (| separated)','hsn','gst_percent','unit','b2c_price','cp_price','cost'];download('iotiq-item-sheet.csv',csv(cols,S.items.map(i=>[i.sku,i.category,i.b2cName,i.cpName,(i.aliases||[]).join('|'),i.hsn,i.gst,i.unit,i.b2cPrice,i.cpPrice,i.cost||''])),'Item sheet')},
+ tplItems(){download('iotiq-item-template.csv',csv(['sku','category','b2c_name','cp_name','cp_alternatives (| separated)','hsn','gst_percent','unit','b2c_price','cp_price','cost'],[['SW-4M','Switching','4-module smart touch panel','4-gang capacitive control module','Quad-channel touch controller|4-gang capacitive control module|Four-circuit tactile switching unit','8536','18','nos','6500','5200','']]),'Template')},
+ tierOne(el){tierReview([cpOf(el.dataset.id)])},tierAll(){tierReview(S.cps.filter(c=>c.status!=='Inactive'))},
+ stmt(el){const cp=cpOf(el.dataset.id);download(`fee-statement-${cp.name.replace(/\W+/g,'-')}.csv`,csv(['Invoice','Net base','Rate %','Fee','Due','Status','Paid on','TDS','Net paid','UTR'],S.payouts.filter(p=>p.cpId===cp.id).map(p=>[(byId(S.invoices,p.invoiceId)||{}).no,p.base,p.pct,p.fee,p.dueOn,p.status,p.paidOn||'',p.tds||'',p.net||'',p.utr||''])),'Statement')},
+ repCsv(){const R=REPORTS[UI.report],d=R.f();download(`iotiq-${UI.report}.csv`,csv(d.cols,d.rows),'Report')},
+ async saveSettings(){
+  const g=k=>document.getElementById('s_'+k).value.trim();const o={id:'main'};
+  ['company','gstin','phone','email','address','terms'].forEach(k=>o[k]=g(k));
+  ['protectDays','clawbackDays','tdsPct','tdsThreshold','ackHours','estimateDays','validDays','dueDays','defaultGst'].forEach(k=>o[k]=+g(k)||0);
+  const list=tiers().map(t=>({n:t.n,name:document.getElementById('t_name'+t.n).value.trim()||t.name,fee:+document.getElementById('t_fee'+t.n).value||0,min:+document.getElementById('t_min'+t.n).value||0,payoutDays:+document.getElementById('t_days'+t.n).value||0}));
+  try{await put('settings',o);await put('settings',{id:'tiers',list});toast('Settings saved')}catch(e){toast('Could not save: '+(e.message||e.code))}},
+ backup(){download('iotiq-erp-backup-'+today()+'.json',JSON.stringify(window.__store),'Backup')},
+ restore(){$('#bkfile').click()},
+ clearSamples(){ask('Delete all sample partners and leads?',async()=>{for(const c of S.cps.filter(x=>x.sample))await del('cps',c.id);for(const l of S.leads.filter(x=>x.sample))await del('leads',l.id)},'Delete samples')}
+};
+function tierReview(cps){
+  const rs=cps.map(reviewCp);const ch=rs.filter(r=>r.action!=='none');
+  const lbl={upgrade:'Upgrade',downgrade:'Step down',grace:'Below threshold: grace quarter starts',recovered:'Back above threshold: grace cleared'};
+  openModal(`<header><h3>Tier review</h3><button class="x" data-act="closeModal">×</button></header><div class="body">${ch.length?tbl([{h:'Partner'},{h:'Paid revenue 12 m',r:1},{h:'Current'},{h:'Result'}],ch.map(r=>[esc(r.cp.name),inr(cpRev12(r.cp.id)),esc(tierBy(r.from).name),esc(lbl[r.action])+(r.to!==r.from?` → <b>${esc(tierBy(r.to).name)}</b>`:'')])):'<div class="empty">No tier changes. Every partner is on the right tier.</div>'}<p class="small muted">Upgrades apply to the next lead. Downgrades step one tier at a time, after one grace quarter. Fee rates already locked on registered leads do not change.</p></div><footer><button class="btn" data-act="closeModal">Close</button>${ch.length?'<button class="btn primary" id="tierok">Apply changes</button>':''}</footer>`);
+  const ok=$('#tierok');if(ok)ok.onclick=async()=>{for(const r of ch){const o=Object.assign({},r.cp);if(r.action==='upgrade'){o.tier=r.to;o.grace=false}else if(r.action==='downgrade'){o.tier=r.to;o.grace=false}else if(r.action==='grace')o.grace=true;else o.grace=false;o.lastReview=today();await put('cps',o)}toast('Tier review applied');closeModal()};
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');
+  if(el&&ACT[el.dataset.act]){if(!canW&&el.classList.contains('w'))return;ACT[el.dataset.act](el);return}
+  const c=e.target.closest('[data-change]');
+  if(c&&c.tagName==='BUTTON'){const k=c.dataset.change;if(k==='pf'){UI.pf=c.dataset.val;render()}if(k==='report'){UI.report=c.dataset.val;render()}}
+});
+document.addEventListener('change',async e=>{
+  const t=e.target;
+  if(t.id==='impfile'&&t.files[0]){importItems(t.files[0]);t.value='';return}
+  if(t.id==='bkfile'&&t.files[0]){try{const j=JSON.parse(await t.files[0].text());let n=0;for(const col of COLS){for(const id of Object.keys(j[col]||{})){await put(col,Object.assign({},j[col][id],{id}));n++}}toast('Restored '+n+' records')}catch(err){toast('That file is not a valid backup')}t.value='';return}
+  const ch=t.dataset&&t.dataset.change;
+  if(ch==='stage'){const l=leadOf(t.dataset.id);try{await put('leads',Object.assign({},l,{stage:t.value}))}catch(err){toast('Could not update stage')}return}
+  if(ch==='fstage'){UI.stage=t.value;render();return}
+  if(ch==='fcp'){UI.cpf=t.value;render();return}
+  if(ED&&t.id&&t.id.startsWith('e_')){
+    if(t.id==='e_lead'){const l=leadOf(t.value);ED.leadId=t.value;ED.cpId=l?l.cpId:'';if(l){const cp=cpOf(l.cpId);ED.feePct=ED.billTo==='partner'?0:(l.lockedFeePct!=null?l.lockedFeePct:cpTier(cp||{}).fee);const f=$('#e_fee');if(f)f.value=ED.feePct}}
+    if(t.id==='e_date')ED.date=t.value;
+    if(t.id==='e_due'){if(ED.kind==='estimates')ED.validTill=t.value;else ED.dueDate=t.value}
+    if(t.id==='e_igst'){ED.igst=t.value==='1';$('#e_tot').innerHTML=edTot()}
+    if(t.id==='e_bill'){ED.billTo=t.value;const l=leadOf(ED.leadId);ED.feePct=t.value==='partner'?0:(l&&l.lockedFeePct!=null?l.lockedFeePct:cpTier(cpOf(ED.cpId)||{}).fee);$('#e_fee').value=ED.feePct}
+    if(t.id==='e_fee')ED.feePct=+t.value||0;
+    if(t.id==='e_notes')ED.notes=t.value;
+    return;
+  }
+  if(ED&&t.dataset&&t.dataset.lf==='item'){
+    const i=+t.dataset.li,it=byId(S.items,t.value);
+    if(it){Object.assign(ED.lines[i],{itemId:it.id,name:it.cpName||it.b2cName,b2cName:it.b2cName,hsn:it.hsn||'',unit:it.unit||'nos',rate:+it.cpPrice||0,b2cRate:+it.b2cPrice||0,gst:it.gst!=null?+it.gst:cfg().defaultGst})}
+    else ED.lines[i]=blankLine();
+    $('#e_lines').innerHTML=edLines();$('#e_tot').innerHTML=edTot();$('#e_miss').innerHTML=edMiss();
+  }
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.id==='q'){UI.q=t.value;render();return}
+  if(ED&&t.id==='e_disc'){ED.discount=+t.value||0;$('#e_tot').innerHTML=edTot();return}
+  if(ED&&t.dataset&&t.dataset.lf&&t.dataset.lf!=='item'){
+    const i=+t.dataset.li;ED.lines[i][t.dataset.lf]=+t.value||0;
+    const a=document.getElementById('amt'+i);if(a)a.textContent=inr(ED.lines[i].qty*ED.lines[i].rate);$('#e_tot').innerHTML=edTot();
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden)closeModal()});
+
+async function importItems(file){
+  try{
+    const rows=parseCsv(await file.text());if(rows.length<2)throw new Error('The file has no data rows.');
+    const h=rows[0].map(x=>x.trim().toLowerCase());const ix=n=>h.findIndex(x=>x.startsWith(n));
+    const c={sku:ix('sku'),cat:ix('category'),b2c:ix('b2c_name'),cp:ix('cp_name'),al:ix('cp_alt'),hsn:ix('hsn'),gst:ix('gst'),unit:ix('unit'),bp:ix('b2c_price'),cpp:ix('cp_price'),cost:ix('cost')};
+    if(c.sku<0||c.b2c<0||c.cp<0)throw new Error('Columns sku, b2c_name and cp_name are required. Download the template to see the layout.');
+    let n=0,skip=0;
+    for(const r of rows.slice(1)){
+      const sku=(r[c.sku]||'').trim();if(!sku||!(r[c.b2c]||'').trim()){skip++;continue}
+      const ex=S.items.find(x=>x.sku.toLowerCase()===sku.toLowerCase());
+      const o=Object.assign({},ex||{},{id:ex?ex.id:'it_'+uid(),sku,category:(r[c.cat]||'Other').trim(),b2cName:r[c.b2c].trim(),cpName:(r[c.cp]||'').trim(),aliases:c.al>=0?(r[c.al]||'').split('|').map(s=>s.trim()).filter(Boolean):(ex?ex.aliases:[]),hsn:c.hsn>=0?(r[c.hsn]||'').trim():'',gst:c.gst>=0?+r[c.gst]||0:18,unit:c.unit>=0?(r[c.unit]||'nos').trim():'nos',b2cPrice:+r[c.bp]||0,cpPrice:+r[c.cpp]||0,cost:c.cost>=0?+r[c.cost]||0:0,placeholder:false});
+      if(!o.cpName){skip++;continue}
+      await put('items',o);n++;
+    }
+    toast(`Imported ${n} item(s)${skip?`, skipped ${skip} (missing SKU, B2C name or partner name)`:''}`);
+  }catch(e){toast(e.message||'Import failed')}
+}
+
+/* ---------- boot ---------- */
+(async function boot(){
+  try{
+    const cl=window.claude;
+    if(cl&&cl.use){
+      db=await cl.use('db');
+      try{const u=await cl.use('user');if(u&&u.can){const v=await u.can('data.write');canW=v!==false}}catch(e){}
+      try{dl=await cl.use('downloads')}catch(e){}
+    }
+  }catch(e){console.warn(e)}
+  booted=true;
+  if(!db){render();return}
+  COLS.forEach(subscribe);render();
+})();
+})();
+</script>
+</body></html>

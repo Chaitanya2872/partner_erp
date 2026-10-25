@@ -1,0 +1,30 @@
+# Local development. Reads server/.env (git-ignored) for DB_PASSWORD and other local values.
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  jpa:
+    show-sql: false
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  security:
+    refresh-token:
+      cookie-secure: ${REFRESH_COOKIE_SECURE:false}   # plain http://localhost in development
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId:--}] %-40.40logger{39} : %m%n"
+  level:
+    com.iotiq.partnererp: DEBUG
+    org.flywaydb: INFO
