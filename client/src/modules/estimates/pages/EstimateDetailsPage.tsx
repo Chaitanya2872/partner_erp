@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Download, Pencil, Printer, Send, Trash2, X } from "lucide-react";
+import { Check, Download, FileText, Pencil, Printer, Send, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ErrorState, LoadingState } from "@/components/feedback/States";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
@@ -16,6 +16,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { saveTextFile } from "@/utils/download";
 import { formatCurrency, formatDate, formatDateTime, formatPercent, NOT_AVAILABLE } from "@/utils/format";
 import { estimateService } from "../services/estimateService";
+import { invoiceService } from "@/modules/invoices/services/invoiceService";
 import { useEstimate } from "../hooks/useEstimates";
 import { EstimateStatusBadge } from "../components/EstimateStatusBadge";
 import { EstimateTotals } from "../components/EstimateTotals";
@@ -67,7 +68,7 @@ export function EstimateDetailsPage() {
     queryKey: queryKeys.estimates.history(id),
     queryFn: ({ signal }) => estimateService.history(id, signal),
   });
-  const [pending, setPending] = useState<StatusAction | "delete" | null>(null);
+  const [pending, setPending] = useState<StatusAction | "delete" | "convert" | null>(null);
 
   const refresh = () =>
     Promise.all([
@@ -103,6 +104,22 @@ export function EstimateDetailsPage() {
     },
   });
 
+  // Phase 9: a sent or accepted estimate becomes a draft invoice; the estimate is then locked as Invoiced.
+  const convert = useMutation({
+    mutationFn: (e: Estimate) => invoiceService.convert(e.id),
+    onSuccess: async (invoice, e) => {
+      toast.success(`Draft invoice created from ${e.estimateNumber}.`);
+      setPending(null);
+      await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all })]);
+      navigate(`/invoices/${invoice.id}`);
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+      setPending(null);
+      void refresh();
+    },
+  });
+
   if (estimate.isPending) return <LoadingState label="Loading estimate…" />;
   if (estimate.isError) {
     return (
@@ -118,7 +135,9 @@ export function EstimateDetailsPage() {
   const canDelete = canPerform("ESTIMATES", "DELETE") && e.status !== "INVOICED";
   const canInternal = canRead("INTERNAL_B2C");
   const actions: StatusAction[] = !canWrite("ESTIMATES") ? [] : e.status === "DRAFT" ? ["send"] : e.status === "SENT" ? ["accept", "reject"] : [];
-  const busy = transition.isPending || remove.isPending;
+  // Invoiced estimates may be converted again once their invoice is cancelled; the server refuses while one is live.
+  const canConvert = canWrite("INVOICES") && (e.status === "SENT" || e.status === "ACCEPTED" || e.status === "INVOICED");
+  const busy = transition.isPending || remove.isPending || convert.isPending;
 
   return (
     <PageContainer>
@@ -128,7 +147,7 @@ export function EstimateDetailsPage() {
         badge={<EstimateStatusBadge status={e.status} expired={e.expired} />}
         description={`${e.lead.clientName} · ${e.partner.name} · ${formatCurrency(e.totals.grandTotal)}`}
         actions={
-          canEdit || canDelete || actions.length > 0 ? (
+          canEdit || canDelete || canConvert || actions.length > 0 ? (
             <PageActions>
               {canDelete ? (
                 <Button variant="destructive-outline" onClick={() => setPending("delete")} disabled={busy}>
@@ -140,6 +159,11 @@ export function EstimateDetailsPage() {
                   {a === "send" ? <Send aria-hidden="true" /> : a === "accept" ? <Check aria-hidden="true" /> : <X aria-hidden="true" />} {ACTIONS[a].label}
                 </Button>
               ))}
+              {canConvert ? (
+                <Button onClick={() => setPending("convert")} disabled={busy}>
+                  <FileText aria-hidden="true" /> Convert to invoice
+                </Button>
+              ) : null}
               {canEdit ? (
                 <Button asChild variant="primary">
                   <Link to={`/estimates/${e.id}/edit`}>
@@ -218,7 +242,22 @@ export function EstimateDetailsPage() {
         {e.createdByName ? ` by ${e.createdByName}` : ""} · updated {formatDateTime(e.updatedAt)}
       </p>
 
-      {pending && pending !== "delete" ? (
+      <ConfirmDialog
+        open={pending === "convert"}
+        title={`Convert ${e.estimateNumber} to an invoice?`}
+        confirmLabel="Create draft invoice"
+        busy={convert.isPending}
+        onConfirm={() => convert.mutate(e)}
+        onCancel={() => setPending(null)}
+      >
+        <p>
+          A draft invoice is created with this estimate&apos;s lead, buyer, items, prices, discount and fee. The estimate becomes Invoiced and can no longer be
+          edited. Add the billing details and place of supply on the draft; GST is then worked out per line and any difference from this estimate is shown
+          before issue.
+        </p>
+        {e.status === "INVOICED" ? <p>This estimate is already invoiced. A new draft is possible only if its earlier invoice was cancelled.</p> : null}
+      </ConfirmDialog>
+      {pending && pending !== "delete" && pending !== "convert" ? (
         <ConfirmDialog
           open
           title={ACTIONS[pending].confirm}

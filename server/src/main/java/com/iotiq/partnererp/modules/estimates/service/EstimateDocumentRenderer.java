@@ -22,9 +22,9 @@ import java.util.Locale;
 public final class EstimateDocumentRenderer {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
-    static final String INTERNAL_STAMP = "INTERNAL ONLY. Shows B2C product names and prices. Never send to the "
+    public static final String INTERNAL_STAMP = "INTERNAL ONLY. Shows B2C product names and prices. Never send to the "
             + "partner or client.";
-    private static final String CSS = """
+    public static final String CSS = """
             body{font-family:Arial,sans-serif;margin:24px;background:#fff;color:#1a1a1a}
             .doc{background:#fff;color:#1a1a1a;font:13px/1.45 Arial,sans-serif;max-width:900px;margin:0 auto}
             .doc h2{margin:0;color:#11271c}
@@ -154,7 +154,7 @@ public final class EstimateDocumentRenderer {
                 .append("</span></div></div>").toString();
     }
 
-    static String esc(String value) {
+    public static String esc(String value) {
         if (value == null) {
             return "";
         }
@@ -173,7 +173,7 @@ public final class EstimateDocumentRenderer {
     }
 
     /** Indian digit grouping with two decimals, e.g. ₹12,34,567.50. */
-    static String inr(BigDecimal amount) {
+    public static String inr(BigDecimal amount) {
         BigDecimal value = amount.setScale(2, RoundingMode.HALF_UP);
         String sign = value.signum() < 0 ? "-" : "";
         String plain = value.abs().toPlainString();

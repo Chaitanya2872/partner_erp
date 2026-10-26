@@ -202,3 +202,18 @@ JPA mapping:
 
 Not changed: `refresh_tokens` (already had `token_hash`, family, `revoked_at`, `replaced_by`), `audit_logs`. `created_by`/`updated_by` are now filled by `SecurityAuditorAware` for authenticated requests.
 
+## 10. Phase 9 migration: V16 (as built, 2026-10-26)
+
+`V16__invoice_management.sql` is forward-only. It was applied to `partner_erp_test` (integration tests and browser verification). The development database `partner_erp` is still at V15; it migrates when its server restarts with this build. Existing rows are kept: no estimate value or total is changed.
+
+| Change | Detail |
+|---|---|
+| `company_settings` | `state_code` (2-digit GST state). Checks: GSTIN format, and the GSTIN's first two digits = `state_code`. Seeded values unchanged (GSTIN/state empty until set in Settings). |
+| `modules` | INVOICES `supports_approve = true` and an updated description. No permission rows granted, no new permission code. |
+| `invoices` status | CHECK DRAFT/ISSUED/CANCELLED, default DRAFT; existing OPEN rows → ISSUED. `invoice_number` and `invoice_date` nullable (drafts). |
+| `invoices` new columns | `issued_at`, `issued_by`, `cancel_reason`, `deleted_at`, `deleted_by`, `due_days smallint`, `source_estimate_status`; supplier snapshot `supplier_name`, `supplier_address`, `supplier_gstin`, `supplier_state_code`; billing `billing_name`, `billing_address`, `billing_state_code`, `billing_gstin`; `place_of_supply_code`, `place_of_supply_basis`, `tax_type` (INTRA/INTER), `utgst`; confirmation `tax_confirmed_at`, `tax_confirmed_by`, `tax_confirmation_note`, `tax_confirmation_key`; totals `cgst_amount`, `sgst_amount`, `igst_amount`. |
+| `invoices` constraints | `ck_invoices_draft_number` (draft ⇔ no number), `ck_invoices_issued` (issued/cancelled need date, issued_at, tax type), `ck_invoices_cancelled` (cancelled ⇔ cancelled_at, with a reason), `ck_invoices_deleted_draft` (only drafts are soft-deleted). Partial unique index `ux_invoices_live_estimate` on `estimate_id` for live (non-deleted, non-cancelled) invoices; index `ix_invoices_created`. |
+| `invoice_items` | `taxable_value`, `cgst_amount`, `sgst_amount`, `igst_amount`, `tax_amount`, `total_amount` with `ck_ii_tax` (components add up). Existing lines backfilled from their stored amounts. |
+| Triggers | `invoices_guard_issued` (BEFORE UPDATE OR DELETE): an issued or cancelled invoice can't be deleted, can't go back to draft, and can't change its number, dates, parties, place of supply, tax or totals; only the cancellation columns may change, once. `invoice_items_guard_issued` (BEFORE INSERT/UPDATE/DELETE): the lines of an issued or cancelled invoice can't change. |
+
+Concurrency: invoice numbers come from `document_sequences` (prefix `INV`, calendar year) through the atomic upsert used for estimates. Conversion locks the estimate row, issue locks the invoice and the lead, and the partial unique index prevents two live invoices for one estimate.

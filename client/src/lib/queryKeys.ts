@@ -47,6 +47,19 @@ export const queryKeys = {
     leadOptions: (q: string) => ["estimates", "lead-options", q] as const,
     leadOption: (id: string) => ["estimates", "lead-options", "id", id] as const,
   },
+  invoices: {
+    all: ["invoices"] as const,
+    list: (filters: Record<string, unknown>) => ["invoices", "list", filters] as const,
+    meta: ["invoices", "meta"] as const,
+    detail: (id: string) => ["invoices", id] as const,
+    history: (id: string) => ["invoices", id, "history"] as const,
+    internal: (id: string) => ["invoices", id, "internal"] as const,
+    preview: (id: string | undefined, input: unknown) => ["invoices", "preview", id ?? "new", input] as const,
+    leadOptions: (q: string) => ["invoices", "lead-options", q] as const,
+  },
+  settings: {
+    gstRegistration: ["settings", "gst-registration"] as const,
+  },
   auditLogs: {
     all: ["audit-logs"] as const,
     list: (filters: Record<string, unknown>) => ["audit-logs", "list", filters] as const,

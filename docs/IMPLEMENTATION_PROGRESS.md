@@ -834,4 +834,64 @@ Phase 8, estimates and the internal B2C twin, after your approval. Not started.
 See DECISIONS.md §I "Dependencies for Phase 9": tax treatment and invoice tax snapshots (D-21) **before** invoice work, invoice header/line snapshots, invoice edit/cancel policy (D-09 for invoices), estimate → invoice locking, `INV` numbering format, server PDF before production, and a restricted lead picker for invoices without an estimate.
 
 ### Next phase
-Phase 9, invoice management, after your approval. Not started.
+Phase 9, invoice management: approved and completed (see below).
+
+## Phase 9: Invoice management
+
+- **Status:** COMPLETED, awaiting approval. Implements the Phase 9 approval of 2026-10-26. Decisions, deviations and the GST questions that still need a decision are in DECISIONS.md §J (C9-1 to C9-8, P9-G1 to P9-G7, P9-01 to P9-12).
+- **Dates:** started and completed 2026-10-26.
+
+### Delivered
+- **GST (D-21):** supplier registration in Company Settings (legal name, address, state, GSTIN with check-character validation), explicit place of supply and basis, intra-state CGST + SGST/UTGST or inter-state IGST, per-line BigDecimal amounts rounded HALF_UP to the paisa, confirmation by `INVOICES:APPROVE` with a note wherever the treatment is doubtful, and immutable tax snapshots on issue.
+- **Lifecycle:** Draft → Issued → Cancelled. Only drafts are editable. Issued and cancelled invoices are locked in the API and by DB triggers. Cancellation needs `INVOICES:DELETE` and a reason, and is refused while payments or payouts exist. Payment status is derived (Unpaid, Partially paid, Paid, Overdue).
+- **Numbering:** `INV-YYYY-NNNNNN`, assigned atomically on issue, immutable, never reused. Drafts are identified by UUID.
+- **Conversion:** `POST /invoices/from-estimate` copies the commercial values, refuses deleted/unsent/rejected or already-invoiced estimates (row lock plus partial unique index), marks the estimate Invoiced, and shows any tax difference before issue. Re-conversion is allowed after a cancellation.
+- **Direct invoices:** restricted lead picker (`/invoices/lead-options`) and product picker (`/products/options` now also for Invoices writers), with no Leads or Products read needed. Data scopes are respected; a GST % change needs Invoices approve.
+- **Security and audit:** partner-safe APIs, documents, export and audit rows; internal B2C twin `INT-INV-…` only for `INTERNAL_B2C:READ` and only once issued. Audit actions: created, converted, updated, tax confirmed, issued, cancelled, draft deleted, GST registration updated, with GSTINs masked.
+- **Frontend:** `modules/invoices` (register with search, status/payment/date filters, pagination, sorting, export; editor for direct and converted drafts with live server tax; detail page with tax breakdown, supplier/customer blocks, issue/confirm/cancel/discard dialogs, partner and internal copies with Print/Download, history). "Convert to invoice" on estimates. `/settings` with the GST registration card (the rest of Settings stays Phase 13). Navigation enables Invoices and Settings.
+
+### Files
+- **Server:**
+  - `db/migration/V16__invoice_management.sql`
+  - `modules/invoices/{tax/GstState, tax/Gstin, tax/GstCalculator, tax/TaxTreatment, tax/TaxType, tax/PlaceOfSupplyBasis, entity/Invoice, entity/InvoiceItem, repository/InvoiceRepository, dto/*, mapper/InvoiceMapper, service/InvoiceService, service/InvoiceRules, service/InvoiceDocumentRenderer, controller/InvoiceController, controller/InternalInvoiceController}`
+  - `modules/settings/{service/GstRegistrationService, controller/GstRegistrationController, dto/GstRegistrationRequest, dto/GstRegistrationResponse, entity/CompanySettings}`
+  - `common/enums/InvoiceStatus`, `common/enums/PaymentStatus` (labels), `modules/b2c/service/B2CDocumentService` (`syncInvoice`), `modules/sequences/service/DocumentNumberService` (`INV`), `modules/audit/service/AuditActions`, `modules/products/controller/ProductController` (`/options` access), `modules/estimates/service/EstimateDocumentRenderer` (shared helpers made public)
+  - Tests: `unit/invoices/GstCalculatorTest` (6), `unit/invoices/TaxTreatmentTest` (7), `integration/invoices/InvoiceApiIT` (17); fixtures updated in `PartnerApiIT`, `ConstraintsIT`, `PersistenceIT` (lines written while draft), `MigrationAndSeedIT` (V16).
+- **Client:**
+  - `modules/invoices/{types/invoice.types, services/invoiceService, hooks/useInvoices, components/InvoiceForm, components/InvoiceParts, pages/InvoicesPage, pages/InvoiceFormPage, pages/InvoiceDetailsPage, pages/Invoices.test}`
+  - `modules/settings/{services/settingsService, hooks/useGstRegistration, components/GstRegistrationCard, pages/SettingsPage}`
+  - `modules/estimates/pages/EstimateDetailsPage` (Convert to invoice), `modules/estimates/components/EstimateForm` (`ProductPicker` exported)
+  - `lib/status.ts` (invoice statuses, "Partially paid"), `lib/queryKeys.ts`, `app/navigation.ts`, `app/router.tsx`, `app/routing.test.tsx` and `app/lazyRoutes.test.tsx` (coming-soon example now `/payments`), `test/fixtures.ts` (Invoices supports approve).
+
+### Browser verification (2026-10-26)
+- **Setup:** backend jar on 8091 against **`partner_erp_test`** (Flyway V16), Vite on 5181. Fixture accounts only: a Super Admin and an Admin with the default template (Invoices write without delete/export/approve, no internal rights). Test data created through the API: partner "P9 Test Partner", leads "P9 Convert Client" and "P9 Direct Client", products `P9-GLIDE` (with B2C price) and `P9-NOB2C`, and the sent estimate `EST-2026-000040`. The server on 8080 was not touched. Afterwards both test servers and the browser sessions were stopped (5181 and 8091 closed), and the test GST registration was reset to the seeded values. The test invoices remain in `partner_erp_test`.
+- **Verified:**
+  - Settings: a GSTIN with a wrong check character is refused on the field; the valid one is saved upper-cased with state 36 · Telangana.
+  - Conversion of `EST-2026-000040` gives a draft with the estimate's lines, prices, 5% discount and fee, no number, and no tax until the place of supply is set. The draft document is stamped "Draft · not a tax invoice". The estimate becomes Invoiced; its edit and delete give `409 ESTIMATE_INVOICED`.
+  - Editing the converted draft (billing details, place of supply 36, installation site): CGST/SGST ₹85.50 + ₹85.50 per line on ₹949.99 taxable, total ₹2,241.98, equal to the estimate. Checked by hand.
+  - Issue → `INV-2026-000022`, dated today, due +15 days, Unpaid, supplier snapshot on the "TAX INVOICE", history Converted → Edited → Issued. The internal tab shows "INTERNAL ONLY" and `INT-INV-2026-000022`.
+  - API as the Admin: document, detail, history and the export contain no B2C name, B2C price or twin number; the internal copy, cancel and approve are refused (`403`). Duplicate conversion `409 ESTIMATE_ALREADY_INVOICED`; editing or discarding an issued invoice `409 INVOICE_ISSUED`. The audit rows never contain the unmasked GSTIN.
+  - Direct invoice as the Admin through the restricted pickers: GST % read-only; billing state 36 with place of supply 29 gives IGST ₹1,620 on ₹9,000 and "needs confirmation". Issue is refused with the confirmation message. The Super Admin confirms with a note; the Admin then issues `INV-2026-000023`.
+  - Cancel `INV-2026-000022` with a reason: Cancelled, number kept. Re-conversion of the estimate creates a new draft; a second attempt is refused (one live draft in the database).
+  - 390 px: invoice list, detail, edit, new and settings pages have no horizontal page overflow.
+- **Issues found and fixed:**
+  1. The estimate comparison claimed a per-line rounding difference while no tax was applied yet. It now says GST is added once the place of supply is set.
+  2. The "Due in (days)" field had no accessible label.
+  3. Doubled periods after a confirmation note and a cancellation reason. Both are now quoted.
+  4. Invoiced estimates whose invoice was cancelled couldn't be converted again from the UI. The button now shows for them; the server still refuses while a live invoice exists.
+
+### Build and test results (2026-10-26)
+- `mvn verify` (no `clean`; port 8080 untouched): **236 tests, 0 failures, 0 errors, 0 skipped** (79 unit, 157 integration). New: `GstCalculatorTest` 6, `TaxTreatmentTest` 7, `InvoiceApiIT` 17 (GST intra/inter/UTGST, rounding, confirmation, snapshots, conversion and duplicate/deleted/unsent refusals, concurrent conversion, concurrent numbering, API and DB immutability, cancellation restrictions, permissions, data scope, partner-safe outputs, internal copy, audit).
+- `npm test -- --maxWorkers=4`: **176 tests in 20 files, 0 failures** (80 s; `Invoices.test.tsx` 19). One earlier run, made while a hung run was still finishing, had 30 load timeouts across 7 files, including untouched ones; the clean re-run passed fully.
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings).
+- `npm run build`: OK (InvoiceFormPage 19.6 kB, InvoiceDetailsPage 15.5 kB, InvoicesPage 5.3 kB, SettingsPage 5.3 kB).
+
+### Known issues / limitations
+- GST items not implemented pending your decision: e-invoicing (IRN/QR), reverse charge, exports/SEZ and supplies outside India, composition scheme, cess, bill of supply, round-off of the total, credit/debit notes (DECISIONS.md §J). Per-line rounding is implemented as an assumption to confirm.
+- Paid invoices can't be cancelled until reversals and credit notes exist (Phase 10).
+- No server-side PDF (D-15): invoices are printable HTML.
+- The development database `partner_erp` is still at V15; it migrates to V16 when its server is restarted with this build.
+- Frontend suite timeouts under heavy parallel load are a test-infrastructure issue (as in Phases 7–8).
+
+### Next phase
+Phase 10, payment management, after your approval. Not started.

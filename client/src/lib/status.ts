@@ -58,11 +58,18 @@ const estimate: Registry = {
   EXPIRED: { label: "Expired", tone: "warning", derived: true, hint: "Sent, and the validity date has passed." },
 };
 
-/** Invoices store only OPEN/CANCELLED; the payment status is derived (BR-V6). */
+/** invoices.status (V16: DRAFT/ISSUED/CANCELLED). */
+const invoiceStatus: Registry = {
+  DRAFT: { label: "Draft", tone: "neutral", hint: "Not yet issued: no invoice number, and not a tax invoice." },
+  ISSUED: { label: "Issued", tone: "accent" },
+  CANCELLED: { label: "Cancelled", tone: "outline" },
+};
+
+/** The payment status of an issued invoice, derived from recorded payments and the due date (BR-V6). */
 const invoice: Registry = {
   UNPAID: { label: "Unpaid", tone: "info", derived: true },
-  PARTLY_PAID: { label: "Partly paid", tone: "warning", derived: true },
-  PARTLY_PAID_OVERDUE: { label: "Partly paid · overdue", tone: "danger", derived: true },
+  PARTLY_PAID: { label: "Partially paid", tone: "warning", derived: true },
+  PARTLY_PAID_OVERDUE: { label: "Partially paid · overdue", tone: "danger", derived: true },
   PAID: { label: "Paid", tone: "success", derived: true },
   OVERDUE: { label: "Overdue", tone: "danger", derived: true },
   CANCELLED: { label: "Cancelled", tone: "outline" },
@@ -82,7 +89,7 @@ const product: Registry = {
   INACTIVE: { label: "Inactive", tone: "outline", hint: "Hidden from estimate and invoice line pickers; kept on existing documents." },
 };
 
-export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoice, payout } as const;
+export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoiceStatus, invoice, payout } as const;
 
 export type StatusDomain = keyof typeof STATUS_REGISTRY;
 

@@ -32,6 +32,10 @@ const LeadFormPage = named(() => import("@/modules/leads/pages/LeadFormPage"), "
 const EstimatesPage = named(() => import("@/modules/estimates/pages/EstimatesPage"), "EstimatesPage");
 const EstimateDetailsPage = named(() => import("@/modules/estimates/pages/EstimateDetailsPage"), "EstimateDetailsPage");
 const EstimateFormPage = named(() => import("@/modules/estimates/pages/EstimateFormPage"), "EstimateFormPage");
+const InvoicesPage = named(() => import("@/modules/invoices/pages/InvoicesPage"), "InvoicesPage");
+const InvoiceDetailsPage = named(() => import("@/modules/invoices/pages/InvoiceDetailsPage"), "InvoiceDetailsPage");
+const InvoiceFormPage = named(() => import("@/modules/invoices/pages/InvoiceFormPage"), "InvoiceFormPage");
+const SettingsPage = named(() => import("@/modules/settings/pages/SettingsPage"), "SettingsPage");
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
 const RolesPage = named(() => import("@/modules/settings/pages/RolesPage"), "RolesPage");
@@ -103,10 +107,15 @@ export const routes: RouteObject[] = [
         handle: handle({ nav: "/estimates", crumb: "Edit" }),
         element: guard(<EstimateFormPage />, ["ESTIMATES"]),
       },
+      { path: "invoices", handle: handle({ nav: "/invoices" }), element: guard(<InvoicesPage />, ["INVOICES"]) },
+      { path: "invoices/new", handle: handle({ nav: "/invoices", crumb: "New invoice" }), element: guard(<InvoiceFormPage />, ["INVOICES"]) },
+      { path: "invoices/:id", handle: handle({ nav: "/invoices", crumb: "Details" }), element: guard(<InvoiceDetailsPage />, ["INVOICES"]) },
+      { path: "invoices/:id/edit", handle: handle({ nav: "/invoices", crumb: "Edit" }), element: guard(<InvoiceFormPage />, ["INVOICES"]) },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
       { path: "products/new", handle: handle({ nav: "/products", crumb: "New product" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },
       { path: "products/:id", handle: handle({ nav: "/products", crumb: "Details" }), element: guard(<ProductDetailsPage />, ["PRODUCTS"]) },
       { path: "products/:id/edit", handle: handle({ nav: "/products", crumb: "Edit" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },
+      { path: "settings", handle: handle({ nav: "/settings" }), element: guard(<SettingsPage />, ["SETTINGS"]) },
       { path: "users", handle: handle({ nav: "/users" }), element: guard(<UsersPage />, ["USER_MANAGEMENT"]) },
       {
         path: "users/:id/permissions",

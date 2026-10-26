@@ -8,7 +8,7 @@ const defs: [string, string, Flags[], boolean?][] = [
   ["LEADS", "Leads", ["W", "D", "E", "A", "S"]],
   ["PRODUCTS", "Products", ["W", "D", "E"]],
   ["ESTIMATES", "Estimates", ["W", "D", "E", "S"]],
-  ["INVOICES", "Invoices", ["W", "D", "E", "S"]],
+  ["INVOICES", "Invoices", ["W", "D", "E", "A", "S"]],
   ["PAYMENTS", "Payments", ["W", "E", "S"]],
   ["PAYOUTS", "Payouts", ["W", "E", "S"]],
   ["INTERNAL_B2C", "Internal B2C", ["E"]],

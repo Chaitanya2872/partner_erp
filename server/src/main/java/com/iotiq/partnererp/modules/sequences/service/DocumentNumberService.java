@@ -11,7 +11,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 
 /**
- * Allocates {@code PREFIX-YYYY-NNNNNN} numbers (estimates, leads) from {@code document_sequences}.
+ * Allocates {@code PREFIX-YYYY-NNNNNN} numbers (estimates, leads, invoices) from {@code document_sequences}.
  *
  * <p>One upsert both creates the year's row and increments it. PostgreSQL holds the row lock until the calling
  * transaction ends, so concurrent saves queue on it and can never receive the same number. If the caller rolls
@@ -22,6 +22,8 @@ public class DocumentNumberService {
 
     public static final String ESTIMATE = "EST";
     public static final String LEAD = "LEAD";
+    /** Invoices: allocated when a draft is issued (Phase 9 decision 4), never reused after cancellation. */
+    public static final String INVOICE = "INV";
     static final int MAX = 999_999;
 
     private final NamedParameterJdbcTemplate jdbc;

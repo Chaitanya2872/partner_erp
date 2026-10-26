@@ -8,6 +8,7 @@ import com.iotiq.partnererp.modules.b2c.entity.B2CDocumentItem;
 import com.iotiq.partnererp.modules.b2c.entity.B2CDocumentType;
 import com.iotiq.partnererp.modules.b2c.repository.B2CDocumentRepository;
 import com.iotiq.partnererp.modules.estimates.entity.Estimate;
+import com.iotiq.partnererp.modules.invoices.entity.Invoice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +62,38 @@ public class B2CDocumentService {
     @Transactional(readOnly = true)
     public Optional<B2CDocument> findForEstimate(UUID estimateId) {
         return repository.findByEstimateId(estimateId);
+    }
+
+    /**
+     * Twin of an issued invoice ({@code INT-INV-…}), written once, when the invoice is issued: drafts have no number
+     * and issued invoices never change, so the twin is a fixed snapshot like its parent (Phase 9).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public B2CDocument syncInvoice(Invoice invoice) {
+        B2CDocument twin = repository.findByInvoiceId(invoice.getId()).orElseGet(() -> {
+            B2CDocument created = new B2CDocument();
+            created.setDocumentType(B2CDocumentType.INVOICE);
+            created.setInvoice(invoice);
+            return created;
+        });
+        if (!twin.getItems().isEmpty()) {
+            twin.getItems().clear();
+            repository.flush();
+        }
+        twin.setInternalNumber(INTERNAL_PREFIX + invoice.getInvoiceNumber());
+        twin.setParentNumber(invoice.getInvoiceNumber());
+        twin.setPartner(invoice.getPartner());
+        twin.setLead(invoice.getLead());
+        twin.setDocumentDate(invoice.getInvoiceDate());
+        twin.setDiscountPercent(invoice.getDiscountPercent());
+        twin.setIgst(invoice.isIgst());
+        fill(twin, invoice.getItems(), invoice.getTotals());
+        return repository.saveAndFlush(twin);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<B2CDocument> findForInvoice(UUID invoiceId) {
+        return repository.findByInvoiceId(invoiceId);
     }
 
     private static void fill(B2CDocument twin, List<? extends DocumentLine> lines, DocumentTotals partnerTotals) {

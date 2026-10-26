@@ -501,10 +501,11 @@ class PartnerApiIT extends ApiIntegrationTest {
         return new BigDecimal(String.valueOf(value));
     }
 
-    /** Minimal open invoice to attach test payments to (invoices arrive in Phase 9). */
+    /** Minimal issued invoice to attach test payments to (payments arrive in Phase 10). */
     private UUID invoice(UUID partnerId) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into invoices (id, invoice_number, partner_id, invoice_date) values (?, ?, ?, ?)",
+        jdbc.update("insert into invoices (id, invoice_number, partner_id, invoice_date, status, issued_at, tax_type)"
+                        + " values (?, ?, ?, ?, 'ISSUED', now(), 'INTRA')",
                 id, "TST-" + id.toString().substring(0, 12), partnerId, LocalDate.now(AppConstants.BUSINESS_ZONE));
         return id;
     }

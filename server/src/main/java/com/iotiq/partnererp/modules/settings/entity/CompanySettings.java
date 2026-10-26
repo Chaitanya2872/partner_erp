@@ -27,6 +27,18 @@ public class CompanySettings extends AuditableEntity {
     @Column(name = "gstin", length = 15)
     private String gstin;
 
+    /** GST state code of the supplier's registration (Phase 9). */
+    @Column(name = "state_code", length = 2)
+    private String stateCode;
+
+    public String getStateCode() {
+        return stateCode;
+    }
+
+    public void setStateCode(String stateCode) {
+        this.stateCode = stateCode;
+    }
+
     @Column(name = "phone", length = 30)
     private String phone;
 

@@ -159,17 +159,35 @@ Permissions use the existing codes: `ESTIMATES:READ/WRITE/DELETE/EXPORT`; fee ov
 | GET | /estimates/{id}/history | ESTIMATES:READ | audited changes, newest first (partner-safe values only) |
 | GET | /estimates/{id}/document | ESTIMATES:READ | printable partner copy, `text/html` attachment `<number>.html` (no server PDF, D-15) |
 
-Fee rules (D-13, approved): default = 0 for partner purchases, else the lead's locked rate, else the partner's tier rate. A different value needs `PARTNERS:APPROVE` (`403 FEE_OVERRIDE_NOT_PERMITTED`) and `feeOverrideReason` (`400`). The audit row stores the previous rate, new rate, default rate and reason, with actor and time. Documents are printable HTML until server PDFs are added (mandatory before production, D-15). Convert to invoice arrives in Phase 9.
+Fee rules (D-13, approved): default = 0 for partner purchases, else the lead's locked rate, else the partner's tier rate. A different value needs `PARTNERS:APPROVE` (`403 FEE_OVERRIDE_NOT_PERMITTED`) and `feeOverrideReason` (`400`). The audit row stores the previous rate, new rate, default rate and reason, with actor and time. Documents are printable HTML until server PDFs are added (mandatory before production, D-15). Convert to invoice: `POST /invoices/from-estimate` (§3.7, Phase 9).
 
-### 3.7 Invoices (src: newInv, editDoc, cancelInv, recPay)
-| GET | /invoices | DOC_READ | `q`, `paymentStatus` (UNPAID, PARTLY_PAID, PAID, OVERDUE, PARTLY_PAID_OVERDUE, CANCELLED), `partnerId`, date range |
+### 3.7 Invoices (src: newInv, editDoc, cancelInv, recPay) — as built in Phase 9
+
+Permissions use the existing codes: `INVOICES:READ/WRITE/DELETE/EXPORT/APPROVE` (APPROVE is supported on Invoices since V16; nobody is granted it by the migration). Lifecycle Draft → Issued → Cancelled; only drafts are editable (DECISIONS.md §J). Every response here is partner-safe: no B2C names or prices, no twin number, no uplift. GSTINs in audit rows are masked.
+
+| Method | Path | Permission | Notes |
 |---|---|---|---|
-| POST | /invoices | DOC_WRITE | as estimate + `dueDate?`, `estimateId?`. Side effects BR-V3 |
-| GET | /invoices/{id} | DOC_READ | includes paid, balance, derived paymentStatus |
-| PUT | /invoices/{id} | DOC_WRITE | only if no active payments and not cancelled (D-09) |
-| POST | /invoices/{id}/cancel | INVOICE_CANCEL | `{reason}`. Only if paid = 0 (BR-V5). *Replaces the prompt's generic `PATCH /invoices/{id}/status`, because cancellation is the only manual status change in the source.* |
-| GET | /invoices/{id}/payments | PAYMENT_READ | |
-| GET | /invoices/{id}/pdf · /print | DOC_READ | partner copy only |
+| GET | /invoices | INVOICES:READ | `q` (invoice no., estimate no., lead no., client, billing name, partner), `status` (DRAFT, ISSUED, CANCELLED), `payment` (UNPAID, PARTIALLY_PAID, PAID, OVERDUE), `partnerId`, `leadId`, `estimateId`, `from`/`to` (invoice date), paging, `sort` ∈ invoiceDate, invoiceNumber, dueDate, createdAt (default createdAt desc). Rows: number (null for drafts), status, dates, derived payment status, lead, billing name, partner, estimate no., tax type, taxable, total, paid, balance |
+| GET | /invoices/meta | INVOICES:READ | statuses, payment filters, bill-to, GST states (code, name, UTGST), place-of-supply bases, default due days, terms, default GST, max lines, `canOverrideFee`, `canApprove`, `canCancel`, `supplierComplete`, `supplierStateCode` |
+| GET | /invoices/export | INVOICES:EXPORT | CSV (UTF-8 BOM) with the list filters; partner-safe columns |
+| GET | /invoices/lead-options | INVOICES:WRITE (no Leads read needed) | `q`, `leadId`. At most 50 live, non-Lost leads: `id, leadNumber, clientName, partner{id, name}`. The Invoices scope must be ALL (and the Leads scope too, when the user has Leads access) (P9-07) |
+| GET | /products/options | PRODUCTS:READ or ESTIMATES:WRITE or INVOICES:WRITE | restricted active-product picker (P8-04); B2C fields only with `PRODUCTS:VIEW_INTERNAL_B2C` |
+| POST | /invoices/preview?invoiceId= | INVOICES:WRITE | body as POST/PUT; nothing saved. `{lines (with per-line tax), totals, tax {taxType, utgst, stateTaxLabel, missing, reasons, confirmationRequired, confirmed…}, comparison (converted drafts), defaultFeePercent, feePercent, feeOverride}` plus `internal` only for `PRODUCTS:VIEW_INTERNAL_B2C` |
+| POST | /invoices | INVOICES:WRITE | 201, direct draft. `{leadId, billTo?, discountPercent?, feePercent?, feeOverrideReason?, notes?, dueDays?, billingName?, billingAddress?, billingStateCode?, billingGstin?, placeOfSupplyCode?, placeOfSupplyBasis?, lines:[{productId, quantity, unitPrice, gstPercent}]}`. A changed GST % needs INVOICES:APPROVE (`400 lines[i].gstPercent`); a fee override needs PARTNERS:APPROVE + reason. Audited `INVOICE_CREATED` |
+| POST | /invoices/from-estimate | INVOICES:WRITE + ESTIMATES:READ | 201. `{estimateId}`. `409 ESTIMATE_DELETED`, `409 ESTIMATE_NOT_CONVERTIBLE` (Draft/Rejected), `409 ESTIMATE_ALREADY_INVOICED` (live invoice exists), `409 LEAD_REQUIRED`. The estimate becomes Invoiced. Audited `INVOICE_CONVERTED` + `ESTIMATE_STATUS_CHANGED` (P9-01) |
+| GET | /invoices/{id} | INVOICES:READ | partner copy: supplier and billing parties, place of supply and basis, tax treatment, lines with taxable/CGST/SGST/IGST/tax/total, totals, estimate comparison (drafts), paid, balance, derived payment status, issue and cancellation details, `version` |
+| PUT | /invoices/{id} | INVOICES:WRITE | drafts only (`409 INVOICE_ISSUED` / `INVOICE_CANCELLED`), same body + `version`. Converted drafts: lead, bill-to, discount, fee and lines must be omitted or unchanged (`400`). Changing tax inputs clears a tax confirmation. Audited `INVOICE_UPDATED` (changed keys only) |
+| POST | /invoices/{id}/confirm-tax | INVOICES:APPROVE | `{version, note}` (note required, ≤ 500). Only when a confirmation is required. Audited `INVOICE_TAX_CONFIRMED` |
+| POST | /invoices/{id}/issue | INVOICES:WRITE | `{version, expectedGrandTotal?}`. `422 SUPPLIER_REGISTRATION_INCOMPLETE`, `400` for missing billing name/address/place of supply/basis/lines, `422 TAX_CONFIRMATION_REQUIRED`, `409 TOTALS_CHANGED`, `409 LEAD_REQUIRED`; Lost lead without LEADS:APPROVE → `403 STAGE_REOPEN_NOT_PERMITTED`. Assigns `INV-YYYY-NNNNNN`, dates, supplier snapshot, B2C twin; lead → Won. Audited `INVOICE_ISSUED` |
+| POST | /invoices/{id}/cancel | INVOICES:DELETE | `{version, reason}` (reason required, ≤ 500). `409 INVOICE_DRAFT`, `409 INVOICE_CANCELLED`, `409 INVOICE_HAS_PAYMENTS` (any payment or payout). Number never reused. Audited `INVOICE_CANCELLED` |
+| DELETE | /invoices/{id} | INVOICES:DELETE | 204, discards a draft (soft delete); a converted draft restores the estimate's previous status. Issued → `409 INVOICE_ISSUED`. Audited `INVOICE_DRAFT_DELETED` |
+| GET | /invoices/{id}/history | INVOICES:READ | audited changes, newest first (partner-safe values, masked GSTINs) |
+| GET | /invoices/{id}/document | INVOICES:READ | printable tax invoice, `text/html`; drafts print "DRAFT INVOICE · not a tax invoice", cancelled invoices a CANCELLED stamp |
+| GET | /internal/invoices/{id} · /{id}/document | INTERNAL_B2C:READ + INVOICES:READ | internal B2C twin (`INT-INV-…`) of an issued invoice; draft → `409 INTERNAL_COPY_NOT_READY`; stamped INTERNAL ONLY |
+| GET | /settings/gst-registration | SETTINGS:READ or INVOICES:READ | `{legalName, address, stateCode, stateName, gstin, complete, version, states}` |
+| PUT | /settings/gst-registration | SETTINGS:WRITE | `{legalName, address, stateCode, gstin, version}`; GSTIN format, state code, check character and state prefix are validated. Audited `GST_REGISTRATION_UPDATED` (GSTIN masked). Issued invoices keep their snapshot |
+
+Payments against invoices (`/invoices/{id}/payments`, receipts, reversals, credit notes) arrive in Phase 10.
 
 ### 3.8 Payments (src: recPay, delPay)
 | GET | /payments | PAYMENT_READ | date range, partnerId, invoiceId, refund, status |

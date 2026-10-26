@@ -185,8 +185,9 @@ class ConstraintsIT extends AbstractIntegrationTest {
         UUID invoice() {
             if (invoice == null) {
                 invoice = jdbc.queryForObject(
-                        "insert into invoices (invoice_number, partner_id, invoice_date, taxable_amount, grand_total) "
-                                + "values ('INV-T-1', ?, current_date, 1000, 1180) returning id", UUID.class, partner());
+                        "insert into invoices (invoice_number, partner_id, invoice_date, taxable_amount, grand_total, "
+                                + "status, issued_at, tax_type) values ('INV-T-1', ?, current_date, 1000, 1180, "
+                                + "'ISSUED', now(), 'INTRA') returning id", UUID.class, partner());
             }
             return invoice;
         }

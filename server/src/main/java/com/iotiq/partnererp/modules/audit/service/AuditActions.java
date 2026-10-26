@@ -53,6 +53,21 @@ public final class AuditActions {
     public static final String ESTIMATE_STATUS_CHANGED = "ESTIMATE_STATUS_CHANGED";
     public static final String ESTIMATE_DELETED = "ESTIMATE_DELETED";
 
+    /** Invoice audit entries hold partner-safe values only, like estimates. */
+    public static final String ENTITY_INVOICE = "INVOICE";
+    public static final String INVOICE_CREATED = "INVOICE_CREATED";
+    /** A draft created from an estimate; the estimate gets its own ESTIMATE_STATUS_CHANGED entry. */
+    public static final String INVOICE_CONVERTED = "INVOICE_CONVERTED";
+    public static final String INVOICE_UPDATED = "INVOICE_UPDATED";
+    public static final String INVOICE_TAX_CONFIRMED = "INVOICE_TAX_CONFIRMED";
+    public static final String INVOICE_ISSUED = "INVOICE_ISSUED";
+    public static final String INVOICE_CANCELLED = "INVOICE_CANCELLED";
+    public static final String INVOICE_DRAFT_DELETED = "INVOICE_DRAFT_DELETED";
+
+    public static final String ENTITY_SETTINGS = "SETTINGS";
+    /** Supplier GST registration (state, GSTIN, legal name, address). */
+    public static final String GST_REGISTRATION_UPDATED = "GST_REGISTRATION_UPDATED";
+
     private AuditActions() {
     }
 }

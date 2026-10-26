@@ -89,13 +89,13 @@ public class ProductController {
     }
 
     /**
-     * Decision 1 (2026-10-26): Estimates writers may pick products without Products read. The option carries only
-     * what a line needs (SKU, partner name, category, HSN, unit, partner rate, GST); the B2C name and rate are added
-     * only for callers holding {@code PRODUCTS:VIEW_INTERNAL_B2C}.
+     * Decision 1 (2026-10-26): Estimates writers, and from Phase 9 Invoices writers, may pick products without
+     * Products read. The option carries only what a line needs (SKU, partner name, category, HSN, unit, partner rate,
+     * GST); the B2C name and rate are added only for callers holding {@code PRODUCTS:VIEW_INTERNAL_B2C}.
      */
-    @Operation(summary = "Active products for document line pickers (at most 50; Products read or Estimates write)")
+    @Operation(summary = "Active products for document line pickers (at most 50; Products read or Estimates/Invoices write)")
     @GetMapping("/options")
-    @PreAuthorize("hasAuthority('PRODUCTS:READ') or hasAuthority('ESTIMATES:WRITE')")
+    @PreAuthorize("hasAuthority('PRODUCTS:READ') or hasAuthority('ESTIMATES:WRITE') or hasAuthority('INVOICES:WRITE')")
     public ApiResponse<List<ProductOption>> options(@RequestParam(required = false) String q,
                                                     @RequestParam(required = false) ProductCategory category) {
         return ApiResponse.ok(productService.options(q, category, SecurityUtils.requireCurrentUser()));

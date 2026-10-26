@@ -531,7 +531,7 @@ function LineRow({ index, line, amount, b2c, errors, control, onRemove }: LineRo
 }
 
 /** Server-side search of active products (at most 50 per search); a click adds the product as a new line. */
-function ProductPicker({ onAdd, internal }: { onAdd: (p: ProductOption) => void; internal: boolean }) {
+export function ProductPicker({ onAdd, internal }: { onAdd: (p: ProductOption) => void; internal: boolean }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const q = useDebounce(search.trim());

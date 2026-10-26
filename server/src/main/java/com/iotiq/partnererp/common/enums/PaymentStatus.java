@@ -6,8 +6,8 @@ package com.iotiq.partnererp.common.enums;
 public enum PaymentStatus {
 
     UNPAID("Unpaid"),
-    PARTLY_PAID("Partly paid"),
-    PARTLY_PAID_OVERDUE("Partly paid · overdue"),
+    PARTLY_PAID("Partially paid"),
+    PARTLY_PAID_OVERDUE("Partially paid · overdue"),
     OVERDUE("Overdue"),
     PAID("Paid"),
     CANCELLED("Cancelled");
@@ -18,7 +18,7 @@ public enum PaymentStatus {
         this.label = label;
     }
 
-    /** Display text used by the original application. */
+    /** Display text ("Partly paid" in the source; "Partially paid" per Phase 9 decision 3). */
     public String getLabel() {
         return label;
     }

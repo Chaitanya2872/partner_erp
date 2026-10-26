@@ -15,7 +15,9 @@ import com.iotiq.partnererp.modules.b2c.repository.B2CDocumentRepository;
 import com.iotiq.partnererp.modules.estimates.entity.Estimate;
 import com.iotiq.partnererp.modules.estimates.entity.EstimateItem;
 import com.iotiq.partnererp.modules.estimates.repository.EstimateRepository;
+import com.iotiq.partnererp.common.enums.InvoiceStatus;
 import com.iotiq.partnererp.modules.invoices.entity.Invoice;
+import com.iotiq.partnererp.modules.invoices.tax.TaxType;
 import com.iotiq.partnererp.modules.invoices.entity.InvoiceItem;
 import com.iotiq.partnererp.modules.invoices.repository.InvoiceRepository;
 import com.iotiq.partnererp.modules.leads.entity.Lead;
@@ -42,6 +44,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -163,19 +166,25 @@ class PersistenceIT extends AbstractIntegrationTest {
         twin.addItem(twinLine);
         b2cRepository.save(twin);
 
+        // Lines go in while the invoice is a draft: V16 triggers freeze the lines of issued invoices.
         Invoice invoice = new Invoice();
-        invoice.setInvoiceNumber("INV-T-0001");
+        invoice.setStatus(InvoiceStatus.DRAFT);
         invoice.setPartner(partner);
         invoice.setLead(lead);
         invoice.setEstimate(estimate);
-        invoice.setInvoiceDate(LocalDate.of(2026, 10, 5));
-        invoice.setDueDate(LocalDate.of(2026, 10, 20));
         invoice.setFeePercent(new BigDecimal("8"));
         invoice.setTotals(totals("5749.00", "0", "5749.00", "1034.82", "6783.82"));
         InvoiceItem invoiceLine = new InvoiceItem();
         copyLine(estimateLine(1, product), invoiceLine);
         invoice.addItem(invoiceLine);
-        invoiceRepository.save(invoice);
+        invoiceRepository.saveAndFlush(invoice);
+        invoice.setInvoiceNumber("INV-T-0001");
+        invoice.setStatus(InvoiceStatus.ISSUED);
+        invoice.setIssuedAt(Instant.parse("2026-10-05T05:00:00Z"));
+        invoice.setTaxType(TaxType.INTRA);
+        invoice.setInvoiceDate(LocalDate.of(2026, 10, 5));
+        invoice.setDueDate(LocalDate.of(2026, 10, 20));
+        invoiceRepository.saveAndFlush(invoice);
 
         Payment payment = new Payment();
         payment.setInvoice(invoice);
@@ -246,6 +255,9 @@ class PersistenceIT extends AbstractIntegrationTest {
         b2cRepository.save(twin);
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber("INV-T-0002");
+        invoice.setStatus(InvoiceStatus.ISSUED);
+        invoice.setIssuedAt(Instant.parse("2026-10-02T05:00:00Z"));
+        invoice.setTaxType(TaxType.INTER);
         invoice.setPartner(partner);
         invoice.setEstimate(estimate);
         invoice.setInvoiceDate(LocalDate.of(2026, 10, 2));
