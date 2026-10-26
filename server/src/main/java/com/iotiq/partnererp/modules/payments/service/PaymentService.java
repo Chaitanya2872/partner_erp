@@ -31,6 +31,7 @@ import com.iotiq.partnererp.modules.payments.entity.Payment;
 import com.iotiq.partnererp.modules.payments.entity.PaymentEntryType;
 import com.iotiq.partnererp.modules.payments.entity.PaymentMethod;
 import com.iotiq.partnererp.modules.payments.repository.PaymentRepository;
+import com.iotiq.partnererp.modules.payouts.service.PartnerAdjustmentService;
 import com.iotiq.partnererp.modules.products.service.ProductCsv;
 import com.iotiq.partnererp.modules.sequences.service.DocumentNumberService;
 import com.iotiq.partnererp.security.AuthenticatedUser;
@@ -83,8 +84,9 @@ import java.util.stream.Collectors;
  *   <li>A receipt must be dated between the invoice date and today, and can't exceed the outstanding balance.
  *   Resubmitting a form (same idempotency key) returns the entry already recorded; a reference already used, or the
  *   same amount on the same day, needs an explicit confirmation.</li>
- *   <li>Partner fees are not accrued here: accrual, clawback and payout execution belong to Phase 11. A receipt with
- *   a linked payout can't be reversed until Phase 11 defines the payout adjustment.</li>
+ *   <li>Partner commission is paid by payouts (Phase 11). Reversing a receipt whose commission was already paid
+ *   leaves the paid payout unchanged and carries a negative partner adjustment into the next payout (D-12); an
+ *   unpaid payout holding the receipt must be recalculated, or is blocked once approved.</li>
  *   <li>Refunds, credit notes, advances, overpayments and customer TDS deductions are not supported (P10-G).</li>
  * </ul>
  */
@@ -102,6 +104,7 @@ public class PaymentService {
     private final AuditService auditService;
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
+    private final PartnerAdjustmentService partnerAdjustments;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
     private final Clock clock;
@@ -109,7 +112,8 @@ public class PaymentService {
     public PaymentService(PaymentRepository repository, InvoiceRepository invoiceRepository,
                           DocumentNumberService numbers, DataScopeService dataScopeService, AuditService auditService,
                           AuditLogRepository auditLogRepository, UserRepository userRepository,
-                          ObjectMapper objectMapper, EntityManager entityManager, Clock clock) {
+                          PartnerAdjustmentService partnerAdjustments, ObjectMapper objectMapper,
+                          EntityManager entityManager, Clock clock) {
         this.repository = repository;
         this.invoiceRepository = invoiceRepository;
         this.numbers = numbers;
@@ -117,6 +121,7 @@ public class PaymentService {
         this.auditService = auditService;
         this.auditLogRepository = auditLogRepository;
         this.userRepository = userRepository;
+        this.partnerAdjustments = partnerAdjustments;
         this.objectMapper = objectMapper;
         this.entityManager = entityManager;
         this.clock = clock;
@@ -383,8 +388,8 @@ public class PaymentService {
     /**
      * Reverse a receipt ({@code PAYMENTS:REVERSE_PAYMENT}, checked by the controller) with a written reason. The receipt
      * stays as recorded; a reversal entry dated today mirrors it with negative amounts, which restores the invoice
-     * balance. A receipt is reversed at most once, a reversal can't be reversed, and a receipt with a partner payout
-     * can't be reversed until Phase 11 defines the payout adjustment.
+     * balance. A receipt is reversed at most once and a reversal can't be reversed. When the receipt's commission is in
+     * a paid payout, a negative partner adjustment is created (the payout itself never changes).
      */
     @Transactional
     public PaymentResponse reverse(UUID id, ReversePaymentRequest request, AuthenticatedUser user) {
@@ -411,9 +416,6 @@ public class PaymentService {
         if (repository.findByReversedPaymentId(id).isPresent()) {
             throw BusinessException.conflict("PAYMENT_ALREADY_REVERSED", "This payment has already been reversed.");
         }
-        if (repository.payoutCount(id) > 0) {
-            throw BusinessException.conflict("PAYMENT_HAS_PAYOUT", payoutBlock());
-        }
         BigDecimal balanceBefore = invoice.getTotals().getGrandTotal().subtract(repository.paidAmount(invoice.getId()));
         Payment reversal = new Payment();
         reversal.setPaymentNumber(numbers.next(DocumentNumberService.PAYMENT));
@@ -430,13 +432,18 @@ public class PaymentService {
         reversal.setPaymentMethod(original.getPaymentMethod());
         reversal.setReferenceNumber(original.getReferenceNumber());
         repository.saveAndFlush(reversal);
+        // Lock order: invoice, receipt, then the payout holding the receipt's commission.
+        PartnerAdjustmentService.ReversalEffect effect = partnerAdjustments.onReceiptReversed(original, reversal, reason);
         auditService.record(AuditActions.PAYMENT_REVERSED, AuditActions.ENTITY_PAYMENT, original.getId(),
                 AuditService.values("reversed", false),
                 AuditService.values("reversed", true, "reversalNumber", reversal.getPaymentNumber(),
                         "paymentNumber", original.getPaymentNumber(), "invoiceNumber", invoice.getInvoiceNumber(),
                         "amount", reversal.getAmount(), "netAmount", reversal.getNetAmount(),
                         "reversalDate", reversal.getPaymentDate(), "reason", reason,
-                        "balanceAfter", balanceBefore.add(original.getAmount())));
+                        "balanceAfter", balanceBefore.add(original.getAmount()),
+                        "payout", effect == null ? null : effect.payoutNumber(),
+                        "payoutStatus", effect == null ? null : effect.payoutStatus(),
+                        "partnerAdjustment", effect == null ? null : effect.adjustmentNumber()));
         return toResponse(original, user);
     }
 
@@ -536,11 +543,6 @@ public class PaymentService {
         }
     }
 
-    private static String payoutBlock() {
-        return "A partner payout is linked to this payment. Adjusting payouts arrives with partner payouts "
-                + "(Phase 11), so it can't be reversed yet.";
-    }
-
     private static String rupees(BigDecimal amount) {
         NumberFormat format = NumberFormat.getNumberInstance(Locale.forLanguageTag("en-IN"));
         format.setMinimumFractionDigits(2);
@@ -604,8 +606,6 @@ public class PaymentService {
         String blocked = null;
         if (p.getEntryType() == PaymentEntryType.REFUND) {
             blocked = "Refunds recorded before payment management can't be reversed.";
-        } else if (p.getEntryType() == PaymentEntryType.RECEIPT && reversal == null && repository.payoutCount(p.getId()) > 0) {
-            blocked = payoutBlock();
         }
         boolean canReverse = p.getEntryType() == PaymentEntryType.RECEIPT && reversal == null && blocked == null
                 && canReverse(user);

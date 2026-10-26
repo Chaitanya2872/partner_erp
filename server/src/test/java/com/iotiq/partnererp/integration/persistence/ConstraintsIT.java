@@ -95,23 +95,59 @@ class ConstraintsIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void onePayoutPerPayment() {
+    void theLegacyAccrualTableTakesNoRows() {
+        rolledBack(f -> assertViolation(() -> jdbc.update(
+                "insert into partner_payouts (payment_id, partner_id, invoice_id, base_amount, commission_percent, "
+                        + "gross_commission, accrued_on, due_date) values (?, ?, ?, 1000, 8, 80, current_date, current_date)",
+                f.payment(), f.partner(), f.invoice()), "superseded"));
+    }
+
+    @Test
+    void aReceiptIsInOneLivePayoutAtMost() {
         rolledBack(f -> {
             UUID payment = f.payment();
-            String insert = "insert into partner_payouts (payment_id, partner_id, invoice_id, base_amount, commission_percent, "
-                    + "gross_commission, accrued_on, due_date) values (?, ?, ?, 1000, 8, 80, current_date, current_date)";
-            jdbc.update(insert, payment, f.partner(), f.invoice());
-            assertViolation(() -> jdbc.update(insert, payment, f.partner(), f.invoice()), "ux_payouts_payment");
+            UUID first = draftPayout(f.partner(), "PO-T-1");
+            String line = "insert into payout_lines (payout_id, line_type, payment_id, invoice_id, payment_date, base_amount, "
+                    + "commission_percent, amount) values (?, 'COMMISSION', ?, ?, current_date, 1000, 8, 80)";
+            jdbc.update(line, first, payment, f.invoice());
+            UUID other = draftPayout(partnerB(), "PO-T-2");
+            assertViolation(() -> jdbc.update(line, other, payment, f.invoice()), "ux_payout_lines_payment");
         });
     }
 
     @Test
-    void paidPayoutRequiresPaidDate() {
-        rolledBack(f -> assertViolation(() -> jdbc.update(
-                "insert into partner_payouts (payment_id, partner_id, invoice_id, base_amount, commission_percent, "
-                        + "gross_commission, accrued_on, due_date, status) "
-                        + "values (?, ?, ?, 1000, 8, 80, current_date, current_date, 'PAID')",
-                f.payment(), f.partner(), f.invoice()), "ck_payouts_paid_fields"));
+    void onePayoutOpenPerPartner() {
+        rolledBack(f -> {
+            draftPayout(f.partner(), "PO-T-1");
+            assertViolation(() -> draftPayout(f.partner(), "PO-T-2"), "ux_payouts_open_partner");
+        });
+    }
+
+    @Test
+    void finishedPayoutsNeverChangeOrDisappear() {
+        rolledBack(f -> {
+            UUID payout = draftPayout(f.partner(), "PO-T-1");
+            assertViolation(() -> jdbc.update("update payouts set status = 'PAID' where id = ?", payout), "can't move");
+        });
+        rolledBack(f -> {
+            UUID payout = draftPayout(f.partner(), "PO-T-1");
+            jdbc.update("update payouts set status = 'CANCELLED', status_reason = 'x', closed_at = now() where id = ?", payout);
+            assertViolation(() -> jdbc.update("update payouts set notes = 'changed' where id = ?", payout), "can't change");
+        });
+        rolledBack(f -> {
+            UUID payout = draftPayout(f.partner(), "PO-T-1");
+            assertViolation(() -> jdbc.update("delete from payouts where id = ?", payout), "can't be deleted");
+        });
+    }
+
+    @Test
+    void anApproverIsNotTheCreator() {
+        rolledBack(f -> {
+            UUID user = jdbc.queryForObject("select id from users order by created_at limit 1", UUID.class);
+            assertViolation(() -> jdbc.update("insert into payouts (payout_number, partner_id, as_of_date, fy_start, "
+                    + "created_by, approved_by) values ('PO-T-1', ?, current_date, current_date, ?, ?)",
+                    f.partner(), user, user), "ck_payouts_separation");
+        });
     }
 
     @Test
@@ -142,6 +178,16 @@ class ConstraintsIT extends AbstractIntegrationTest {
             status.setRollbackOnly();
             body.accept(new Fixtures());
         });
+    }
+
+    private UUID draftPayout(UUID partner, String number) {
+        return jdbc.queryForObject("insert into payouts (payout_number, partner_id, as_of_date, fy_start) "
+                + "values (?, ?, current_date, current_date) returning id", UUID.class, number, partner);
+    }
+
+    private UUID partnerB() {
+        return jdbc.queryForObject("insert into partners (name, category, tier_id) select 'Second Partner', 'ARCHITECT', id "
+                + "from partner_tiers where tier_level = 1 returning id", UUID.class);
     }
 
     private static void assertViolation(Runnable statement, String constraint) {

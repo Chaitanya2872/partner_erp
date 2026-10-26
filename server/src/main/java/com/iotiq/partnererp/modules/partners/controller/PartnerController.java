@@ -5,6 +5,7 @@ import com.iotiq.partnererp.common.enums.PartnerStatus;
 import com.iotiq.partnererp.common.response.ApiResponse;
 import com.iotiq.partnererp.common.response.PageResponse;
 import com.iotiq.partnererp.common.web.Pageables;
+import com.iotiq.partnererp.modules.partners.dto.PanVerificationRequest;
 import com.iotiq.partnererp.modules.partners.dto.PartnerMeta;
 import com.iotiq.partnererp.modules.partners.dto.PartnerPerformance;
 import com.iotiq.partnererp.modules.partners.dto.PartnerRequest;
@@ -109,6 +110,13 @@ public class PartnerController {
     @PreAuthorize("hasAuthority('PARTNERS:WRITE')")
     public ApiResponse<PartnerResponse> changeStatus(@PathVariable UUID id, @Valid @RequestBody PartnerStatusRequest request) {
         return ApiResponse.ok(partnerService.changeStatus(id, request, SecurityUtils.requireCurrentUser()));
+    }
+
+    @Operation(summary = "Record or withdraw the PAN check used for payout TDS (needs access to the PAN)")
+    @PostMapping("/{id}/pan-verification")
+    @PreAuthorize("hasAuthority('PARTNERS:WRITE') and hasAuthority('PARTNERS:VIEW_PARTNER_SENSITIVE')")
+    public ApiResponse<PartnerResponse> verifyPan(@PathVariable UUID id, @RequestBody(required = false) PanVerificationRequest request) {
+        return ApiResponse.ok(partnerService.verifyPan(id, request, SecurityUtils.requireCurrentUser()));
     }
 
     @Operation(summary = "Detail tiles: tier, paid revenue (12 m), next-tier progress, fees, payout readiness")

@@ -80,6 +80,8 @@ const partner: Partner = {
   agreementDate: "2026-10-01",
   pan: "••234F",
   panOnFile: true,
+  panVerified: false,
+  panVerifiedAt: null,
   gstin: "••1Z5",
   gstinOnFile: true,
   licenceNo: null,
@@ -204,7 +206,7 @@ describe("partner details", () => {
     expect(screen.getByText("••1Z5")).toBeInTheDocument();
     expect(screen.getByText(/masked for your account/)).toBeInTheDocument();
     expect(screen.getByText("Agreement not signed")).toBeInTheDocument();
-    expect(screen.getByText(/Add the bank account before any referral fee/)).toBeInTheDocument();
+    expect(screen.getByText(/Add the bank account before a payout can be approved/)).toBeInTheDocument();
     expect(screen.getByText(/CoA conduct rules/)).toBeInTheDocument();
     expect(await screen.findByRole("progressbar", { name: "Progress to Preferred" })).toHaveAttribute("aria-valuenow", "100");
     // The partner's leads replace the Phase 6 placeholder.

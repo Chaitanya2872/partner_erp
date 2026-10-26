@@ -73,6 +73,10 @@ export function ReversePaymentDialog({ payment, open, onClose }: { payment: Paym
             The balance of {payment.invoice.invoiceNumber} goes back up to{" "}
             <strong className="font-mono">{formatCurrency(Number(payment.invoice.balance) + Number(payment.amount))}</strong>. The invoice itself doesn&apos;t change.
           </li>
+          <li>
+            Partner commission: if it was already paid out, a deduction is carried into the partner&apos;s next payout; a payout not yet paid that includes this
+            receipt must be recalculated or cancelled.
+          </li>
           <li>This can&apos;t be undone. If the payment was right after all, record it again.</li>
         </ul>
         <FormField label="Reason for reversing" error={error ?? undefined} required hint="For example: cheque bounced, recorded against the wrong invoice. At most 500 characters.">

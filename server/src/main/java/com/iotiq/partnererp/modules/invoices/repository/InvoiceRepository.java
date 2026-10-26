@@ -48,8 +48,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID>, JpaSpec
             + " and not exists (select 1 from payments r where r.reversed_payment_id = p.id)", nativeQuery = true)
     long livePaymentCount(@Param("id") UUID id);
 
-    @Query(value = "select count(*) from partner_payouts where invoice_id = :id", nativeQuery = true)
-    long payoutCount(@Param("id") UUID id);
+    /** Live allocations of the invoice's commission in payouts not yet paid (Phase 11). */
+    @Query(value = "select count(*) from payout_lines l join payouts o on o.id = l.payout_id where l.invoice_id = :id"
+            + " and l.released_at is null and o.status in ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PROCESSING')",
+            nativeQuery = true)
+    long unpaidPayoutLineCount(@Param("id") UUID id);
 
     interface PaidAmount {
         UUID getInvoiceId();

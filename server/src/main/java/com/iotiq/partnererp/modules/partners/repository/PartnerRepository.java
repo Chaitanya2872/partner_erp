@@ -32,4 +32,9 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID>, JpaSpec
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Partner p where p.id in :ids order by p.id")
     List<Partner> lockAllById(@Param("ids") Collection<UUID> ids);
+
+    /** Locks the partner while a payout is generated for it, so two payout runs for one partner queue. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Partner p where p.id = :id")
+    Optional<Partner> lockById(@Param("id") UUID id);
 }

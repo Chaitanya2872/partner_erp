@@ -207,13 +207,42 @@ Permissions use the existing codes: `PAYMENTS:READ/WRITE/EXPORT` and the action 
 
 Not provided (DECISIONS.md §K "Needs approval"): refunds, credit/debit notes, advances, customer TDS, payout accrual (Phase 11). The source's toast with payout and tier-upgrade results moves to Phase 11.
 
-### 3.9 Payouts (src: payPayout)
-| GET | /payouts | PAYOUT_READ | `status=open|paid|all`, partnerId, overdue. Returns displayStatus (Paid/Clawback/Due/Accrued) |
+### 3.9 Payouts (src: payPayout) — as built in Phase 11
+
+Rules, lifecycle and the reversal behaviour are in DECISIONS.md §L. Every command needs the PAYOUTS scope ALL (`409 PAYOUTS_SCOPE`). Every transition takes the `version` the user saw (`409 CONCURRENT_MODIFICATION` when stale), locks the payout and is audited. No endpoint moves money or calls a bank.
+
+| Method | Path | Permission | Notes |
 |---|---|---|---|
-| GET | /payouts/summary | PAYOUT_READ | per-partner unpaid balance tiles |
-| GET | /payouts/{id} | PAYOUT_READ | + `suggestedTds` |
-| POST | /payouts/{id}/mark-paid | PAYOUT_PAY | `{paidDate, utr, tdsAmount}`. 422 if PAN/bank missing and fee > 0 |
-| POST | /payouts/{id}/reverse | PAYOUT_REVERSE | `{reason}` (D-12) |
+| GET | /payouts | PAYOUTS:READ | `q` (number, bank reference, partner name or code), `status`, `partnerId`, `from`/`to` (created), paging; sort `createdAt`, `asOfDate`, `payoutNumber`, `commissionTotal`, `netAmount`, `paidDate`. Summary rows with `blocked` when a source receipt was reversed |
+| GET | /payouts/dashboard | PAYOUTS:READ | Counts and totals by status, eligible commission and receipts, carried and pending adjustments, paid and TDS this FY, partners with a balance, `tdsConfigured` |
+| GET | /payouts/meta | PAYOUTS:READ | Statuses, adjustment statuses, limits, TDS readiness and message, and the caller's `canWrite/canApprove/canMarkPaid/canExport/canConfigureTds/canViewSensitive` |
+| GET | /payouts/export | PAYOUTS:EXPORT | Same filters; CSV (BOM, formula-guarded, ≤ 5,000 rows). No PAN or bank account; the transfer's bank reference (UTR) is included in full for reconciliation |
+| GET | /payouts/partners | PAYOUTS:READ | Partner balances (`q`): eligible commission and receipts, carried and pending adjustments, in progress, paid and TDS this FY, total paid, last paid, PAN/bank readiness. Not paginated |
+| GET | /payouts/partners/{partnerId} | PAYOUTS:READ | One partner's balance (zeros when there is nothing) |
+| POST | /payouts/preview | PAYOUTS:READ | `{partnerId, asOfDate?}` → lines, totals, TDS, net, `canCreate`, `blockers`, `openPayout`. Nothing is saved |
+| POST | /payouts | PAYOUTS:WRITE | `{partnerId, asOfDate?, notes?, idempotencyKey}` → **201** draft, or **200** with the same payout when the key is replayed with the same body. `409 PAYOUT_OPEN_EXISTS`, `409 NOTHING_TO_PAY`, `409 IDEMPOTENCY_KEY_REUSED` |
+| GET | /payouts/{id} | PAYOUTS:READ | Payout with partner (PAN/bank masked without VIEW_PARTNER_SENSITIVE), lines, released lines, TDS breakdown, calculations, workflow, `reversedSources`, `blockers` and the caller's `actions`. `receiptsTotal` + `adjustmentsTotal` = `commissionTotal`, also for rejected, cancelled and failed payouts (lines released on closing still count) |
+| GET | /payouts/{id}/history | PAYOUTS:READ | Audit rows `PAYOUT_*` |
+| POST | /payouts/{id}/recalculate | PAYOUTS:WRITE | `{version}`. Draft or pending. The status is unchanged: a pending payout stays Pending approval. Releases reversed lines, adds new receipts and approved adjustments, recalculates TDS and discards a manual TDS change |
+| POST | /payouts/{id}/tds-adjustment | PAYOUTS:WRITE | `{version, tdsAmount, reason}`. Draft or pending; `0 ≤ tds < commission`. Its author can't approve the payout afterwards |
+| POST | /payouts/{id}/submit | PAYOUTS:WRITE | `{version}`. Draft → pending; `409 PAYOUT_BLOCKED` with reversed sources |
+| POST | /payouts/{id}/approve | PAYOUTS:APPROVE | `{version, note?}`. `409 SELF_APPROVAL` (creator, submitter, or author of the manual TDS change in force), `409 TDS_NOT_READY`, `409 PARTNER_NOT_PAYOUT_READY`, `409 PAYOUT_BLOCKED`, `409 PAYOUT_RECALCULATION_REQUIRED` |
+| POST | /payouts/{id}/reject | PAYOUTS:APPROVE | `{version, reason}` |
+| POST | /payouts/{id}/cancel | PAYOUTS:WRITE (draft, pending) or APPROVE (approved) | `{version, reason}` |
+| POST | /payouts/{id}/processing | PAYOUTS:READ + MARK_PAYOUT_PAID | `{version, note?}`. Approved → processing; records the account's last four digits |
+| POST | /payouts/{id}/mark-paid | PAYOUTS:READ + MARK_PAYOUT_PAID | `{version, paidDate, reference, acknowledgeReversedSources?}`. `409 PAYOUT_FY_MISMATCH`, `409 PAYOUT_BLOCKED` |
+| POST | /payouts/{id}/fail | PAYOUTS:READ + MARK_PAYOUT_PAID | `{version, reason}` |
+| GET | /payouts/adjustments | PAYOUTS:READ | `q`, `partnerId`, `status`, `kind`, paging. Each row has `allocatedTo` and the caller's `canDecide` |
+| GET | /payouts/adjustments/{id} | PAYOUTS:READ | |
+| POST | /payouts/adjustments | PAYOUTS:WRITE | `{partnerId, amount (signed), reason, idempotencyKey}` → pending approval |
+| POST | /payouts/adjustments/{id}/approve | PAYOUTS:APPROVE | `{note?}`; not by its creator (`409 SELF_APPROVAL`); `409 ADJUSTMENT_DECIDED` |
+| POST | /payouts/adjustments/{id}/reject | PAYOUTS:APPROVE | `{note}` (required) |
+| GET | /settings/tds | SETTINGS:READ or PAYOUTS:READ | In force, draft, history, `canEdit`, `canConfirm` |
+| PUT | /settings/tds | SETTINGS:WRITE | `{sectionCode?, description?, ratePercent?, rateWithoutPanPercent?, fyThreshold?, effectiveFrom?, version?}` saves the single draft (may be incomplete) |
+| POST | /settings/tds/confirm | PAYOUTS:APPROVE | `{version, note}`. `422 TDS_INCOMPLETE`, `409 SELF_APPROVAL` (last editor), `409 TDS_EFFECTIVE_DATE`, `409 TDS_NO_DRAFT` |
+| POST | /partners/{id}/pan-verification | PARTNERS:WRITE + VIEW_PARTNER_SENSITIVE | `{verified, note, version}`; a note is required to verify |
+
+Changed elsewhere: `POST /payments/{id}/reverse` no longer refuses receipts with payouts (`PAYMENT_HAS_PAYOUT` is gone); its audit row names the affected payout and any reversal adjustment. Invoice cancellation returns `409 INVOICE_IN_PAYOUT` while a commission line of the invoice sits in an unpaid payout.
 
 ### 3.10 Internal B2C (all require **B2C_VIEW**; never routed for PARTNER)
 

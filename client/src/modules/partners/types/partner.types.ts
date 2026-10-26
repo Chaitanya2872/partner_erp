@@ -65,6 +65,9 @@ export interface Partner {
   /** Full value only when `sensitiveVisible`; otherwise masked to the last 4 characters. */
   pan: string | null;
   panOnFile: boolean;
+  /** Someone with access to the PAN recorded checking it (Phase 11); TDS uses the verified rate only then. */
+  panVerified: boolean;
+  panVerifiedAt: string | null;
   /** Full value only when `sensitiveVisible`; otherwise its last 3 characters (it embeds the PAN). */
   gstin: string | null;
   gstinOnFile: boolean;

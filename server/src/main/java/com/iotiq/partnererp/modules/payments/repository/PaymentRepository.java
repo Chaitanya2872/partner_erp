@@ -66,9 +66,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID>, JpaSpec
     @Query(value = "select coalesce(sum(net_amount), 0) from payments where invoice_id = :invoiceId", nativeQuery = true)
     BigDecimal netAmount(@Param("invoiceId") UUID invoiceId);
 
-    @Query(value = "select count(*) from partner_payouts where payment_id = :paymentId", nativeQuery = true)
-    long payoutCount(@Param("paymentId") UUID paymentId);
-
     /**
      * Receivables over live issued invoices: an invoice is outstanding while its balance is above the ₹0.50 paid
      * tolerance (BR-V6); overdue when its due date is before {@code today}.

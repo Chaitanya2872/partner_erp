@@ -29,9 +29,12 @@ import com.iotiq.partnererp.modules.partners.repository.PartnerRepository;
 import com.iotiq.partnererp.modules.payments.entity.Payment;
 import com.iotiq.partnererp.modules.payments.entity.PaymentMethod;
 import com.iotiq.partnererp.modules.payments.repository.PaymentRepository;
-import com.iotiq.partnererp.modules.payouts.entity.PartnerPayout;
+import com.iotiq.partnererp.modules.payouts.entity.Payout;
+import com.iotiq.partnererp.modules.payouts.entity.PayoutEnums;
+import com.iotiq.partnererp.modules.payouts.entity.PayoutLine;
 import com.iotiq.partnererp.modules.payouts.entity.PayoutStatus;
-import com.iotiq.partnererp.modules.payouts.repository.PartnerPayoutRepository;
+import com.iotiq.partnererp.modules.payouts.repository.PayoutLineRepository;
+import com.iotiq.partnererp.modules.payouts.repository.PayoutRepository;
 import com.iotiq.partnererp.modules.products.entity.Product;
 import com.iotiq.partnererp.modules.products.entity.ProductCategory;
 import com.iotiq.partnererp.modules.products.repository.ProductRepository;
@@ -77,7 +80,9 @@ class PersistenceIT extends AbstractIntegrationTest {
     @Autowired
     private PaymentRepository paymentRepository;
     @Autowired
-    private PartnerPayoutRepository payoutRepository;
+    private PayoutRepository payoutRepository;
+    @Autowired
+    private PayoutLineRepository payoutLineRepository;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -196,17 +201,26 @@ class PersistenceIT extends AbstractIntegrationTest {
         payment.setPaymentMethod(PaymentMethod.NEFT_RTGS);
         paymentRepository.save(payment);
 
-        PartnerPayout payout = new PartnerPayout();
-        payout.setPayment(payment);
+        Payout payout = new Payout();
+        payout.setPayoutNumber("PO-T-0001");
         payout.setPartner(partner);
-        payout.setInvoice(invoice);
-        payout.setBaseAmount(new BigDecimal("5749.00"));
-        payout.setCommissionPercent(new BigDecimal("8"));
-        payout.setGrossCommission(new BigDecimal("459.92"));
-        payout.setAccruedOn(payment.getPaymentDate());
-        payout.setDueDate(LocalDate.of(2026, 10, 27));
-        payout.setTierPayoutDays((short) 15);
+        payout.setStatus(PayoutStatus.DRAFT);
+        payout.setAsOfDate(LocalDate.of(2026, 10, 27));
+        payout.setFyStart(LocalDate.of(2026, 4, 1));
+        payout.setCommissionTotal(new BigDecimal("459.92"));
+        payout.setTdsStatus("CONFIG_INCOMPLETE");
         payoutRepository.save(payout);
+        PayoutLine line = new PayoutLine();
+        line.setPayout(payout);
+        line.setLineType(PayoutEnums.LineType.COMMISSION);
+        line.setPayment(payment);
+        line.setInvoice(invoice);
+        line.setPaymentDate(payment.getPaymentDate());
+        line.setBaseAmount(new BigDecimal("5749.00"));
+        line.setCommissionPercent(new BigDecimal("8"));
+        line.setAmount(new BigDecimal("459.92"));
+        line.setCreatedAt(Instant.now());
+        payoutLineRepository.save(line);
         flushAndClear();
 
         Estimate e = estimateRepository.findByEstimateNumber("EST-T-0001").orElseThrow();
@@ -230,9 +244,12 @@ class PersistenceIT extends AbstractIntegrationTest {
         assertThat(p.isRefund()).isFalse();
         assertThat(p.getCreatedAt()).isNotNull();
 
-        PartnerPayout po = payoutRepository.findByPaymentId(p.getId()).orElseThrow();
-        assertThat(po.getStatus()).isEqualTo(PayoutStatus.ACCRUED);
-        assertThat(po.getGrossCommission()).isEqualByComparingTo("459.92");
+        PayoutLine allocated = payoutLineRepository.activeForPayment(p.getId()).orElseThrow();
+        assertThat(allocated.getAmount()).isEqualByComparingTo("459.92");
+        Payout po = payoutRepository.findById(allocated.getPayout().getId()).orElseThrow();
+        assertThat(po.getStatus()).isEqualTo(PayoutStatus.DRAFT);
+        assertThat(po.getCommissionTotal()).isEqualByComparingTo("459.92");
+        assertThat(po.getCreatedAt()).isNotNull();
     }
 
     @Test

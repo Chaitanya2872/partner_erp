@@ -669,10 +669,14 @@ public class InvoiceService {
         if (reason.length() > InvoiceRules.MAX_REASON) {
             throw ValidationException.of("reason", "Must be at most " + InvoiceRules.MAX_REASON + " characters.");
         }
-        if (repository.livePaymentCount(id) > 0 || repository.payoutCount(id) > 0) {
+        if (repository.livePaymentCount(id) > 0) {
             throw BusinessException.conflict("INVOICE_HAS_PAYMENTS", "Payments are recorded against this invoice, so "
                     + "it can't be cancelled. Reverse them first if they were recorded by mistake; refunds need "
                     + "credit notes, which aren't supported.");
+        }
+        if (repository.unpaidPayoutLineCount(id) > 0) {
+            throw BusinessException.conflict("INVOICE_IN_PAYOUT", "Partner commission on this invoice is in a payout "
+                    + "that isn't paid yet. Recalculate, cancel or fail that payout first.");
         }
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoice.setCancelledAt(clock.instant());

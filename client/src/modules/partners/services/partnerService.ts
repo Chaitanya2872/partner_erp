@@ -26,6 +26,9 @@ export const partnerService = {
   create: (input: PartnerInput) => apiSend<Partner>("post", "/partners", input),
   update: (id: string, input: PartnerInput) => apiSend<Partner>("put", `/partners/${id}`, input),
   setStatus: (id: string, status: PartnerStatus, version: number) => apiSend<Partner>("patch", `/partners/${id}/status`, { status, version }),
+  /** Partners write + VIEW_PARTNER_SENSITIVE. Changing the PAN clears the verification. */
+  verifyPan: (id: string, verified: boolean, note: string, version: number) =>
+    apiSend<Partner>("post", `/partners/${id}/pan-verification`, { verified, note: note.trim() || null, version }),
   previewTierReview: (partnerIds?: string[]) => apiSend<TierReviewPreview>("post", "/partners/tier-review/preview", { partnerIds: partnerIds ?? null }),
   applyTierReview: (items: { partnerId: string; action: TierReviewAction; toLevel: number }[]) =>
     apiSend<{ reviewDate: string; applied: TierReviewItem[] }>("post", "/partners/tier-review/apply", { items }),

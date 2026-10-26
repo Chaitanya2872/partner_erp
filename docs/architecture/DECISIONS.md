@@ -28,11 +28,11 @@ Status values: `Proposed`, `Needs approval`, `Blocked`, `Accepted`, `Rejected`.
 | D-05 | Duplicate protected lead | Warning only; saved with `conflict=true` (BR-L6). | SRS asks for a decision on block vs warn. | Blocking changes partner-dispute policy. | Reproduce the source (warn and flag). Add a "conflict" filter. Only SALES_MANAGER+ can acknowledge a conflicted lead. | **Accepted (2026-10-25):** warn and flag, the warning names the protecting partner, conflict filter added. Acknowledging any lead needs `LEADS:APPROVE` (P3-06). See P6-03. |
 | D-06 | Auto-upgrade double count | New payment's net counted twice in the threshold check (§3.2). | Prompt: preserve source tier logic. | Partners can upgrade early (at roughly half the remaining gap). | **Fix: count the payment once.** It's documented as a deliberate deviation. | Needs approval |
 | D-07 | Downgrade grace "quarter" | Boolean flag. The grace length is whatever time passes between manual reviews. | Prompt: preserve; SRS: confirm quarter boundaries. | Without a schedule, grace length is arbitrary. | Keep manual review exactly as the source does, plus `partner_tier_reviews` history. Optionally add a scheduled quarterly review (1 Apr/Jul/Oct/Jan) **disabled by default**. | Needs approval |
-| D-08 | TDS formula | Catch-up formula (BR-O5). FY taken from today. | Prompt: don't substitute an accounting formula. | Legal accuracy is unverified ("verify with CA"). | Implement it exactly as a **suggestion**. TDS stays editable by FINANCE. One change: compute the FY from `paidOn` rather than today (it only differs when back-dating across 1 April). Label it "not legally verified". | Needs approval (FY basis) |
+| D-08 | TDS formula | Catch-up formula (BR-O5). FY taken from today. | Prompt: don't substitute an accounting formula. | Legal accuracy is unverified ("verify with CA"). | Implement it exactly as a **suggestion**. TDS stays editable by FINANCE. One change: compute the FY from `paidOn` rather than today (it only differs when back-dating across 1 April). Label it "not legally verified". | Implemented differently in Phase 11 (§L): configurable, Finance-confirmed TDS; FY from the as-of date |
 | D-09 | Editing invoices after payment / cancellation | Always editable. Payments and payouts are not adjusted. | Prompt: financial consistency, auditability. | Editing a paid invoice silently breaks net/fee reconciliation. | Invoice is **editable only while it has no payments and isn't cancelled**. After that, corrections go through cancel + reissue (or a later credit-note feature). Estimates stay editable unless `invoiced`. | Estimates: **Approved 2026-10-26 (Phase 8 finalization).** Draft, Sent, Accepted and Rejected estimates can be edited and soft-deleted (Sent/Accepted/Rejected after a warning); Invoiced never; status never changes silently (P8-09). **Invoices: approved 2026-10-26 (Phase 9):** only drafts are editable; issued invoices are immutable and are cancelled (with a reason, and only without payments or payouts) instead of edited (P9-03, P9-04). |
 | D-10 | Overpayment / zero-total invoice | No overpayment guard. `net` divides by total (NaN when 0). | Prompt: prevent invalid transactions. | Overpaid invoices give negative balances and inflated fees. | Reject a positive payment above `balance + ₹0.50` (or allow it with a FINANCE override flag). Reject payments on zero-total invoices. Reject refunds above the net paid. | **Implemented in Phase 10** (P10-04): receipts can't exceed the balance; refunds not recorded (O-3) |
 | D-11 | Payment deletion vs reversal | Hard delete of payment + unpaid payout. | Prompt: `POST /payments/{id}/reverse`, audit. | Hard delete destroys the audit trail. | Replace delete with **reversal**: mark `reversed`, keep the row, and cancel the linked unpaid payout. The same guard applies (blocked if the payout is paid). Add a client-side idempotency key on create to stop double submits. | **Implemented in Phase 10** (P10-01, P10-05, P10-06): reversal entry instead of delete, idempotency key; payout handling open (O-1) |
-| D-12 | Reversing a paid payout | Missing, though the source message refers to it. | Prompt: "payout reversals". | Without it, a paid payout on an erroneous payment can't be corrected. | Add FINANCE-only "reverse payout" (status `reversed`, reason, audit). This then allows the payment reversal. | Needs approval (Phase 11; blocks reversal of receipts with payouts, §K O-1) |
+| D-12 | Reversing a paid payout | Missing, though the source message refers to it. | Prompt: "payout reversals". | Without it, a paid payout on an erroneous payment can't be corrected. | Add FINANCE-only "reverse payout" (status `reversed`, reason, audit). This then allows the payment reversal. | Implemented in Phase 11 as append-only adjustments (§L) |
 | D-13 | Referral fee % editable on documents | Free numeric input. Defaults to the locked rate. | Prompt: "APIs cannot be manipulated by submitting unauthorized … commission rates". | Users could raise fees arbitrarily. | Server sets the fee % from the lead's locked rate (0 for billTo=partner). Overriding it requires SALES_MANAGER+ with a mandatory reason, written to the audit log. | **Approved 2026-10-26 (Phase 8 finalization).** The override permission is the existing `PARTNERS:APPROVE` (not a new SALES_MANAGER role); a written reason is mandatory; the audit row records previous rate, new rate, default rate, reason, actor and time (P8-07). |
 | D-14 | Cancelled invoices in B2C uplift | Dashboard "Discount vs B2C list" and the margin report include cancelled-invoice twins. | Prompt: metrics must reconcile. | Overstates the discount figure. | Exclude cancelled invoices. Show cancelled rows in the margin report with a status column. | Needs approval |
 | D-15 | PDF | Source offers "Download HTML" only, with no print button. | Prompt: Print + Download PDF. | New capability. | Server-side PDF (OpenHTMLtoPDF from Thymeleaf templates matching `.doc` CSS) plus a browser print view. Internal PDFs stay internal-only and use watermark/stamp styling. | **Browser printing accepted temporarily (2026-10-26).** Server-generated PDFs are a **mandatory pre-production requirement**; no PDF library was added in Phase 8 (P8-12). |
@@ -369,3 +369,94 @@ Phase 10 implements the approval of 2026-10-26: Phase 9 accepted (checkpoint `7c
 | O-4 | Customer TDS on receipts | Record TDS receivable as a separate settlement component (with certificate tracking), or leave it as balance. | Left as balance. |
 | O-5 | Advances and excess receipts | Unapplied receipts against a customer, with GST on advances. | Refused. |
 | O-6 | Reversal date | Today (as built), or back-dated to the original receipt date. | Today. |
+
+## L. Phase 11 decisions (as built 2026-10-26; finalised after browser verification 2026-10-27)
+
+Implements the Phase 11 approval: D-12 as an append-only adjustment model, D-08 as configurable TDS, commission on realised collections, an eight-state payout lifecycle with separation of duties, and no live bank integration. It resolves §K O-1: receipts with payouts can be reversed again.
+
+### Sources reviewed
+- BUSINESS_RULES §7 (BR-M4 to BR-M8) and §8 (payouts, BR-O1 to BR-O6); the Phase 2 `partner_payouts` table (V3/V11); D-06, D-08, D-12 and §K O-1; the Phase 10 ledger (receipts, reversals and the ex-GST share of each receipt).
+
+### Deviations from the original application (deliberate)
+
+| # | Original | As built | Why |
+|---|---|---|---|
+| C11-1 | One accrual row per payment, created when the payment is recorded and marked paid individually. | A **payout is a batch** per partner: every eligible receipt up to an as-of date plus approved adjustments. Nothing is accrued at payment time. | Approval and TDS work per payout and financial year. Receipts reversed before a payout never create anything to undo. |
+| C11-2 | Clawback only within 90 days of payment (`clawback_days`). | **Any** reversal after the commission was paid creates a negative adjustment, whenever it happens. | The approval asks for every reversal after completion to be carried forward. A time limit would leave commission paid on money that was returned. |
+| C11-3 | Tier auto-upgrade on payment (D-06). | Not done. Commission uses the rate locked on the invoice (`invoices.fee_percent`); tier changes stay with the Phase 7 tier review. | D-06 is unapproved; the approval asks for the snapshot rate. |
+| C11-4 | Tier payout days (`payout_business_days`) set a due date. | Not used for eligibility; a receipt is eligible from its payment date. | No approved rule for business days; Finance chooses when to create payouts. |
+| C11-5 | TDS from `company_settings.tds_percent` / `tds_threshold` with a catch-up formula and the FY from today (D-08). | A **separate, versioned TDS configuration** that Finance confirms. Nothing is seeded. The FY is taken from the payout's as-of date. `company_settings.tds_*` are no longer read. | The approval forbids a hardcoded or invented rate, threshold or exemption. |
+| C11-6 | Legacy refunds (`REFUND` entries) reduce fees. | Excluded from commission: only `RECEIPT` entries that are not reversed earn commission. | Refunds were never tied to a receipt; they need the credit-note process (§K O-3). |
+| C11-7 | Unpaid Phase 2 accruals. | **Not migrated**: their receipts are recalculated by the payout run. Paid accruals become legacy PAID payouts (one per row), so their commission is never paid twice. | Recalculation applies the new rules (ex-GST, snapshot rate) consistently. |
+
+### Commission rules
+- Commission line = `r2(payment.net_amount × invoice.fee_percent / 100)`, `RoundingMode.HALF_UP`. `net_amount` is the receipt's ex-GST share from Phase 10 (P10-A2), so partial and multiple receipts each earn their own line. The line stores the base, the percentage and the amount.
+- Eligible: `RECEIPT` entries, not reversed, invoice `fee_percent > 0`, `payment_date ≤ as-of date`, and no live line (`released_at IS NULL`) in another payout. Zero-commission receipts are skipped.
+- Approved adjustments not yet allocated are added as `ADJUSTMENT` lines, positive or negative.
+- Commission total = Σ lines. A payout needs a total above zero; when carried deductions exceed the eligible commission, nothing is created and the remainder stays carried.
+- No duplicates: the partner row is locked while a payout is generated or recalculated; partial unique indexes allow one live line per payment and per adjustment; one open (Draft or Pending) payout per partner.
+
+### TDS handling (D-08)
+- **Configuration.** `tds_configurations` versions hold a section code, a description, the rate with a verified PAN, an optional rate without one, a financial-year threshold and an effective date. SETTINGS:WRITE edits the single draft; someone else with PAYOUTS:APPROVE confirms it with a note (who in Finance confirmed it and on what basis). A confirmed version never changes; a new version must take effect after the latest one. Nothing statutory is seeded or hardcoded; tests use clearly fictitious values.
+- **Rule applied.** The latest confirmed version with `effective_from ≤ as-of date`. With none: `CONFIG_INCOMPLETE`. PAN on file and verified: the PAN rate. Otherwise the rate without a PAN; if Finance set none, `PAN_NOT_VERIFIED`.
+- **Calculation.** FY = the 1 April–31 March year containing the as-of date. Prior = commission of APPROVED, PROCESSING and PAID payouts of the same partner and FY (legacy payouts count as taxed when they had TDS). If prior + this commission exceeds the threshold, base = max(0, cumulative − commission already taxed) and TDS = `r2(base × rate / 100)`, HALF_UP; otherwise 0. Net = commission − TDS.
+- **Incomplete settings.** Previews and drafts work, with TDS shown as not calculated. Submitting is allowed, but approval (`409 TDS_NOT_READY`) and everything after it is blocked.
+- **Manual change.** `tds-adjustment` (Payouts write, draft or pending) replaces the amount with a reason (for example a lower-deduction certificate). It is kept as an `ADJUSTED` calculation. Recalculating discards it. Whoever entered the change in force can't approve that payout (`409 SELF_APPROVAL`); they may still reject it.
+- **Approval check.** Approval recalculates and compares status, configuration, rate, base and TDS (TDS only when not adjusted). Any difference → `409 PAYOUT_RECALCULATION_REQUIRED`. Every calculation is stored in `payout_tds_calculations`.
+- **PAN verification.** `POST /partners/{id}/pan-verification` (Partners write + VIEW_PARTNER_SENSITIVE) records or withdraws a check with a note. Changing the PAN clears it (trigger).
+
+### Lifecycle and permissions
+
+| From | To | Endpoint | Permission | Notes |
+|---|---|---|---|---|
+| — | Draft | `POST /payouts` | PAYOUTS:WRITE | Idempotency key + request hash; `409 PAYOUT_OPEN_EXISTS`, `409 NOTHING_TO_PAY`. |
+| Draft / Pending | (unchanged) | `/recalculate` | WRITE | Keeps the status: a Pending approval payout **stays Pending approval** (it does not go back to Draft) and the approver reviews the new amounts. Releases reversed or stale lines (`RECALCULATED`), adds new ones, recalculates TDS and discards a manual TDS change. |
+| Draft | Pending approval | `/submit` | WRITE | Blocked while a source receipt is reversed. |
+| Pending | Approved | `/approve` | PAYOUTS:APPROVE | Not by the creator or the submitter (`409 SELF_APPROVAL`; DB `ck_payouts_separation`), nor by whoever entered the manual TDS change in force (`409 SELF_APPROVAL`, service check). Needs confirmed TDS, PAN and bank on file, no reversed sources and an unchanged calculation. Optional note. |
+| Pending | Rejected | `/reject` | APPROVE | Reason required; lines released. |
+| Draft / Pending | Cancelled | `/cancel` | WRITE | Reason required. |
+| Approved | Cancelled | `/cancel` | APPROVE | Reason required. |
+| Approved | Processing | `/processing` | PAYOUTS:MARK_PAYOUT_PAID | Records the account's last four digits only. Blocked when a source receipt was reversed after approval (`409 PAYOUT_BLOCKED`). No money moves. |
+| Processing | Paid | `/mark-paid` | MARK_PAYOUT_PAID | Paid date (≤ today, ≥ approval date, same FY, else `409 PAYOUT_FY_MISMATCH`) and bank reference. A reversed source needs `acknowledgeReversedSources`, which carries a deduction forward after payment. |
+| Processing | Failed | `/fail` | MARK_PAYOUT_PAID | Reason required; lines released. |
+
+- Every transition locks the payout (`PESSIMISTIC_WRITE`), checks the version the user saw (`409 CONCURRENT_MODIFICATION`) and is audited (`PAYOUT_*`). Lines are released before the status changes. The DB trigger enforces the same transition matrix: paid, rejected, cancelled and failed payouts can't change, and nothing can be deleted.
+- The PAYOUTS scope must be ALL. Otherwise commands give `409 PAYOUTS_SCOPE`, details give 404 and lists are empty.
+- V18 sets `PAYOUTS.supports_approve = true` (capability only). No role gains a permission from the migration: Super Admin has it implicitly, and Admins only if a Super Admin grants it.
+
+### Reversal adjustment behaviour (D-12)
+
+| State of the payout holding the receipt | Effect of reversing the receipt |
+|---|---|
+| None (not yet in a payout) | The receipt is no longer eligible. |
+| Draft / Pending approval | The line is flagged reversed. Submit and approval are blocked until the payout is recalculated, which releases the line (the status stays as it was). |
+| Approved / Processing | Processing is blocked, and mark-paid needs explicit acknowledgement. Otherwise cancel (Approved) or fail (Processing) and generate a new payout. Amounts never change after approval. |
+| Paid | The payout is unchanged. A `REVERSAL` adjustment (−line amount, approved automatically, linked to the reversal entry and the line, both UNIQUE) is carried into the partner's next payout. |
+| Rejected / Cancelled / Failed | The line was already released; nothing to do. |
+
+Nothing is debited from a partner's account. Historical payouts and lines are never deleted or overwritten; lines are only released, once, with a reason.
+
+### Decisions as built
+
+| ID | Topic | Decision |
+|---|---|---|
+| P11-01 | Manual adjustments | Payouts write enters a signed amount (≠ 0, ≤ 2 decimals, ≤ ₹99,999,999.99) with a reason and an idempotency key; the status is Pending approval. Someone else with Payouts approve approves or rejects it (a reason is required to reject). Approved adjustments are carried into the next payout. |
+| P11-02 | Bank details | Responses show PAN and bank details only with VIEW_PARTNER_SENSITIVE; otherwise they are masked. Audit rows and the processing record keep at most the account's last four digits. The CSV has no bank details. |
+| P11-03 | Export | `GET /payouts/export` (PAYOUTS:EXPORT): CSV with a BOM, formula-guarded, at most 5,000 rows. It has no PAN or bank account. The transfer's bank reference (UTR) is included in full for reconciliation; the audit trail and the history keep only its last four characters. |
+| P11-04 | Invoice cancellation | Refused while a commission line of the invoice sits in a payout that isn't paid (`409 INVOICE_IN_PAYOUT`). |
+| P11-05 | Partner fee totals | `PartnerMetricsRepository.feeTotals`: unpaid = eligible commission + unpaid payout lines + carried adjustments; paid = Σ commission of PAID payouts. |
+| P11-06 | Legacy table | `partner_payouts` is kept for history but refuses new rows (trigger, "superseded"). |
+| P11-07 | Frontend | `/payouts`: dashboard, TDS warning, and tabs for payouts (filters, export, create), partner balances and adjustments (new, approve/reject). `/payouts/:id`: lines, released lines, TDS breakdown, calculation history, workflow with masked bank details, audit history and the transition dialogs. Settings gets a TDS card; the partner page gets PAN verification and a payouts card. Buttons follow the server's `actions`. |
+| P11-08 | Closed payout totals | A rejected, cancelled or failed payout keeps its totals: lines released when it closed still count in its receipts and adjustments totals, so they always add up to the stored commission. Lines a recalculation released don't count. (Found in browser verification; the totals previously read ₹0.) |
+| P11-09 | Manual TDS and separation of duties | The author of a manual TDS change can't approve that payout, so an override of the amount paid always has a second person. The rule is checked when approving and reflected in `actions.approve` and the blockers. (Found in browser verification.) |
+
+### Needs approval (not implemented)
+
+| # | Question | Current behaviour |
+|---|---|---|
+| L-1 | Statutory TDS values (section, rates, threshold, effective date) | None. Finance must enter and confirm them; until then no payout can be approved. |
+| L-2 | Live bank transfers or a payment gateway | Not integrated. Processing and paid are recorded by hand from the bank statement. |
+| L-3 | Clawback window (originally 90 days), and recovery when a partner earns no further commission | Unlimited carry-forward; a negative balance stays carried. |
+| L-4 | Tier auto-upgrade on payment (D-06) and payout business days | Not implemented. |
+| L-5 | FY basis for TDS | The payout's as-of date; the paid date must fall in the same FY. |
+| L-6 | Lower or nil deduction certificates | Entered as a manual TDS change with a reason; there is no certificate register. |

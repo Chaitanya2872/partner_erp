@@ -46,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: "/estimates", module: "ESTIMATES", icon: FileSpreadsheet, group: "Sales" },
   { path: "/invoices", module: "INVOICES", icon: FileText, group: "Sales" },
   { path: "/payments", module: "PAYMENTS", icon: Wallet, group: "Sales" },
-  { path: "/payouts", module: "PAYOUTS", icon: Banknote, group: "Sales", phase: 11 },
+  { path: "/payouts", module: "PAYOUTS", icon: Banknote, group: "Sales" },
   { path: "/products", module: "PRODUCTS", icon: Package, group: "Master" },
   { path: "/reports", module: "REPORTS", icon: BarChart3, group: "Master", phase: 12 },
   { path: "/settings", module: "SETTINGS", icon: Settings, group: "Master" },

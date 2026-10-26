@@ -51,6 +51,11 @@ export function formatNumber(value: DecimalInput): string {
   return v === null ? NOT_AVAILABLE : fmt(grouped, v);
 }
 
+/** "1 receipt", "3 receipts": a grouped count with the noun in the right number. */
+export function formatCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${formatNumber(count)} ${count === 1 ? singular : plural}`;
+}
+
 /** 18.00%. The input is already a percentage (18 means 18%), as the API sends GST and fee rates. */
 export function formatPercent(value: DecimalInput): string {
   const v = toIntlValue(value);

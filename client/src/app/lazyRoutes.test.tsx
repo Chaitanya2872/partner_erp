@@ -27,7 +27,7 @@ function allRoutes(list: RouteObject[]): RouteObject[] {
 
 describe("route-level code splitting", () => {
   it("loads every page lazily, including the shell and the login page", () => {
-    const paths = ["/login", "/", "dashboard", "products", "users", "users/:id/permissions", "roles", "audit-logs", "account/password", "leads", "leads/:id", "leads/new", "estimates", "estimates/new", "estimates/:id", "estimates/:id/edit", "invoices", "invoices/new", "invoices/:id", "invoices/:id/edit", "payments", "payments/:id", "settings"];
+    const paths = ["/login", "/", "dashboard", "products", "users", "users/:id/permissions", "roles", "audit-logs", "account/password", "leads", "leads/:id", "leads/new", "estimates", "estimates/new", "estimates/:id", "estimates/:id/edit", "invoices", "invoices/new", "invoices/:id", "invoices/:id/edit", "payments", "payments/:id", "payouts", "payouts/:id", "settings"];
     const byPath = new Map(allRoutes(routes).map((r) => [r.path, r]));
     for (const path of paths) {
       const route = byPath.get(path);
@@ -39,8 +39,8 @@ describe("route-level code splitting", () => {
   it("renders a lazily loaded page behind the authenticated shell", async () => {
     vi.mocked(authService.modules).mockResolvedValue(catalog);
     vi.mocked(authService.restore).mockResolvedValue(makeMe("ADMIN"));
-    renderApp("/payouts");
-    expect(await screen.findByRole("heading", { name: "Payouts" })).toBeInTheDocument();
-    expect(screen.getByText(/delivered in Phase 11/)).toBeInTheDocument();
+    renderApp("/reports");
+    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(screen.getByText(/delivered in Phase 12/)).toBeInTheDocument();
   });
 });

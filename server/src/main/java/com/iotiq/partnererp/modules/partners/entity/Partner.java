@@ -12,7 +12,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 /**
  * Channel partner (source "cps"). PAN and bank fields are sensitive: masked in DTOs, redacted in logs.
@@ -74,6 +76,16 @@ public class Partner extends AuditableEntity {
 
     @Column(name = "pan", length = 10)
     private String pan;
+
+    /** Set when someone checked the PAN (Phase 11); cleared by the database whenever the PAN changes. */
+    @Column(name = "pan_verified_at")
+    private Instant panVerifiedAt;
+
+    @Column(name = "pan_verified_by")
+    private UUID panVerifiedBy;
+
+    @Column(name = "pan_verification_note", length = 500)
+    private String panVerificationNote;
 
     @Column(name = "gstin", length = 15)
     private String gstin;
@@ -215,6 +227,29 @@ public class Partner extends AuditableEntity {
 
     public String getPan() {
         return pan;
+    }
+
+    public Instant getPanVerifiedAt() {
+        return panVerifiedAt;
+    }
+
+    public UUID getPanVerifiedBy() {
+        return panVerifiedBy;
+    }
+
+    public String getPanVerificationNote() {
+        return panVerificationNote;
+    }
+
+    /** Records (or, with nulls, clears) the PAN check. */
+    public void setPanVerification(Instant at, UUID by, String note) {
+        this.panVerifiedAt = at;
+        this.panVerifiedBy = by;
+        this.panVerificationNote = note;
+    }
+
+    public boolean isPanVerified() {
+        return pan != null && panVerifiedAt != null;
     }
 
     public void setPan(String pan) {

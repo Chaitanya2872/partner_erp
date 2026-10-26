@@ -20,6 +20,8 @@ import { formatCurrency, formatDate, formatDateTime, formatPercent, NOT_AVAILABL
 import { partnerService } from "../services/partnerService";
 import { usePartner, usePartnerMeta } from "../hooks/usePartners";
 import { TierReviewDialog } from "../components/TierReviewDialog";
+import { PanVerificationDialog } from "../components/PanVerificationDialog";
+import { PartnerPayoutsCard } from "@/modules/payouts/components/PartnerPayoutsCard";
 import { leadService } from "@/modules/leads/services/leadService";
 import { useLeadMeta } from "@/modules/leads/hooks/useLeads";
 import { useLeadActions } from "@/modules/leads/components/LeadDialogs";
@@ -50,6 +52,7 @@ export function PartnerDetailsPage() {
   });
   const [statusTarget, setStatusTarget] = useState<PartnerStatus | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [verifyingPan, setVerifyingPan] = useState(false);
 
   const statusMutation = useMutation({
     mutationFn: ({ p, status }: { p: Partner; status: PartnerStatus }) => partnerService.setStatus(p.id, status, p.version),
@@ -215,7 +218,19 @@ export function PartnerDetailsPage() {
           }
         >
           <DescriptionList>
-            <DetailRow label="PAN" mono>{p.pan ?? NOT_AVAILABLE}</DetailRow>
+            <DetailRow label="PAN" mono>
+              {p.pan ?? NOT_AVAILABLE}
+              {p.panOnFile ? (
+                <span className="ml-2 font-sans text-xs text-muted-foreground">
+                  {p.panVerified ? `Verified${p.panVerifiedAt ? ` ${formatDate(p.panVerifiedAt)}` : ""}` : "Not verified"}
+                </span>
+              ) : null}
+              {p.panOnFile && canWrite("PARTNERS") && canPerform("PARTNERS", "VIEW_PARTNER_SENSITIVE") ? (
+                <Button size="sm" variant="link" className="ml-2 font-sans" onClick={() => setVerifyingPan(true)}>
+                  {p.panVerified ? "Withdraw verification" : "Record verification"}
+                </Button>
+              ) : null}
+            </DetailRow>
             <DetailRow label="GSTIN" mono>{p.gstin ?? NOT_AVAILABLE}</DetailRow>
             <DetailRow label="Licence / registration no.">{p.licenceNo ?? NOT_AVAILABLE}</DetailRow>
             <DetailRow label="Bank">{p.bankName ?? NOT_AVAILABLE}</DetailRow>
@@ -256,12 +271,7 @@ export function PartnerDetailsPage() {
 
       {canRead("LEADS") ? <PartnerLeads partnerId={p.id} partnerName={p.name} /> : null}
 
-      <ContentCard title="Other linked records" description="Estimates, invoices, payments and payouts for this partner.">
-        <p className="text-sm text-muted-foreground">
-          These lists appear here as their modules are delivered: estimates in Phase 8, invoices and payments in Phases 9–10, and referral fee
-          payouts in Phase 11.
-        </p>
-      </ContentCard>
+      {canRead("PAYOUTS") ? <PartnerPayoutsCard partnerId={p.id} /> : null}
 
       <p className="text-xs text-muted-foreground">
         Created {formatDateTime(p.createdAt)} · updated {formatDateTime(p.updatedAt)}
@@ -287,6 +297,7 @@ export function PartnerDetailsPage() {
         )}
       </ConfirmDialog>
 
+      <PanVerificationDialog partner={p} open={verifyingPan} onClose={() => setVerifyingPan(false)} />
       {canApprove ? <TierReviewDialog open={reviewing} onOpenChange={setReviewing} partnerIds={[p.id]} /> : null}
     </PageContainer>
   );
@@ -356,7 +367,7 @@ function PartnerAlerts({ partner: p, performance }: { partner: Partner; performa
   if (missing.length > 0) {
     alerts.push(
       <Alert key="payout" tone={performance && Number(performance.feesUnpaid) > 0 ? "danger" : "info"} title="Not ready for payouts">
-        Add the {missing.join(" and ")} before any referral fee can be paid.
+        Add the {missing.join(" and ")} before a payout can be approved.
       </Alert>,
     );
   }

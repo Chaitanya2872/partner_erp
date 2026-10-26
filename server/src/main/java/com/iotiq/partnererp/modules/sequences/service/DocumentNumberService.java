@@ -26,6 +26,10 @@ public class DocumentNumberService {
     public static final String INVOICE = "INV";
     /** Payment ledger entries, receipts and reversals alike (Phase 10). */
     public static final String PAYMENT = "PAY";
+    /** Partner payouts (Phase 11); legacy payouts carried over from the accrual table have no number. */
+    public static final String PAYOUT = "PO";
+    /** Partner adjustments, manual and reversal alike (Phase 11). */
+    public static final String ADJUSTMENT = "ADJ";
     static final int MAX = 999_999;
 
     private final NamedParameterJdbcTemplate jdbc;

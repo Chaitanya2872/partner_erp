@@ -285,7 +285,7 @@ class PaymentApiIT extends ApiIntegrationTest {
     }
 
     @Test
-    void reversalsAreSerialisedBlockedByPayoutsAndUnlockCancellation() throws Exception {
+    void reversalsAreSerialisedAndUnlockCancellation() throws Exception {
         UUID invoice = rawInvoice("ISSUED", "1000.00", "1180.00", today.minusDays(5));
         UUID receipt = id(record(admin, invoice, "590", "UPI", "UPI-" + tag).andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString());
@@ -295,17 +295,12 @@ class PaymentApiIT extends ApiIntegrationTest {
         assertThat(statuses.stream().filter(s -> s == 409)).hasSize(4);
         assertThat(count("select count(*) from payments where reversed_payment_id = ?", receipt)).isEqualTo(1);
 
-        // A receipt with a partner payout waits for Phase 11's payout adjustment.
+        // Phase 11: a receipt is reversible whatever payout holds it; payouts handle the effect (PayoutApiIT).
         UUID withPayout = id(record(admin, invoice, "100", "UPI", "UPI2-" + tag).andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString());
-        jdbc.update("insert into partner_payouts (payment_id, partner_id, invoice_id, base_amount, commission_percent, "
-                + "gross_commission, accrued_on, due_date) values (?, ?, ?, 84.75, 8, 6.78, current_date, current_date)",
-                withPayout, partnerId, invoice);
         mvc.perform(get("/api/v1/payments/{id}", withPayout).with(bearer(sa)))
-                .andExpect(jsonPath("$.data.canReverse").value(false))
-                .andExpect(jsonPath("$.data.reverseBlockedBy").value(org.hamcrest.Matchers.containsString("Phase 11")));
-        reverse(sa, withPayout, "Wrong invoice").andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("PAYMENT_HAS_PAYOUT"));
+                .andExpect(jsonPath("$.data.canReverse").value(true))
+                .andExpect(jsonPath("$.data.reverseBlockedBy").doesNotExist());
 
         // Once nothing stands against it (and no payout exists), an invoice can be cancelled.
         UUID clean = rawInvoice("ISSUED", "1000.00", "1180.00", today.minusDays(5));

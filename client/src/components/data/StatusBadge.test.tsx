@@ -34,7 +34,17 @@ describe("status badges", () => {
       "REJECTED",
       "INVOICED",
     ]);
-    expect(Object.keys(STATUS_REGISTRY.payout).filter((k) => !STATUS_REGISTRY.payout[k].derived)).toEqual(["ACCRUED", "PAID"]);
+    expect(Object.keys(STATUS_REGISTRY.payout).filter((k) => !STATUS_REGISTRY.payout[k].derived)).toEqual([
+      "DRAFT",
+      "PENDING_APPROVAL",
+      "APPROVED",
+      "PROCESSING",
+      "PAID",
+      "REJECTED",
+      "CANCELLED",
+      "FAILED",
+    ]);
+    expect(Object.keys(STATUS_REGISTRY.adjustment)).toEqual(["PENDING_APPROVAL", "APPROVED", "REJECTED"]);
     expect(Object.keys(STATUS_REGISTRY.invoice).filter((k) => !STATUS_REGISTRY.invoice[k].derived)).toEqual(["CANCELLED"]);
   });
 });

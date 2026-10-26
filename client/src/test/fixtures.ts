@@ -1,6 +1,6 @@
 import type { Me, ModuleInfo, ModulePermission } from "@/modules/auth/types/auth.types";
 
-/** Test fixtures mirroring the V12 module catalogue and role templates (tests only). */
+/** Test fixtures mirroring the V12 module catalogue (with the V18 payout approve capability) and role templates (tests only). */
 type Flags = "W" | "D" | "E" | "A" | "S";
 const defs: [string, string, Flags[], boolean?][] = [
   ["DASHBOARD", "Dashboard", []],
@@ -10,7 +10,7 @@ const defs: [string, string, Flags[], boolean?][] = [
   ["ESTIMATES", "Estimates", ["W", "D", "E", "S"]],
   ["INVOICES", "Invoices", ["W", "D", "E", "A", "S"]],
   ["PAYMENTS", "Payments", ["W", "E", "S"]],
-  ["PAYOUTS", "Payouts", ["W", "E", "S"]],
+  ["PAYOUTS", "Payouts", ["W", "E", "A", "S"]],
   ["INTERNAL_B2C", "Internal B2C", ["E"]],
   ["REPORTS", "Reports", ["E"]],
   ["SETTINGS", "Settings", ["W"]],

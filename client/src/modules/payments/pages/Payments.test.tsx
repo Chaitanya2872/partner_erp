@@ -194,9 +194,9 @@ describe("payment details", () => {
 
   it("explains why a receipt can't be reversed and hides the action", async () => {
     signIn(reverser());
-    vi.mocked(paymentService.get).mockResolvedValue({ ...receipt, canReverse: false, reverseBlockedBy: "A partner payout is linked to this payment. Payout adjustments arrive in Phase 11." });
+    vi.mocked(paymentService.get).mockResolvedValue({ ...receipt, canReverse: false, reverseBlockedBy: "This receipt is being reversed by someone else." });
     renderApp("/payments/pay3");
-    expect(await screen.findByText(/A partner payout is linked/)).toBeInTheDocument();
+    expect(await screen.findByText(/being reversed by someone else/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reverse payment/ })).not.toBeInTheDocument();
   });
 

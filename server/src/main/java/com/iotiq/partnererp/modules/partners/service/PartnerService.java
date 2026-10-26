@@ -11,6 +11,7 @@ import com.iotiq.partnererp.modules.auth.entity.ModuleCode;
 import com.iotiq.partnererp.modules.auth.entity.User;
 import com.iotiq.partnererp.modules.auth.repository.UserRepository;
 import com.iotiq.partnererp.modules.auth.service.DataScopeService;
+import com.iotiq.partnererp.modules.partners.dto.PanVerificationRequest;
 import com.iotiq.partnererp.modules.partners.dto.PartnerMeta;
 import com.iotiq.partnererp.modules.partners.dto.PartnerPerformance;
 import com.iotiq.partnererp.modules.partners.dto.PartnerRequest;
@@ -38,11 +39,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -236,6 +239,10 @@ public class PartnerService {
         }
         if (input.pan() != null) {
             partner.setPan(emptyToNull(input.pan()));
+            // A changed PAN has not been checked (the database clears it too).
+            if (!Objects.equals(sensitiveBefore.get(0), partner.getPan())) {
+                partner.setPanVerification(null, null, null);
+            }
         }
         if (input.gstin() != null) {
             partner.setGstin(emptyToNull(input.gstin()));
@@ -282,6 +289,46 @@ public class PartnerService {
         return toResponse(partner, user);
     }
 
+    /**
+     * Record that the partner's PAN was checked, or withdraw the check ({@code PARTNERS:WRITE} and
+     * {@code PARTNERS:VIEW_PARTNER_SENSITIVE}; only someone who can see the PAN can vouch for it). Payout TDS uses the
+     * verified rate only for verified PANs (Phase 11).
+     */
+    @Transactional
+    public PartnerResponse verifyPan(UUID id, PanVerificationRequest request, AuthenticatedUser user) {
+        if (!canSeeSensitive(user)) {
+            throw new AccessDeniedException("PAN verification needs access to the PAN.");
+        }
+        Partner partner = load(id, user);
+        if (request == null || request.verified() == null) {
+            throw ValidationException.of("verified", "Say whether the PAN was verified.");
+        }
+        if (request.version() == null || request.version() != partner.getVersion()) {
+            throw new ObjectOptimisticLockingFailureException(Partner.class, id);
+        }
+        String note = request.note() == null || request.note().isBlank() ? null : request.note().strip();
+        if (note != null && note.length() > 500) {
+            throw ValidationException.of("note", "Must be at most 500 characters.");
+        }
+        boolean verified = request.verified();
+        if (verified && partner.getPan() == null) {
+            throw ValidationException.of("verified", "Enter the partner's PAN first.");
+        }
+        if (verified && note == null) {
+            throw ValidationException.of("note", "Say how the PAN was checked.");
+        }
+        if (verified == partner.isPanVerified()) {
+            return toResponse(partner, user);
+        }
+        partner.setPanVerification(verified ? Instant.now(clock) : null, verified ? user.id() : null,
+                verified ? note : null);
+        partnerRepository.saveAndFlush(partner);
+        auditService.record(AuditActions.PARTNER_PAN_VERIFIED, AuditActions.ENTITY_PARTNER, id,
+                AuditService.values("panVerified", !verified),
+                AuditService.values("panVerified", verified, "pan", PartnerMapper.mask(partner.getPan()), "note", note));
+        return toResponse(partner, user);
+    }
+
     // ------------------------------------------------------------------------------------------- helpers
 
     /** Today in the business time zone minus 365 days (BR-P12, D-24). */
@@ -306,7 +353,7 @@ public class PartnerService {
         return user.permissions().canPerform(ModuleCode.PARTNERS.name(), "APPROVE");
     }
 
-    static boolean canSeeSensitive(AuthenticatedUser user) {
+    public static boolean canSeeSensitive(AuthenticatedUser user) {
         return user.permissions().canPerform(ModuleCode.PARTNERS.name(), SENSITIVE_ACTION);
     }
 

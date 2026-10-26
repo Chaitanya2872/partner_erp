@@ -15,7 +15,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 8 | Estimate management | COMPLETED (conditionally approved 2026-10-26; finalized) | 2026-10-26 | 2026-10-26 |
 | 9 | Invoice management | COMPLETED (approved 2026-10-26, checkpoint `7cafbc8`) | 2026-10-26 | 2026-10-26 |
 | 10 | Payment management | COMPLETED, awaiting approval | 2026-10-26 | 2026-10-26 |
-| 11 | Partner payouts | NOT_STARTED | — | — |
+| 11 | Partner payouts | COMPLETED, awaiting approval | 2026-10-26 | 2026-10-27 |
 | 12 | Dashboard & reports | NOT_STARTED | — | — |
 | 13 | Settings & administration | NOT_STARTED | — | — |
 | 14 | End-to-end testing & QA | NOT_STARTED | — | — |
@@ -1001,4 +1001,149 @@ Phase 10, payment management: approved on 2026-10-26 and completed (see below).
 - Rows recorded before Phase 10 (test fixtures) have no payment number and show as "Payment".
 
 ### Next phase
-Phase 11, partner payouts, after your approval. Not started.
+Phase 11, partner payouts, after your approval. *(Delivered; see below.)*
+
+## Phase 11: Partner payouts
+
+- **Status:** COMPLETED, awaiting approval. Rules, lifecycle, TDS, reversal handling, deviations and open questions are in DECISIONS.md §L (C11-1 to C11-7, P11-01 to P11-09, L-1 to L-6). API: API_DESIGN.md §3.9. Schema: DATABASE_DESIGN.md §12 (V18).
+- **Dates:** started 2026-10-26; verified, finalised and committed 2026-10-27.
+
+### Delivered
+- **Commission:** earned on money actually received: `r2(receipt ex-GST share × invoice fee %)`, HALF_UP, using the rate locked on the invoice. Partial and multiple receipts each get a line. Reversed receipts, zero-fee invoices and legacy refunds earn nothing.
+- **Payouts:** a batch per partner up to an as-of date: eligible receipts plus approved adjustments.
+  - Lifecycle: Draft → Pending approval → Approved → Processing → Paid, or Rejected, Cancelled or Failed.
+  - One open payout per partner. One live line per receipt and per adjustment (partial unique indexes). Idempotent create.
+  - Recalculating keeps the status; a Pending approval payout stays Pending approval.
+  - Closed payouts keep their lines (released, with a reason) and their totals.
+- **TDS:** a versioned configuration entered by one person (SETTINGS:WRITE) and confirmed by another (PAYOUTS:APPROVE). Nothing statutory is seeded.
+  - Rate: the verified-PAN rate, otherwise the no-PAN rate.
+  - Threshold: per financial year, with catch-up on the not-yet-taxed base.
+  - Manual change: allowed with a reason; its author can't approve the payout.
+  - Every calculation is stored, and approval re-checks it.
+- **Reversals (D-12):**
+  - Draft or pending payout: approval is blocked until it is recalculated.
+  - Approved or processing payout: blocked, cancel/fail, or pay with an acknowledgement.
+  - Paid payout: an automatic negative adjustment is carried into the next payout.
+- **Manual adjustments:** maker-checker, signed, with a reason and an idempotency key.
+- **Separation of duties:**
+  - The creator or submitter can't approve or reject.
+  - The author of a manual TDS change can't approve.
+  - The TDS editor can't confirm the settings.
+  - The creator of an adjustment can't decide it.
+- **Security:** PAN and bank account are masked without VIEW_PARTNER_SENSITIVE. Audit rows and history keep only the last four digits. The CSV has no PAN or account. PAN verification records who checked it and how.
+- **Frontend:**
+  - `/payouts`: dashboard, payouts list, partner balances and adjustments tabs.
+  - `/payouts/:id`: details with lines, released lines, TDS breakdown, calculation history, workflow, audit history and transition dialogs.
+  - A TDS settings card, plus PAN verification and a payouts card on the partner page.
+
+### Files
+- **Server:**
+  - `db/migration/V18__partner_payouts.sql`
+  - `modules/payouts/**` (rewritten): `controller/{PayoutController, PartnerAdjustmentController, TdsConfigurationController}`, `entity/{Payout, PayoutLine, PartnerAdjustment, PayoutTdsCalculation, TdsConfiguration, PayoutEnums, PayoutStatus}`, `repository/*` (incl. `PayoutQueries`), `service/{PayoutService, PayoutRules, PartnerAdjustmentService, TdsConfigurationService, UserNames}`, `dto/*`. The Phase 2 `PartnerPayout` entity, repository, mapper and the old DTOs were removed.
+  - `modules/partners/dto/PanVerificationRequest`
+  - Modified: `partners/{controller, dto/PartnerResponse, entity/Partner, mapper, repository/PartnerRepository, repository/PartnerMetricsRepository, service}`, `invoices/{repository, service}` (`INVOICE_IN_PAYOUT`), `payments/{repository, service}` (reversals with payouts), `audit/AuditActions`, `sequences/DocumentNumberService` (`PO`, `ADJ`).
+  - Tests: `unit/payouts/PayoutRulesTest` (10), `integration/payouts/PayoutApiIT` (22), and updates in `PaymentApiIT`, `ConstraintsIT`, `MigrationAndSeedIT` (V18) and `PersistenceIT`.
+- **Client:**
+  - `modules/payouts/{types/payout.types, services/payoutService, hooks/usePayouts, components/{PayoutParts, CreatePayoutDialog, PayoutActionDialogs, AdjustmentDialogs, PartnerPayoutsCard, TdsSettingsCard}, pages/{PayoutsPage, PayoutDetailsPage, Payouts.test}}` (`PayoutTable` removed)
+  - `modules/partners/components/PanVerificationDialog`
+  - Modified: partner details/types/service/tests, `ReversePaymentDialog` (payout effect explained), `SettingsPage`, `lib/{queryKeys, status}`, `utils/format` (`formatCount`), `app/{navigation, router}` with routing tests, `test/fixtures`.
+
+### Build and test results
+- **Backend, full suite (`mvn verify`, 2026-10-26, before browser verification):** **281 tests, 0 failures** (95 unit, 186 integration). `ProductApiIT` 17/17. A separate targeted `PayoutApiIT` run passed 21/21, and the five regression tests added after the full run passed on their own.
+- **Backend after the browser-verification fixes (2026-10-27).** The full suite was **not** re-run, by instruction, to limit memory use. Production code changed only in `PayoutService`: closed-payout totals, the manual-TDS approval rule, blocker wording and the minus sign in amounts. Re-run:
+  - all unit tests: **95/95**;
+  - `PayoutApiIT`, **22/22** (21 + `whoeverChangesTheTdsByHandCantApproveThatPayout`; the rejected/failed test also asserts closed-payout totals);
+  - `PaymentApiIT` 8/8, `InvoiceApiIT` 19/19, `PartnerApiIT` 16/16, `ConstraintsIT` 16/16, `PersistenceIT` 8/8, `MigrationAndSeedIT` 8/8.
+
+  These ran against a throwaway `partner_erp_p11check_test` database (dropped afterwards), so the browser-verification records in `partner_erp_test` survived. Expected full-suite count: 282.
+- **Frontend (final code, run in sequence):**
+  - `npm test -- --maxWorkers=4`: **196 tests in 22 files, 0 failures** (`Payouts.test.tsx` 13).
+  - `npm run lint`: 0 errors, the 4 existing fast-refresh warnings.
+  - `npm run build`: OK (PayoutsPage 23.2 kB, PayoutDetailsPage 20.2 kB).
+
+### Browser verification (2026-10-27)
+- **Setup:**
+  - Memory checked first: about 2.0 GB available, commit at 75 % of 60.6 GB, and no leftover Maven/test JVMs. Nothing was listening on 8080, so nothing there was touched.
+  - Backend jar on **8091** against **`partner_erp_test`** (Flyway: schema version 18, up to date). Vite on **5181**. One headless agent-browser session at a time.
+  - Fixture accounts only:
+    - two Super Admins, a maker (SA-A) and a checker (SA-B), plus a third for one approval;
+    - an Admin on the default template (payouts read only);
+    - an Admin given payouts write by a Super Admin.
+  - Test data:
+    - partners "P11 Alpha Interiors", "P11 Beta Studio" and "P11 Gamma Designs", created through the API;
+    - issued invoices `P11-A1…A4`, `P11-B1` and `P11-G1` with fee %, inserted in SQL the same way `PayoutApiIT` does;
+    - receipts recorded through the payments API.
+  - TDS values were fictitious: section TEST, 10 % / 20 % without PAN, threshold ₹15,000.
+- **Verified:**
+  - **Dashboard and totals.** Ready to pay ₹43,744.97 · 30 receipts · 20 partners, matching an independent SQL recomputation. After all flows it showed ₹13,344.97 · 26 · 18, matching a hand reconciliation.
+  - **Partner balances.** Alpha ₹28,000 (3 receipts), Beta ₹5,000, Gamma ₹2,400.
+  - **Commission.** Alpha's preview: ₹4,000 + ₹4,000 + ₹20,000 (excl. GST × the invoice rate); TDS 10 % of ₹28,000 = ₹2,800; net ₹25,200. All match a hand calculation.
+  - **TDS settings.**
+    - An incomplete draft is flagged.
+    - The editor gets no Confirm button and `409 SELF_APPROVAL` from the API.
+    - The Admin gets `403`.
+    - A second person confirms only with a note.
+    - Settings not confirmed: previews and drafts work ("Not calculated"), approval gives `409 TDS_NOT_READY`. Once confirmed, approval asks for a recalculation first.
+  - **Create, preview and duplicates.**
+    - A second payout while one is open gives `409 PAYOUT_OPEN_EXISTS`.
+    - The same idempotency key returns the same payout (201, then 200).
+    - Concurrent new keys are both refused.
+    - Carried deductions above the eligible commission block creation ("Create draft" disabled).
+  - **Draft and Pending approval.** The creator or submitter gets no Approve and `409 SELF_APPROVAL`. Reasons are required for reject and fail.
+  - **Recalculation while Pending approval.**
+    - Reversing PAY-2026-000043 in a pending payout blocked approval (`PAYOUT_RECALCULATION_REQUIRED`, toast shown).
+    - Recalculate released the line and gave ₹24,000 / TDS ₹2,400 / net ₹21,600.
+    - The payout **stayed Pending approval**, then was approved by the checker.
+  - **Transfer, Paid and Failed.**
+    - Start transfer records only the account ending (••3333). Mark as paid needs a reference.
+    - A failed transfer released its receipt to the next payout.
+    - A rejected payout released its receipts.
+  - **Reversal after payment.** Reversing a receipt of a paid payout created `ADJ-2026-000005` (−₹4,000, approved automatically).
+  - **Negative carry-forward.** The next Alpha payout was ₹10,000 − ₹4,000 = ₹6,000, TDS ₹600 (base above the ₹24,000 already taxed), net ₹5,400. It was paid, and the adjustment then shows "In PO-2026-000027".
+  - **Manual adjustment.** Raised by the payouts-write Admin (`403` when they approve), approved by a Super Admin.
+  - **Manual TDS change.**
+    - ₹3,000 above the commission is refused.
+    - ₹240 is saved and shown "adjusted by hand" in the calculation history.
+    - Its author can't approve (fix 1 below); a third person approved and paid it.
+  - **Permissions.**
+    - Read-only Admin: no create, export, adjustment or workflow buttons, and `403` from the API. Settings is denied.
+    - Payouts-write Admin: create and submit allowed; approve, mark paid, export, PAN verification and TDS edit give `403`.
+  - **Masking.**
+    - Without VIEW_PARTNER_SENSITIVE: PAN `••111F`, account `••3333`.
+    - History and audit hold neither the full account nor the PAN.
+    - The CSV has no PAN or account. It does have the full UTR, by design (P11-03).
+  - **CSV export.** The browser's request returned 200 (headless Chromium cancels blob saves). The file has a UTF-8 BOM, `text/csv`, `iotiq-payouts.csv`, and the five P11 payouts with status, TDS, net, reference and reasons.
+  - **390 px.** No horizontal page overflow on the payouts list, its three tabs, details, the create dialog, settings and the partner page.
+- **Defects found and fixed:**
+  1. **Separation of duties.** The approver who entered a manual TDS change could approve their own override. Approval now refuses its author (`409 SELF_APPROVAL`), the Approve button is hidden and a blocker explains why (P11-09, new IT).
+  2. **Closed payout totals.** Rejected or failed payouts showed "Receipts ₹0.00" next to a commission of ₹2,400. Lines released on closing now count (P11-08, IT assertion).
+  3. **History card.** Receipt and adjustment line counts were formatted as money ("Receipts: ₹1.00"). They now read "Receipt lines: 1", and the TDS section has a label (frontend test).
+  4. **Repeated message.** The unconfirmed-TDS message was shown twice in the preview and as an extra hint on the details page. It now appears once when it is already a blocker (frontend test).
+  5. **Wording.**
+     - "1 receipts" → "1 receipt" (shared `formatCount`).
+     - "Payments PAY-… were reversed" → "Payment PAY-… was reversed".
+     - The server wrote "₹-4,000.00"; it now writes "−₹4,000.00".
+     - The negative net in the preview uses the minus sign.
+     - "Earlier versions (1)" listed the version in force; it is now "All versions".
+- **Observations, not changed:**
+  - The shared money input (Phase 4) refuses a third decimal while typing. A scripted paste of "500.555" became "500.55" before submit; the server also rejects more than 2 decimals.
+  - IFSC is shown unmasked, as since Phase 5 (it is a public branch code).
+- **Cleanup:**
+  - Both test servers (8091, 5181) and the browser session were stopped. Port 8080 stayed untouched (nothing was listening).
+  - The payouts-write grant to the test Admin was reverted.
+  - Kept in `partner_erp_test` because they are immutable records: the confirmed TDS test version, the payouts `PO-2026-000024…28`, adjustments `ADJ-2026-000005/6`, the payments and reversals, and the PAN verification.
+
+### Known issues / limitations
+- **Needs approval (DECISIONS.md §L):**
+  - statutory TDS values (nothing is configured in development);
+  - live bank transfers;
+  - a clawback window and recovery when no further commission is earned;
+  - tier auto-upgrade and payout business days;
+  - the FY basis for TDS;
+  - a register for lower-deduction certificates.
+- Per-line HALF_UP rounding of commission and the ex-GST allocation need Finance validation (as in Phase 10).
+- The development database `partner_erp` is still at V15. It applies V16–V18 on its next restart with this build.
+- The full backend suite has not been re-run since the fixes (see above).
+
+### Next phase
+Phase 12, dashboard and reports, after your approval. Not started.

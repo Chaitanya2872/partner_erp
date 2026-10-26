@@ -31,6 +31,8 @@ public final class AuditActions {
     public static final String PARTNER_UPDATED = "PARTNER_UPDATED";
     public static final String PARTNER_STATUS_CHANGED = "PARTNER_STATUS_CHANGED";
     public static final String PARTNER_TIER_REVIEWED = "PARTNER_TIER_REVIEWED";
+    /** PAN checked or the check withdrawn (Phase 11); the PAN itself is recorded masked. */
+    public static final String PARTNER_PAN_VERIFIED = "PARTNER_PAN_VERIFIED";
 
     public static final String LEAD_CREATED = "LEAD_CREATED";
     public static final String LEAD_UPDATED = "LEAD_UPDATED";
@@ -69,6 +71,30 @@ public final class AuditActions {
     public static final String PAYMENT_RECORDED = "PAYMENT_RECORDED";
     /** A receipt reversed by a reversal entry, with the reason (Phase 10). Logged against the receipt. */
     public static final String PAYMENT_REVERSED = "PAYMENT_REVERSED";
+
+    public static final String ENTITY_PAYOUT = "PAYOUT";
+    /** A payout generated for a partner (Phase 11). Bank details are never recorded; at most the last four digits. */
+    public static final String PAYOUT_CREATED = "PAYOUT_CREATED";
+    public static final String PAYOUT_RECALCULATED = "PAYOUT_RECALCULATED";
+    /** TDS of a draft or pending payout changed by hand, with the reason. */
+    public static final String PAYOUT_TDS_ADJUSTED = "PAYOUT_TDS_ADJUSTED";
+    public static final String PAYOUT_SUBMITTED = "PAYOUT_SUBMITTED";
+    public static final String PAYOUT_APPROVED = "PAYOUT_APPROVED";
+    public static final String PAYOUT_REJECTED = "PAYOUT_REJECTED";
+    public static final String PAYOUT_CANCELLED = "PAYOUT_CANCELLED";
+    public static final String PAYOUT_PROCESSING = "PAYOUT_PROCESSING";
+    public static final String PAYOUT_PAID = "PAYOUT_PAID";
+    public static final String PAYOUT_FAILED = "PAYOUT_FAILED";
+
+    public static final String ENTITY_PARTNER_ADJUSTMENT = "PARTNER_ADJUSTMENT";
+    /** A manual adjustment entered, or a reversal adjustment created when a paid receipt is reversed. */
+    public static final String PARTNER_ADJUSTMENT_CREATED = "PARTNER_ADJUSTMENT_CREATED";
+    public static final String PARTNER_ADJUSTMENT_APPROVED = "PARTNER_ADJUSTMENT_APPROVED";
+    public static final String PARTNER_ADJUSTMENT_REJECTED = "PARTNER_ADJUSTMENT_REJECTED";
+
+    public static final String ENTITY_TDS_CONFIGURATION = "TDS_CONFIGURATION";
+    public static final String TDS_CONFIGURATION_UPDATED = "TDS_CONFIGURATION_UPDATED";
+    public static final String TDS_CONFIGURATION_CONFIRMED = "TDS_CONFIGURATION_CONFIRMED";
 
     public static final String ENTITY_SETTINGS = "SETTINGS";
     /** Supplier GST registration (state, GSTIN, legal name, address). */

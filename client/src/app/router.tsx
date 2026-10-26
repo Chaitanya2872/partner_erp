@@ -37,6 +37,8 @@ const InvoiceDetailsPage = named(() => import("@/modules/invoices/pages/InvoiceD
 const InvoiceFormPage = named(() => import("@/modules/invoices/pages/InvoiceFormPage"), "InvoiceFormPage");
 const PaymentsPage = named(() => import("@/modules/payments/pages/PaymentsPage"), "PaymentsPage");
 const PaymentDetailsPage = named(() => import("@/modules/payments/pages/PaymentDetailsPage"), "PaymentDetailsPage");
+const PayoutsPage = named(() => import("@/modules/payouts/pages/PayoutsPage"), "PayoutsPage");
+const PayoutDetailsPage = named(() => import("@/modules/payouts/pages/PayoutDetailsPage"), "PayoutDetailsPage");
 const SettingsPage = named(() => import("@/modules/settings/pages/SettingsPage"), "SettingsPage");
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
@@ -115,6 +117,8 @@ export const routes: RouteObject[] = [
       { path: "invoices/:id/edit", handle: handle({ nav: "/invoices", crumb: "Edit" }), element: guard(<InvoiceFormPage />, ["INVOICES"]) },
       { path: "payments", handle: handle({ nav: "/payments" }), element: guard(<PaymentsPage />, ["PAYMENTS"]) },
       { path: "payments/:id", handle: handle({ nav: "/payments", crumb: "Details" }), element: guard(<PaymentDetailsPage />, ["PAYMENTS"]) },
+      { path: "payouts", handle: handle({ nav: "/payouts" }), element: guard(<PayoutsPage />, ["PAYOUTS"]) },
+      { path: "payouts/:id", handle: handle({ nav: "/payouts", crumb: "Details" }), element: guard(<PayoutDetailsPage />, ["PAYOUTS"]) },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
       { path: "products/new", handle: handle({ nav: "/products", crumb: "New product" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },
       { path: "products/:id", handle: handle({ nav: "/products", crumb: "Details" }), element: guard(<ProductDetailsPage />, ["PRODUCTS"]) },

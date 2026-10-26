@@ -61,13 +61,30 @@ public class PartnerMetricsRepository {
         return result;
     }
 
-    /** Referral fees owed (accrued, not yet paid) and paid, gross of TDS; clawbacks are negative. */
+    /**
+     * Partner commission (gross of TDS) not yet paid and paid (Phase 11). Unpaid: commission on standing receipts not
+     * yet in a payout, active lines of payouts not yet paid, and approved adjustments not yet in a payout (negative
+     * reversal adjustments reduce it). Paid: commission of paid payouts, legacy ones included.
+     */
     public FeeTotals feeTotals(UUID partnerId) {
         return jdbc.queryForObject("""
-                        SELECT COALESCE(SUM(gross_commission) FILTER (WHERE status = 'ACCRUED'), 0) AS unpaid,
-                               COALESCE(SUM(gross_commission) FILTER (WHERE status = 'PAID'), 0)    AS paid
-                          FROM partner_payouts
-                         WHERE partner_id = :id
+                        SELECT (SELECT COALESCE(SUM(round(p.net_amount * i.fee_percent / 100, 2)), 0)
+                                  FROM payments p JOIN invoices i ON i.id = p.invoice_id
+                                 WHERE p.partner_id = :id AND p.entry_type = 'RECEIPT' AND i.fee_percent > 0
+                                   AND NOT EXISTS (SELECT 1 FROM payments r WHERE r.reversed_payment_id = p.id)
+                                   AND NOT EXISTS (SELECT 1 FROM payout_lines l
+                                                    WHERE l.payment_id = p.id AND l.released_at IS NULL))
+                             + (SELECT COALESCE(SUM(l.amount), 0)
+                                  FROM payout_lines l JOIN payouts o ON o.id = l.payout_id
+                                 WHERE o.partner_id = :id AND l.released_at IS NULL
+                                   AND o.status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PROCESSING'))
+                             + (SELECT COALESCE(SUM(a.amount), 0)
+                                  FROM partner_adjustments a
+                                 WHERE a.partner_id = :id AND a.status = 'APPROVED'
+                                   AND NOT EXISTS (SELECT 1 FROM payout_lines l
+                                                    WHERE l.adjustment_id = a.id AND l.released_at IS NULL)) AS unpaid,
+                               (SELECT COALESCE(SUM(commission_total), 0)
+                                  FROM payouts WHERE partner_id = :id AND status = 'PAID') AS paid
                         """,
                 new MapSqlParameterSource("id", partnerId),
                 (rs, i) -> new FeeTotals(rs.getBigDecimal("unpaid"), rs.getBigDecimal("paid")));

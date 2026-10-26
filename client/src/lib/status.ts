@@ -83,12 +83,23 @@ const payment: Registry = {
   REFUND: { label: "Refund", tone: "warning", hint: "Recorded before payment management; refunds can't be recorded any more." },
 };
 
-/** Payouts store ACCRUED/PAID; Due and Clawback are derived display statuses (BR-O2). */
+/** payouts.status (V18). Paid, rejected, cancelled and failed payouts never change. */
 const payout: Registry = {
-  ACCRUED: { label: "Accrued", tone: "neutral" },
-  DUE: { label: "Due", tone: "warning", derived: true, hint: "The payout due date has been reached." },
+  DRAFT: { label: "Draft", tone: "neutral", hint: "Can be recalculated; not yet submitted for approval." },
+  PENDING_APPROVAL: { label: "Pending approval", tone: "warning", hint: "Waiting for someone other than its creator to approve it." },
+  APPROVED: { label: "Approved", tone: "info", hint: "Amounts are frozen; waiting for Finance to start the transfer." },
+  PROCESSING: { label: "Processing", tone: "accent", hint: "Finance has started the bank transfer outside this system." },
   PAID: { label: "Paid", tone: "success" },
-  CLAWBACK: { label: "Clawback", tone: "danger", derived: true, hint: "Negative fee from a refund." },
+  REJECTED: { label: "Rejected", tone: "danger" },
+  CANCELLED: { label: "Cancelled", tone: "outline" },
+  FAILED: { label: "Failed", tone: "danger", hint: "The transfer failed; its receipts are free for a new payout." },
+};
+
+/** partner_adjustments.status (V18). */
+const adjustment: Registry = {
+  PENDING_APPROVAL: { label: "Pending approval", tone: "warning" },
+  APPROVED: { label: "Approved", tone: "success", hint: "Carried into the partner's next payout." },
+  REJECTED: { label: "Rejected", tone: "outline" },
 };
 
 /** products.active (V6) shown as a status; inactive products stay on the sheet but leave the line pickers (D-17). */
@@ -97,7 +108,7 @@ const product: Registry = {
   INACTIVE: { label: "Inactive", tone: "outline", hint: "Hidden from estimate and invoice line pickers; kept on existing documents." },
 };
 
-export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoiceStatus, invoice, payment, payout } as const;
+export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoiceStatus, invoice, payment, payout, adjustment } as const;
 
 export type StatusDomain = keyof typeof STATUS_REGISTRY;
 
