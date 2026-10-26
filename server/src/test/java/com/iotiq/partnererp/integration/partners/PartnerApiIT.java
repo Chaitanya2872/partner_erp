@@ -501,7 +501,7 @@ class PartnerApiIT extends ApiIntegrationTest {
         return new BigDecimal(String.valueOf(value));
     }
 
-    /** Minimal issued invoice to attach test payments to (payments arrive in Phase 10). */
+    /** Minimal issued invoice to attach test payments to (payments are inserted directly to control their dates). */
     private UUID invoice(UUID partnerId) {
         UUID id = UUID.randomUUID();
         jdbc.update("insert into invoices (id, invoice_number, partner_id, invoice_date, status, issued_at, tax_type)"
@@ -511,8 +511,10 @@ class PartnerApiIT extends ApiIntegrationTest {
     }
 
     private void payment(UUID partnerId, UUID invoiceId, LocalDate date, String amount, String net) {
-        jdbc.update("insert into payments (invoice_id, partner_id, payment_date, amount, net_amount, is_refund, payment_method)"
-                        + " values (?, ?, ?, ?, ?, ?, 'NEFT_RTGS')",
-                invoiceId, partnerId, date, new BigDecimal(amount), new BigDecimal(net), amount.startsWith("-"));
+        boolean refund = amount.startsWith("-");
+        jdbc.update("insert into payments (invoice_id, partner_id, payment_date, amount, net_amount, is_refund, "
+                        + "entry_type, payment_method) values (?, ?, ?, ?, ?, ?, ?, 'NEFT_RTGS')",
+                invoiceId, partnerId, date, new BigDecimal(amount), new BigDecimal(net), refund,
+                refund ? "REFUND" : "RECEIPT");
     }
 }

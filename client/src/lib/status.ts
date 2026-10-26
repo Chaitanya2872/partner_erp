@@ -75,6 +75,14 @@ const invoice: Registry = {
   CANCELLED: { label: "Cancelled", tone: "outline" },
 };
 
+/** Payment ledger entries (V17). A receipt shows Reversed once a reversal entry points at it (derived). */
+const payment: Registry = {
+  RECEIPT: { label: "Received", tone: "success" },
+  REVERSED: { label: "Reversed", tone: "outline", derived: true, hint: "A reversal entry cancels this receipt; the receipt is kept." },
+  REVERSAL: { label: "Reversal", tone: "danger", hint: "Cancels an earlier receipt, which stays on record." },
+  REFUND: { label: "Refund", tone: "warning", hint: "Recorded before payment management; refunds can't be recorded any more." },
+};
+
 /** Payouts store ACCRUED/PAID; Due and Clawback are derived display statuses (BR-O2). */
 const payout: Registry = {
   ACCRUED: { label: "Accrued", tone: "neutral" },
@@ -89,7 +97,7 @@ const product: Registry = {
   INACTIVE: { label: "Inactive", tone: "outline", hint: "Hidden from estimate and invoice line pickers; kept on existing documents." },
 };
 
-export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoiceStatus, invoice, payout } as const;
+export const STATUS_REGISTRY = { user, partner, agreement, lead, product, estimate, invoiceStatus, invoice, payment, payout } as const;
 
 export type StatusDomain = keyof typeof STATUS_REGISTRY;
 

@@ -302,6 +302,8 @@ export interface InvoiceActionInput {
   expectedGrandTotal?: Money;
   note?: string;
   reason?: string;
+  /** Issue: the user confirms a regular domestic taxable supply (unsupported kinds are blocked). */
+  regularSupplyConfirmed?: boolean;
 }
 
 /** GET/PUT /settings/gst-registration: the supplier details printed on every invoice. */
@@ -311,6 +313,8 @@ export interface GstRegistration {
   stateCode: string | null;
   stateName: string | null;
   gstin: string | null;
+  /** Null until declared; invoices can't be issued while it is null or true (e-invoicing isn't supported). */
+  einvoicingApplicable: boolean | null;
   complete: boolean;
   version: number;
   states: GstStateOption[];
@@ -322,4 +326,5 @@ export interface GstRegistrationInput {
   stateCode: string;
   gstin: string;
   version: number;
+  einvoicingApplicable: boolean;
 }

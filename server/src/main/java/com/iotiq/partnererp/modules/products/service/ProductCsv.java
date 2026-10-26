@@ -81,6 +81,8 @@ public final class ProductCsv {
         out.append("\r\n");
     }
 
+    private static final java.util.regex.Pattern PLAIN_NUMBER = java.util.regex.Pattern.compile("-?\\d+(\\.\\d+)?");
+
     static String escape(String value) {
         if (value == null) {
             return "";
@@ -92,9 +94,13 @@ public final class ProductCsv {
         return safe;
     }
 
-    /** Text starting with = + - @ (or a tab/carriage return) would be evaluated by spreadsheet programs. */
+    /**
+     * Text starting with = + - @ (or a tab/carriage return) would be evaluated by spreadsheet programs. A plain signed
+     * number such as {@code -200.00} (a reversal amount) is left as it is: it can't call anything, and guarding it
+     * would turn it into text.
+     */
     static boolean isFormula(String value) {
-        if (value.isEmpty()) {
+        if (value.isEmpty() || PLAIN_NUMBER.matcher(value).matches()) {
             return false;
         }
         char c = value.charAt(0);

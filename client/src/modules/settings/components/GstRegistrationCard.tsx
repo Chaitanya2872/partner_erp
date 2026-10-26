@@ -32,6 +32,7 @@ const schema = z
       .trim()
       .min(1, "Enter the GSTIN.")
       .refine((v) => GSTIN.test(v.toUpperCase()), "Enter a 15-character GSTIN, e.g. 36AABCI1234A1ZC."),
+    einvoicing: z.enum(["", "yes", "no"]).refine((v) => v !== "", "Say whether e-invoicing applies to the company."),
   })
   // The server also checks the GSTIN's check character.
   .refine((v) => !v.stateCode || !GSTIN.test(v.gstin.toUpperCase()) || v.gstin.toUpperCase().startsWith(v.stateCode), {
@@ -74,7 +75,12 @@ export function GstRegistrationCard() {
     >
       {!r.complete ? (
         <Alert tone="warning" title="Incomplete">
-          Invoices can&apos;t be issued until the legal name, address, registered state and GSTIN are set.
+          Invoices can&apos;t be issued until the legal name, address, registered state, GSTIN and the e-invoicing declaration are set.
+        </Alert>
+      ) : null}
+      {r.einvoicingApplicable ? (
+        <Alert tone="danger" title="E-invoicing applies: issuing is blocked">
+          This system can&apos;t generate e-invoices (IRN and QR code), so invoices can&apos;t be issued here while e-invoicing applies to the company.
         </Alert>
       ) : null}
       {editing ? (
@@ -89,6 +95,7 @@ export function GstRegistrationCard() {
           <DetailRow label="Address">
             <span className="whitespace-pre-line">{r.address ?? NOT_AVAILABLE}</span>
           </DetailRow>
+          <DetailRow label="E-invoicing (IRN/QR)">{r.einvoicingApplicable === null ? "Not declared" : r.einvoicingApplicable ? "Applies" : "Does not apply"}</DetailRow>
         </DescriptionList>
       )}
     </ContentCard>
@@ -105,18 +112,33 @@ function EditForm({ registration: r, onDone }: { registration: GstRegistration; 
     formState: { errors, isSubmitting },
   } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { legalName: r.legalName ?? "", address: r.address ?? "", stateCode: r.stateCode ?? "", gstin: r.gstin ?? "" },
+    defaultValues: {
+      legalName: r.legalName ?? "",
+      address: r.address ?? "",
+      stateCode: r.stateCode ?? "",
+      gstin: r.gstin ?? "",
+      einvoicing: r.einvoicingApplicable === null ? "" : r.einvoicingApplicable ? "yes" : "no",
+    },
   });
 
   const submit = handleSubmit(async (v) => {
     setFormError(null);
     try {
-      await settingsService.updateGstRegistration({ legalName: v.legalName.trim(), address: v.address.trim(), stateCode: v.stateCode, gstin: v.gstin.trim().toUpperCase(), version: r.version });
+      await settingsService.updateGstRegistration({
+        legalName: v.legalName.trim(),
+        address: v.address.trim(),
+        stateCode: v.stateCode,
+        gstin: v.gstin.trim().toUpperCase(),
+        einvoicingApplicable: v.einvoicing === "yes",
+        version: r.version,
+      });
       toast.success("GST registration saved.");
       await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.settings.gstRegistration }), queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all })]);
       onDone();
     } catch (error) {
-      const unmatched = applyServerErrors(error, setError, FIELDS);
+      const declaration = error instanceof ApiRequestError ? error.fieldErrors.find((f) => f.field === "einvoicingApplicable") : undefined;
+      if (declaration) setError("einvoicing", { type: "server", message: declaration.message });
+      const unmatched = applyServerErrors(error, setError, FIELDS).filter((m) => m !== declaration?.message);
       if (!(error instanceof ApiRequestError) || error.fieldErrors.length === 0) setFormError(errorMessage(error));
       else if (unmatched.length > 0) setFormError(unmatched.join(" "));
     }
@@ -144,6 +166,18 @@ function EditForm({ registration: r, onDone }: { registration: GstRegistration; 
         </FormField>
         <FormField label="Address" error={errors.address?.message} required wide hint="The registered place of business.">
           <Textarea rows={3} {...register("address")} />
+        </FormField>
+        <FormField
+          label="E-invoicing (IRN/QR) applies to the company"
+          error={errors.einvoicing?.message}
+          required
+          hint="Ask Finance: it depends on aggregate turnover. E-invoicing isn't supported, so issuing is blocked while it applies."
+        >
+          <Select {...register("einvoicing")}>
+            <option value="">Choose…</option>
+            <option value="no">No, e-invoicing does not apply</option>
+            <option value="yes">Yes, e-invoicing applies</option>
+          </Select>
         </FormField>
       </FormGrid>
       <p className="text-xs text-muted-foreground">Issued invoices keep the details they were issued with. The change is recorded in the audit log with the GSTIN masked.</p>

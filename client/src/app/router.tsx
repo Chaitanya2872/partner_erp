@@ -35,6 +35,8 @@ const EstimateFormPage = named(() => import("@/modules/estimates/pages/EstimateF
 const InvoicesPage = named(() => import("@/modules/invoices/pages/InvoicesPage"), "InvoicesPage");
 const InvoiceDetailsPage = named(() => import("@/modules/invoices/pages/InvoiceDetailsPage"), "InvoiceDetailsPage");
 const InvoiceFormPage = named(() => import("@/modules/invoices/pages/InvoiceFormPage"), "InvoiceFormPage");
+const PaymentsPage = named(() => import("@/modules/payments/pages/PaymentsPage"), "PaymentsPage");
+const PaymentDetailsPage = named(() => import("@/modules/payments/pages/PaymentDetailsPage"), "PaymentDetailsPage");
 const SettingsPage = named(() => import("@/modules/settings/pages/SettingsPage"), "SettingsPage");
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
@@ -111,6 +113,8 @@ export const routes: RouteObject[] = [
       { path: "invoices/new", handle: handle({ nav: "/invoices", crumb: "New invoice" }), element: guard(<InvoiceFormPage />, ["INVOICES"]) },
       { path: "invoices/:id", handle: handle({ nav: "/invoices", crumb: "Details" }), element: guard(<InvoiceDetailsPage />, ["INVOICES"]) },
       { path: "invoices/:id/edit", handle: handle({ nav: "/invoices", crumb: "Edit" }), element: guard(<InvoiceFormPage />, ["INVOICES"]) },
+      { path: "payments", handle: handle({ nav: "/payments" }), element: guard(<PaymentsPage />, ["PAYMENTS"]) },
+      { path: "payments/:id", handle: handle({ nav: "/payments", crumb: "Details" }), element: guard(<PaymentDetailsPage />, ["PAYMENTS"]) },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
       { path: "products/new", handle: handle({ nav: "/products", crumb: "New product" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },
       { path: "products/:id", handle: handle({ nav: "/products", crumb: "Details" }), element: guard(<ProductDetailsPage />, ["PRODUCTS"]) },

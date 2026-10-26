@@ -217,3 +217,19 @@ Not changed: `refresh_tokens` (already had `token_hash`, family, `revoked_at`, `
 | Triggers | `invoices_guard_issued` (BEFORE UPDATE OR DELETE): an issued or cancelled invoice can't be deleted, can't go back to draft, and can't change its number, dates, parties, place of supply, tax or totals; only the cancellation columns may change, once. `invoice_items_guard_issued` (BEFORE INSERT/UPDATE/DELETE): the lines of an issued or cancelled invoice can't change. |
 
 Concurrency: invoice numbers come from `document_sequences` (prefix `INV`, calendar year) through the atomic upsert used for estimates. Conversion locks the estimate row, issue locks the invoice and the lead, and the partial unique index prevents two live invoices for one estimate.
+
+## 11. Phase 10 migration: V17 (as built, 2026-10-26)
+
+`V17__payments_management.sql` is forward-only and doesn't modify V1–V16. It was applied to `partner_erp_test` (integration tests and browser verification). The development database `partner_erp` is still at V15 and will apply V16 and V17 when its server restarts with this build. Existing payment rows are kept: refunds keep their sign and become `REFUND` entries, and other rows become `RECEIPT` entries without a number.
+
+| Change | Detail |
+|---|---|
+| `company_settings` | `einvoicing_applicable boolean` (NULL = not declared). Issue needs it declared and false (DECISIONS.md §K). |
+| `payments` new columns | `payment_number varchar(20)` UNIQUE (`PAY-YYYY-NNNNNN`), `entry_type` (RECEIPT/REVERSAL/REFUND, default RECEIPT), `reversed_payment_id uuid` UNIQUE FK → `payments(id)` (one reversal per receipt), `reversal_reason varchar(500)`, `notes varchar(500)`, `idempotency_key uuid` UNIQUE, `request_hash varchar(64)` (SHA-256 of the request). |
+| `payments` constraints | `ck_payments_refund_sign` replaced by `ck_payments_type`: RECEIPT has amount > 0, no refund flag, no reversal link; REFUND has amount < 0 and the refund flag; REVERSAL has amount < 0, a reversal link and a non-blank reason. `ck_payments_net`: \|net\| ≤ \|amount\|, with the same sign. `ck_payments_reference`: no blank reference. `ck_payments_idempotency`: key and hash are set together. |
+| Indexes | `ix_payments_reference` on `lower(reference_number)` (duplicate checks); `ix_payments_created`. |
+| Trigger `trg_payments_guard` | BEFORE INSERT/UPDATE/DELETE, function `payments_guard()`. DELETE is always refused ("reverse it instead"). UPDATE is refused unless the only change is `lead_id` being cleared (`ON DELETE SET NULL`). A RECEIPT needs an ISSUED, non-deleted invoice. A REVERSAL must mirror a RECEIPT of the same invoice (negated amount and net), on an ISSUED or CANCELLED invoice. |
+
+Derived values (unchanged views and queries): invoice paid = Σ `payments.amount`, balance = grand total − paid. Reversals are negative, so they restore the balance without touching the invoice. `v_invoice_balance` (V11) and `InvoiceRules.paymentStatus` therefore need no change. `InvoiceRepository.livePaymentCount` counts receipts that are not reversed; invoice cancellation uses it. Partner revenue (`PartnerMetricsRepository`) excludes reversed receipts and reversal rows.
+
+Concurrency: recording and reversing lock the invoice row first (`PESSIMISTIC_WRITE`, then the payment for reversals), so balance checks, duplicate checks and the idempotency re-check run serialised per invoice. The UNIQUE indexes on `idempotency_key` and `reversed_payment_id` back these up. `PaymentApiIT` covers concurrent overpayment, concurrent identical submissions and concurrent reversals.

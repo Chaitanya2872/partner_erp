@@ -80,7 +80,7 @@ class ConstraintsIT extends AbstractIntegrationTest {
             UUID invoice = f.invoice();
             assertViolation(() -> jdbc.update(
                     "insert into payments (invoice_id, partner_id, payment_date, amount, net_amount, is_refund, payment_method) "
-                            + "values (?, ?, current_date, -100, -84.75, false, 'UPI')", invoice, f.partner()), "ck_payments_refund_sign");
+                            + "values (?, ?, current_date, -100, -84.75, false, 'UPI')", invoice, f.partner()), "ck_payments_type");
         });
     }
 

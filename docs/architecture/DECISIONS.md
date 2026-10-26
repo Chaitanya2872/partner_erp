@@ -30,9 +30,9 @@ Status values: `Proposed`, `Needs approval`, `Blocked`, `Accepted`, `Rejected`.
 | D-07 | Downgrade grace "quarter" | Boolean flag. The grace length is whatever time passes between manual reviews. | Prompt: preserve; SRS: confirm quarter boundaries. | Without a schedule, grace length is arbitrary. | Keep manual review exactly as the source does, plus `partner_tier_reviews` history. Optionally add a scheduled quarterly review (1 Apr/Jul/Oct/Jan) **disabled by default**. | Needs approval |
 | D-08 | TDS formula | Catch-up formula (BR-O5). FY taken from today. | Prompt: don't substitute an accounting formula. | Legal accuracy is unverified ("verify with CA"). | Implement it exactly as a **suggestion**. TDS stays editable by FINANCE. One change: compute the FY from `paidOn` rather than today (it only differs when back-dating across 1 April). Label it "not legally verified". | Needs approval (FY basis) |
 | D-09 | Editing invoices after payment / cancellation | Always editable. Payments and payouts are not adjusted. | Prompt: financial consistency, auditability. | Editing a paid invoice silently breaks net/fee reconciliation. | Invoice is **editable only while it has no payments and isn't cancelled**. After that, corrections go through cancel + reissue (or a later credit-note feature). Estimates stay editable unless `invoiced`. | Estimates: **Approved 2026-10-26 (Phase 8 finalization).** Draft, Sent, Accepted and Rejected estimates can be edited and soft-deleted (Sent/Accepted/Rejected after a warning); Invoiced never; status never changes silently (P8-09). **Invoices: approved 2026-10-26 (Phase 9):** only drafts are editable; issued invoices are immutable and are cancelled (with a reason, and only without payments or payouts) instead of edited (P9-03, P9-04). |
-| D-10 | Overpayment / zero-total invoice | No overpayment guard. `net` divides by total (NaN when 0). | Prompt: prevent invalid transactions. | Overpaid invoices give negative balances and inflated fees. | Reject a positive payment above `balance + ₹0.50` (or allow it with a FINANCE override flag). Reject payments on zero-total invoices. Reject refunds above the net paid. | Needs approval |
-| D-11 | Payment deletion vs reversal | Hard delete of payment + unpaid payout. | Prompt: `POST /payments/{id}/reverse`, audit. | Hard delete destroys the audit trail. | Replace delete with **reversal**: mark `reversed`, keep the row, and cancel the linked unpaid payout. The same guard applies (blocked if the payout is paid). Add a client-side idempotency key on create to stop double submits. | Needs approval |
-| D-12 | Reversing a paid payout | Missing, though the source message refers to it. | Prompt: "payout reversals". | Without it, a paid payout on an erroneous payment can't be corrected. | Add FINANCE-only "reverse payout" (status `reversed`, reason, audit). This then allows the payment reversal. | Needs approval |
+| D-10 | Overpayment / zero-total invoice | No overpayment guard. `net` divides by total (NaN when 0). | Prompt: prevent invalid transactions. | Overpaid invoices give negative balances and inflated fees. | Reject a positive payment above `balance + ₹0.50` (or allow it with a FINANCE override flag). Reject payments on zero-total invoices. Reject refunds above the net paid. | **Implemented in Phase 10** (P10-04): receipts can't exceed the balance; refunds not recorded (O-3) |
+| D-11 | Payment deletion vs reversal | Hard delete of payment + unpaid payout. | Prompt: `POST /payments/{id}/reverse`, audit. | Hard delete destroys the audit trail. | Replace delete with **reversal**: mark `reversed`, keep the row, and cancel the linked unpaid payout. The same guard applies (blocked if the payout is paid). Add a client-side idempotency key on create to stop double submits. | **Implemented in Phase 10** (P10-01, P10-05, P10-06): reversal entry instead of delete, idempotency key; payout handling open (O-1) |
+| D-12 | Reversing a paid payout | Missing, though the source message refers to it. | Prompt: "payout reversals". | Without it, a paid payout on an erroneous payment can't be corrected. | Add FINANCE-only "reverse payout" (status `reversed`, reason, audit). This then allows the payment reversal. | Needs approval (Phase 11; blocks reversal of receipts with payouts, §K O-1) |
 | D-13 | Referral fee % editable on documents | Free numeric input. Defaults to the locked rate. | Prompt: "APIs cannot be manipulated by submitting unauthorized … commission rates". | Users could raise fees arbitrarily. | Server sets the fee % from the lead's locked rate (0 for billTo=partner). Overriding it requires SALES_MANAGER+ with a mandatory reason, written to the audit log. | **Approved 2026-10-26 (Phase 8 finalization).** The override permission is the existing `PARTNERS:APPROVE` (not a new SALES_MANAGER role); a written reason is mandatory; the audit row records previous rate, new rate, default rate, reason, actor and time (P8-07). |
 | D-14 | Cancelled invoices in B2C uplift | Dashboard "Discount vs B2C list" and the margin report include cancelled-invoice twins. | Prompt: metrics must reconcile. | Overstates the discount figure. | Exclude cancelled invoices. Show cancelled rows in the margin report with a status column. | Needs approval |
 | D-15 | PDF | Source offers "Download HTML" only, with no print button. | Prompt: Print + Download PDF. | New capability. | Server-side PDF (OpenHTMLtoPDF from Thymeleaf templates matching `.doc` CSS) plus a browser print view. Internal PDFs stay internal-only and use watermark/stamp styling. | **Browser printing accepted temporarily (2026-10-26).** Server-generated PDFs are a **mandatory pre-production requirement**; no PDF library was added in Phase 8 (P8-12). |
@@ -45,7 +45,7 @@ Status values: `Proposed`, `Needs approval`, `Blocked`, `Accepted`, `Rejected`.
 | D-22 | Partner portal (PARTNER role) | Source is internal-only. "Partner copy" means the document sent out, not a portal. | Prompt proposes a PARTNER role. | Large scope: login, scoping, data masking. | Build the authorization model so PARTNER is possible (partner-scoped queries, B2C never in partner DTOs), but **don't build partner-facing screens** unless you confirm partners will log in. | Needs approval |
 | D-23 | Role/permission matrix | None in source. | Prompt/SRS: confirm before sensitive rules. | Determines who sees B2C prices, edits fees, marks payouts paid. | Superseded by the Phase 3 instruction: three roles (SUPER_ADMIN, ADMIN, USER) with per-user module permissions. See §D and `API_DESIGN.md §2`. | **Resolved (Phase 3, 2026-10-25)** |
 | D-24 | Time zone | Browser local time. | Server-side clocks. | SLA/overdue boundaries. | All business dates computed in `Asia/Kolkata`. Timestamps stored as `timestamptz`. | Proposed |
-| D-25 | Rounding of negatives | JS `Math.round` rounds −x.xx5 toward zero. | BigDecimal HALF_UP rounds away from zero. | ₹0.01 differences on refunds/clawbacks in rare cases. | Use HALF_UP everywhere (standard accounting) and document the deviation. Alternative: emulate JS (`HALF_CEILING`). | Needs approval |
+| D-25 | Rounding of negatives | JS `Math.round` rounds −x.xx5 toward zero. | BigDecimal HALF_UP rounds away from zero. | ₹0.01 differences on refunds/clawbacks in rare cases. | Use HALF_UP everywhere (standard accounting) and document the deviation. Alternative: emulate JS (`HALF_CEILING`). | HALF_UP in use (invoices per line, payments), subject to Finance validation (§K P10-A3) |
 | D-26 | Lead/estimate/item delete & orphans | Lead delete leaves documents. Estimate delete (even invoiced) leaves the invoice's `estimateId` dangling. | FK integrity. | FK violations. | Soft-delete leads (`deleted_at`). Block deleting estimates that are `invoiced`. Block deleting leads that have documents (offer "mark Lost" instead). | **Accepted for leads (2026-10-25):** soft delete via V14, refused while documents exist, `LEADS:DELETE`. **Estimates Approved 2026-10-26 (Phase 8 finalization).**: soft delete in every status except Invoiced (P8-08). See P6-04. |
 | D-27 | Backup/restore & sample data | Standalone "Download/Restore backup" (whole localStorage) and "Delete sample partners and leads". No sample data is actually seeded. | Prompt: DB backups. | Exposing full-DB export is unsafe. | Drop both UI features. Replace them with documented `pg_dump` backups (Phase 15) and the existing CSV exports. | Needs approval |
 | D-28 | Phase ordering | SRS §10 proposes 6 phases. The prompt proposes 16. | Different sequencing. | None. | Follow the **prompt's 16 phases** (it is the master instruction). SRS phases map onto them in `IMPLEMENTATION_PLAN.md`. | Proposed |
@@ -253,7 +253,9 @@ Phase 9 implements the approval of 2026-10-26 (D-21 GST treatment, estimate conv
 4. **Composition scheme, cess, bill of supply for exempt items:** not supported.
 5. **Round-off of the invoice total to the rupee:** not applied (totals are to the paisa). Confirm the policy.
 6. **Per-line rounding:** implemented as described in P9-G5 (the approval asked for per-line amounts). Please confirm it is the accounting policy you want.
-7. **Credit and debit notes:** required before paid invoices can be cancelled or corrected (P9-04). Planned with Phase 10.
+7. **Credit and debit notes:** required before paid invoices can be cancelled or corrected (P9-04). Still not implemented: they need an approved accounting design (§K O-3).
+
+Items 1–4 are now blocked explicitly at issue (§K, unsupported transactions); items 5–6 stay as built (no round-off; per-line HALF_UP), subject to Finance validation.
 
 ### Decisions as built
 
@@ -271,3 +273,99 @@ Phase 9 implements the approval of 2026-10-26 (D-21 GST treatment, estimate conv
 | P9-10 | Documents | The server renders "TAX INVOICE" as HTML (supplier and customer blocks with GSTINs, place of supply and basis, HSN/SAC, taxable value, rate, CGST + SGST/UTGST or IGST per line, totals). Drafts print as "DRAFT INVOICE · not a tax invoice"; cancelled invoices carry a CANCELLED stamp. The internal copy is stamped INTERNAL ONLY. Printing and PDF are done by the browser, as for estimates (D-15: server PDF before production). |
 | P9-11 | Data scope | Invoices use the INVOICES scope; SELF/TEAM resolve to no records (404 on detail), as for estimates (D-30). |
 | P9-12 | Deferred | Payments, receipts, reversals and credit notes (Phase 10); partner payouts (Phase 11); e-invoicing and the GST items under "Needs decision"; server PDF (pre-production); emailing invoices. |
+
+
+## K. Phase 10 decisions (as built, 2026-10-26)
+
+Phase 10 implements the approval of 2026-10-26: Phase 9 accepted (checkpoint `7cafbc8`), the GST and accounting instructions, the estimate-conversion checks and payments management. It adds **no permission code** and doesn't change the three roles. It uses the existing `PAYMENTS:READ/WRITE/EXPORT` flags and the existing `PAYMENTS:REVERSE_PAYMENT` action (V12). **The migration grants nothing:** Super Admin has every action by definition, and the default Admin template keeps Payments write without reversal. Anything below marked **Needs approval** is not implemented; the app refuses the case instead of guessing.
+
+### Sources reviewed
+
+- The original application: `recPayForm`, `delPay` and `vPayments` in the reference HTML.
+- BUSINESS_RULES §7 (BR-M1 to BR-M9) and §8 (payouts), the SRS payment requirements, and D-10, D-11, D-12, D-25 and D-08.
+- Schema V8 to V16: `payments`, `partner_payouts` (with `payment_id` UNIQUE, ON DELETE CASCADE) and the `v_invoice_balance` view.
+- Invoice balance and status derivation: P9-06 (`InvoiceRules.paymentStatus`, ₹0.50 tolerance).
+- Permission codes and data scopes (V12, D-30).
+
+### Conflicts and deviations from the original application
+
+| # | Topic | Source | Phase 10 | Effect |
+|---|---|---|---|---|
+| C10-1 | Deleting payments | `delPay` hard-deletes the payment and its unpaid payout. | Payments can't be edited or deleted (API and DB trigger). A mistake is **reversed**: a new contra entry, with the original kept. | D-11 implemented (payout part: Phase 11). |
+| C10-2 | Overpayment | No guard; a negative balance was possible. | A receipt can't exceed the outstanding balance (`422 OVERPAYMENT`), and a settled invoice takes no receipts (`409 INVOICE_SETTLED`). | D-10 implemented. |
+| C10-3 | Refunds | Negative "refund" payments. | No new refunds: they need an approved credit-note design. Refund rows recorded earlier stay as `REFUND` entries and still count. | See "Needs approval". |
+| C10-4 | Fee accrual, clawback, tier upgrade on payment (BR-M4 to BR-M8) | Done inside `recPayForm`. | **Not done in Phase 10** (partner payouts are Phase 11). No payout rows are created. | Partner revenue (BR-P12) still reads `payments.net_amount`, now excluding reversed receipts and reversal rows. |
+| C10-5 | Duplicates | None. | Idempotency key, a hard block on a repeated reference, and an overridable "possible duplicate" warning. | P10-05. |
+| C10-6 | Payment numbers | None. | `PAY-YYYY-NNNNNN` for receipts and reversals. | P10-03. |
+
+### Accounting assumptions (as built, subject to Finance validation)
+
+| ID | Assumption |
+|---|---|
+| P10-A1 | **Amounts include GST.** A receipt settles the invoice's grand total. Balance = grand total − Σ ledger amounts, where reversals and legacy refunds are negative. |
+| P10-A2 | **Ex-GST share (`net_amount`)** = r2(amount × taxable / grand total), BigDecimal HALF_UP to the paisa. The receipt that settles the invoice takes taxable − Σ earlier net amounts, clamped to [0, amount], so a fully paid invoice's net amounts add up exactly to its taxable value. |
+| P10-A3 | **Per-line HALF_UP rounding to two decimals** stays the invoice tax policy (as approved, subject to Finance validation). No automatic whole-rupee round-off. Payments never change invoice amounts. |
+| P10-A4 | **Payment date** is the date money was received. It can't be in the future or before the invoice date. Advance receipts aren't supported. A reversal is dated the day it is recorded (Asia/Kolkata). |
+| P10-A5 | **Paid tolerance** is ₹0.50 (P9-06): an invoice whose balance is ₹0.50 or less shows Paid. A receipt still can't exceed the exact balance. |
+| P10-A6 | **No customer TDS.** A receipt is the cash received. Tax deducted at source by the customer (194C/194Q) isn't modelled; the remainder stays as balance. See "Needs approval". |
+| P10-A7 | **Single currency (INR)**; no foreign-currency receipts, bank charges, write-offs or discounts on settlement. |
+
+### Unsupported transactions and how they are blocked
+
+| Transaction | Handling |
+|---|---|
+| E-invoicing (IRN/QR) | Company Settings must declare whether e-invoicing applies (`einvoicingApplicable`, required; V17 column, `null` = undeclared). Issue → `422 SUPPLIER_REGISTRATION_INCOMPLETE` while undeclared, and `422 EINVOICING_NOT_SUPPORTED` while it applies. |
+| Reverse charge | Issue requires `regularSupplyConfirmed: true` (`400` otherwise): the issuer confirms a regular domestic taxable supply. The confirmation is audited. The tax invoice prints "Tax payable on reverse charge: No". |
+| Exports, SEZ, international supplies | Covered by the same confirmation. Place-of-supply codes 96/97 aren't offered (P9-G4). |
+| Composition-scheme invoicing, cess | Covered by the same confirmation. No cess fields exist. |
+| Bill of supply (exempt/nil-rated) | An invoice whose lines are all at 0% GST → `422 BILL_OF_SUPPLY_NOT_SUPPORTED`. |
+| Credit and debit notes | Not implemented. Paid invoices can't be cancelled (`409 INVOICE_HAS_PAYMENTS`) until their receipts are reversed. |
+| Refunds, advances, overpayments, write-offs | Refused, as described in P10-04 and P10-A4. |
+
+**Finance approvals required before production:**
+1. Per-line HALF_UP rounding and no round-off (P10-A3).
+2. The ex-GST allocation of receipts (P10-A2), which feeds partner revenue, tier upgrades and fees in Phase 11.
+3. The e-invoicing status of the company.
+4. Treatment of customer TDS (P10-A6).
+5. A credit/debit note design, which is needed for refunds and for correcting paid invoices.
+6. Who may reverse receipts, and whether a second person must approve (O-2).
+7. Payout adjustment when a receipt with a payout is reversed (O-1, Phase 11).
+8. D-08 TDS on payouts and D-25 negative rounding.
+
+### Estimate conversion integrity (approval §2), verified
+
+| Check | Evidence |
+|---|---|
+| One live invoice per estimate | Row lock plus partial unique index `ux_invoices_live_estimate` (P9-01). `InvoiceApiIT`: duplicate conversion `409 ESTIMATE_ALREADY_INVOICED`, and a concurrent conversion burst gives exactly one draft. |
+| Cancelled invoices remain | `conversionHistoryAndSnapshotsSurviveDiscardCancellationAndReconversion` (new): after cancel and re-conversion, the cancelled invoice keeps its number, reason, lines and totals. |
+| Discarding a draft releases the estimate | Same test: discarding the converted draft restores the estimate's status, and it can be converted again. |
+| Auditable conversion history | Same test: `INVOICE_CONVERTED`, `INVOICE_DRAFT_DELETED`, `INVOICE_CANCELLED` and `ESTIMATE_STATUS_CHANGED` rows for each step. |
+| Snapshots never overwritten | Same test: the estimate's stored lines and totals are compared before and after, as is the issued invoice's snapshot. `PaymentApiIT` also checks that recording and reversing payments leaves the invoice snapshot byte-identical. |
+
+### Decisions as built
+
+| ID | Topic | Decision |
+|---|---|---|
+| P10-01 | Ledger model | `payments` is append-only. Entry types: `RECEIPT` (amount > 0), `REVERSAL` (mirrors one receipt with negative amount and net, `reversed_payment_id` UNIQUE, reason required), and legacy `REFUND` (negative, pre-Phase 10). A DB trigger refuses DELETE and any UPDATE (except the lead link being cleared by `ON DELETE SET NULL`). It also refuses receipts unless the invoice is ISSUED, and reversals that don't mirror a receipt of the same invoice. Issued invoices are never written by payments: balances and statuses stay derived. |
+| P10-02 | Recording (`POST /payments`) | `PAYMENTS:WRITE`; the Payments scope must be ALL, and so must the Invoices scope when the user has one. The invoice row is locked (`SELECT … FOR UPDATE`) and the balance computed under the lock, so concurrent receipts can't overpay. DRAFT → `409 INVOICE_DRAFT`; CANCELLED → `409 INVOICE_CANCELLED`; balance 0 → `409 INVOICE_SETTLED`. Amount > 0, ≤ 2 decimals, ≤ 999,999,999,999.99. Method UPI / NEFT-RTGS / Cheque / Cash / Card. Reference is required except for Cash, ≤ 100 characters, and refused if it contains 12 or more digits in a row (a card or account number). Notes ≤ 500. |
+| P10-03 | Numbering | `PAY-YYYY-NNNNNN` from `DocumentNumberService` (prefix `PAY`, calendar year, atomic). Receipts and reversals share the sequence. Rows recorded before V17 have no number. |
+| P10-04 | Overpayment | Amount > balance → `422 OVERPAYMENT`, with the balance in the message. Checked in the form and again on the server under the lock. No advances, no excess receipts, no refunds. |
+| P10-05 | Duplicate prevention | (1) A UUID `idempotencyKey` is required. The same key with the same request (SHA-256 `request_hash`) from the same user returns the existing entry with 200; otherwise `409 IDEMPOTENCY_KEY_REUSED`. The key is re-checked after the lock, and a UNIQUE index backs it up. (2) The same normalised reference on the same invoice (ignoring reversed receipts) → `409 DUPLICATE_REFERENCE`, which can't be overridden. (3) The same reference on another invoice, or the same amount, date and method on this invoice → `409 POSSIBLE_DUPLICATE`; resending with `confirmDuplicate: true` records it, and the audit row says so. |
+| P10-06 | Reversal (approval §4) | `POST /payments/{id}/reverse` needs `PAYMENTS:READ` **and** `PAYMENTS:REVERSE_PAYMENT`, plus a reason (1–500 characters). It locks the invoice, then the payment. Refusals: reversal entry → `409 PAYMENT_IS_REVERSAL`; legacy refund → `409 PAYMENT_NOT_REVERSIBLE`; already reversed → `409 PAYMENT_ALREADY_REVERSED` (also enforced by a UNIQUE index); linked partner payout → `409 PAYMENT_HAS_PAYOUT` (see O-1). The original receipt is never changed. The reversal copies invoice, partner, method and reference, is dated today and carries the reason. The balance is recalculated by derivation, and the invoice's tax snapshot is untouched. |
+| P10-07 | Invoice cancellation | Now refused only while **live** receipts (not reversed) or any payout exist. After every receipt is reversed, a mistaken invoice can be cancelled with its ledger kept. |
+| P10-08 | Listing, reporting, export | `GET /payments` (search on number, reference, invoice number, billing name, partner; filters: method, type, state ACTIVE/REVERSED, invoice, partner, date range; sort by date, number, amount, created). `GET /payments/report` gives received, reversed, legacy refunds, net and net ex-GST, net by method, plus receivables (outstanding and overdue live issued invoices, balance > ₹0.50). `GET /payments/export` (`PAYMENTS:EXPORT`) is a CSV with a UTF-8 BOM, formula-guarded (plain numbers, including negatives, are left as is), with a reversal-reason column. At most 5,000 rows. |
+| P10-09 | Partner revenue | `PartnerMetricsRepository.paidRevenueSince` excludes reversed receipts and reversal rows, so tiers and dashboards see only standing receipts. |
+| P10-10 | Audit | `PAYMENT_RECORDED`: number, invoice, date, amount, net, method, masked reference (`••` + last 4), balance after, duplicate confirmation. `PAYMENT_REVERSED` (on the original receipt): reversal number, amount, net, date, reason, balance after. No full references, no tokens, no B2C data. `GET /payments/{id}/history` shows these rows. |
+| P10-11 | Data scope | PAYMENTS scope; SELF/TEAM resolve to no records (D-30). The restricted invoice picker (`/payments/invoice-options`, Payments write, no Invoices read needed) returns at most 50 issued invoices with a balance, with minimum fields. |
+| P10-12 | Frontend | `/payments`: ledger with metrics, net-by-method panel, filters, export and Record payment. `/payments/:id`: details, invoice balance, reversal info, history and Reverse. The invoice page gets a Payments card. The Phase 9 follow-ups add the e-invoicing declaration in Settings and the regular-supply checkbox in the issue dialog. Buttons follow permissions; the server enforces everything. |
+
+### Needs approval (not implemented)
+
+| # | Question | Options | Current behaviour |
+|---|---|---|---|
+| O-1 | Reversing a receipt that has a partner payout (D-12) | (a) Accrued payout: cancel it with the reversal. Paid payout: create a clawback against the partner's next payout. (b) Require a payout reversal (FINANCE) first. (c) Never reverse; record a credit note instead. | Refused with `409 PAYMENT_HAS_PAYOUT`. Phase 10 creates no payouts, so only legacy rows hit this. |
+| O-2 | Who may reverse | (a) `REVERSE_PAYMENT` holders alone, as built. (b) Maker-checker: one user requests, another approves. (c) Restrict it to Super Admin. | (a), granted only by Super Admin. |
+| O-3 | Refunds and credit notes | A credit note against the invoice (GST-adjusting), then a refund entry against the credit note. | Not supported. |
+| O-4 | Customer TDS on receipts | Record TDS receivable as a separate settlement component (with certificate tracking), or leave it as balance. | Left as balance. |
+| O-5 | Advances and excess receipts | Unapplied receipts against a customer, with GST on advances. | Refused. |
+| O-6 | Reversal date | Today (as built), or back-dated to the original receipt date. | Today. |

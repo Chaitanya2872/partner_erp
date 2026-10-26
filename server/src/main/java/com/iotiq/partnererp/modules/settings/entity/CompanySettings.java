@@ -39,6 +39,21 @@ public class CompanySettings extends AuditableEntity {
         this.stateCode = stateCode;
     }
 
+    /**
+     * Whether e-invoicing (IRN/QR) applies to the company (V17). Null until declared. Invoices can't be issued while it
+     * is undeclared, nor while it is true, because e-invoicing isn't supported (Phase 9 follow-up, P10-G1).
+     */
+    @Column(name = "einvoicing_applicable")
+    private Boolean einvoicingApplicable;
+
+    public Boolean getEinvoicingApplicable() {
+        return einvoicingApplicable;
+    }
+
+    public void setEinvoicingApplicable(Boolean einvoicingApplicable) {
+        this.einvoicingApplicable = einvoicingApplicable;
+    }
+
     @Column(name = "phone", length = 30)
     private String phone;
 

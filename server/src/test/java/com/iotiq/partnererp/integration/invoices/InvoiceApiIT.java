@@ -75,7 +75,8 @@ class InvoiceApiIT extends ApiIntegrationTest {
     void cleanUp() {
         deleteTestProducts(tag + "%");
         // The settings row is shared by every test class: put the seeded registration back.
-        jdbc.update("update company_settings set company_name = ?, address = ?, state_code = null, gstin = null",
+        jdbc.update("update company_settings set company_name = ?, address = ?, state_code = null, gstin = null, "
+                        + "einvoicing_applicable = null",
                 seededSettings.get("company_name"), seededSettings.get("address"));
     }
 
@@ -88,7 +89,8 @@ class InvoiceApiIT extends ApiIntegrationTest {
                 "gstin", "36AABCI1234A1ZD", "version", version));
         String errors = mvc.perform(withJson(put("/api/v1/settings/gst-registration").with(bearer(sa)), body(bad)))
                 .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
-        assertThat(errors).contains("legalName", "address", "stateCode", "check character");
+        assertThat(errors).contains("legalName", "address", "stateCode", "check character", "einvoicingApplicable");
+        bad.put("einvoicingApplicable", false);
         bad.putAll(Map.of("legalName", "X", "address", "Y", "stateCode", "29", "gstin", SUPPLIER_GSTIN));
         mvc.perform(withJson(put("/api/v1/settings/gst-registration").with(bearer(sa)), body(bad)))
                 .andExpect(status().isBadRequest())
@@ -145,7 +147,7 @@ class InvoiceApiIT extends ApiIntegrationTest {
         long version = ((Number) JsonPath.read(saved, "$.data.version")).longValue();
 
         mvc.perform(withJson(post("/api/v1/invoices/{id}/issue", id).with(bearer(admin)),
-                        body(Map.of("version", version, "expectedGrandTotal", 2912.80))))
+                        body(Map.of("version", version, "expectedGrandTotal", 2912.80, "regularSupplyConfirmed", true))))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("TOTALS_CHANGED"));
         String issued = issue(admin, id, version, "2912.90")
                 .andExpect(status().isOk())
@@ -354,6 +356,63 @@ class InvoiceApiIT extends ApiIntegrationTest {
         assertThat(count("select count(*) from invoices where estimate_id in (?, ?)", draftEstimate, deleted)).isZero();
     }
 
+    /**
+     * Phase 10 approval, item 2: one live invoice per estimate, cancelled invoices kept intact, discarding a draft
+     * releases the estimate, the conversion trail is audited, and no snapshot is ever overwritten.
+     */
+    @Test
+    void conversionHistoryAndSnapshotsSurviveDiscardCancellationAndReconversion() throws Exception {
+        UUID estimate = sentEstimate(leadId, 5, List.of(line(productA, 2), line(productB, 3)));
+        String agreed = estimateSnapshot(estimate).substring("SENT".length());
+
+        // Discarded draft: the estimate is released and converts again.
+        UUID discarded = id(convert(admin, estimate).andExpect(status().isCreated()).andReturn());
+        mvc.perform(delete("/api/v1/invoices/{id}", discarded).with(bearer(sa))).andExpect(status().isNoContent());
+        assertThat(estimateSnapshot(estimate)).isEqualTo("SENT" + agreed);
+
+        // Issued, then cancelled: the cancelled invoice keeps its number, lines, tax, supplier and estimate link.
+        UUID first = id(convert(admin, estimate).andExpect(status().isCreated()).andReturn());
+        convert(admin, estimate).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("ESTIMATE_ALREADY_INVOICED"));
+        update(admin, first, conversionBilling(0)).andExpect(status().isOk());
+        issue(admin, first, 1, null).andExpect(status().isOk());
+        cancel(sa, first, 2, "Raised in error").andExpect(status().isOk());
+        String cancelled = invoiceSnapshot(first);
+
+        UUID second = id(convert(admin, estimate).andExpect(status().isCreated()).andReturn());
+        convert(admin, estimate).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("ESTIMATE_ALREADY_INVOICED"));
+        assertThat(count("select count(*) from invoices where estimate_id = ? and status <> 'CANCELLED' "
+                + "and deleted_at is null", estimate)).isEqualTo(1);
+        update(admin, second, conversionBilling(0)).andExpect(status().isOk());
+        issue(admin, second, 1, null).andExpect(status().isOk());
+        String issued = invoiceSnapshot(second);
+
+        // A later supplier registration change touches neither invoice; the estimate's agreed values never change.
+        registerSupplier("29", "29AAGCB7383J1Z4");
+        assertThat(invoiceSnapshot(first)).isEqualTo(cancelled).contains("CANCELLED", "|36|" + SUPPLIER_GSTIN);
+        assertThat(invoiceSnapshot(second)).isEqualTo(issued).contains("ISSUED", "|36|" + SUPPLIER_GSTIN);
+        assertThat(estimateSnapshot(estimate)).isEqualTo("INVOICED" + agreed);
+        assertThat(count("select count(*) from invoices where estimate_id = ?", estimate)).isEqualTo(3);
+        mvc.perform(get("/api/v1/invoices").param("estimateId", estimate.toString()).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.length()").value(2));
+        mvc.perform(get("/api/v1/invoices/{id}", first).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.cancelReason").value("Raised in error"));
+
+        // The trail: every conversion names the estimate; the estimate's own history shows the status changes.
+        assertThat(actions(discarded)).containsExactly("INVOICE_CONVERTED", "INVOICE_DRAFT_DELETED");
+        assertThat(actions(first)).containsExactly("INVOICE_CONVERTED", "INVOICE_UPDATED", "INVOICE_ISSUED",
+                "INVOICE_CANCELLED");
+        assertThat(actions(second)).containsExactly("INVOICE_CONVERTED", "INVOICE_UPDATED", "INVOICE_ISSUED");
+        assertThat(count("select count(*) from audit_logs where action = 'INVOICE_CONVERTED' "
+                + "and new_values->>'estimateId' = ?", estimate.toString())).isEqualTo(3);
+        assertThat(jdbc.queryForList("select coalesce(old_values->>'status', '') || '>' || (new_values->>'status') "
+                + "from audit_logs where entity_type = 'ESTIMATE' and entity_id = ? and action = 'ESTIMATE_STATUS_CHANGED' "
+                + "order by created_at, id", String.class, estimate))
+                .containsExactly("DRAFT>SENT", "SENT>INVOICED", "INVOICED>SENT", "SENT>INVOICED");
+    }
+
     @Test
     void concurrentConversionsOfOneEstimateCreateExactlyOneInvoice() throws Exception {
         UUID estimate = sentEstimate(leadId, 0, List.of(line(productA, 1)));
@@ -415,6 +474,41 @@ class InvoiceApiIT extends ApiIntegrationTest {
         assertThatThrownBy(() -> jdbc.update("delete from invoices where id = ?", id))
                 .hasMessageContaining("can't be deleted");
         assertThat(jdbc.queryForObject("select invoice_number from invoices where id = ?", String.class, id)).isEqualTo(number);
+    }
+
+    // ------------------------------------------------------------------------------------------------ unsupported
+
+    /** Phase 10 approval, item 1: unsupported GST transactions are blocked instead of issued as ordinary invoices. */
+    @Test
+    void onlyRegularDomesticTaxableSuppliesAreIssued() throws Exception {
+        UUID id = id(create(admin, invoice(leadId, "lines", List.of(line(productA, 1)))).andReturn());
+        mvc.perform(withJson(post("/api/v1/invoices/{id}/issue", id).with(bearer(admin)), body(Map.of("version", 0))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("regularSupplyConfirmed"));
+
+        registerSupplier("36", SUPPLIER_GSTIN, true);
+        issue(admin, id, 0, null).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("EINVOICING_NOT_SUPPORTED"));
+        jdbc.update("update company_settings set einvoicing_applicable = null");
+        issue(admin, id, 0, null).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("SUPPLIER_REGISTRATION_INCOMPLETE"));
+        mvc.perform(get("/api/v1/settings/gst-registration").with(bearer(sa)))
+                .andExpect(jsonPath("$.data.complete").value(false));
+        registerSupplier("36", SUPPLIER_GSTIN);
+
+        // Every line at 0% would need a bill of supply.
+        UUID exempt = id(create(sa, invoice(leadId, "lines", List.of(withGst(line(productB, 1), 0)))).andReturn());
+        issue(admin, exempt, 0, null).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("BILL_OF_SUPPLY_NOT_SUPPORTED"));
+        assertThat(count("select count(*) from invoices where id in (?, ?) and status = 'DRAFT'", id, exempt)).isEqualTo(2);
+
+        String issued = issue(admin, id, 0, null).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat((String) JsonPath.read(issued, "$.data.invoiceNumber")).startsWith("INV-");
+        assertThat(jdbc.queryForObject("select new_values->>'regularSupplyConfirmed' from audit_logs "
+                + "where action = 'INVOICE_ISSUED' and entity_id = ?", String.class, id)).isEqualTo("true");
+        String document = mvc.perform(get("/api/v1/invoices/{id}/document", id).with(bearer(admin)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(document).contains("Tax payable on reverse charge</span> No");
     }
 
     // ------------------------------------------------------------------------------------------------ cancellation
@@ -593,12 +687,16 @@ class InvoiceApiIT extends ApiIntegrationTest {
         assertThat(text.toLowerCase(Locale.ROOT)).doesNotContain("b2c", "uplift");
     }
 
-    private void registerSupplier(String state, String gstin) throws Exception {
+    private void registerSupplier(String state, String gstin, boolean einvoicing) throws Exception {
         String name = jdbc.queryForObject("select company_name from company_settings", String.class);
         mvc.perform(withJson(put("/api/v1/settings/gst-registration").with(bearer(sa)),
                         body(Map.of("legalName", name, "address", "Plot 7, Test Park, Hyderabad 500081", "stateCode", state,
-                                "gstin", gstin, "version", settingsVersion()))))
+                                "gstin", gstin, "einvoicingApplicable", einvoicing, "version", settingsVersion()))))
                 .andExpect(status().isOk());
+    }
+
+    private void registerSupplier(String state, String gstin) throws Exception {
+        registerSupplier(state, gstin, false);
     }
 
     private long settingsVersion() {
@@ -663,6 +761,7 @@ class InvoiceApiIT extends ApiIntegrationTest {
     private ResultActions issue(Session session, UUID id, long version, String expectedTotal) throws Exception {
         Map<String, Object> request = new HashMap<>();
         request.put("version", version);
+        request.put("regularSupplyConfirmed", true);
         if (expectedTotal != null) {
             request.put("expectedGrandTotal", new BigDecimal(expectedTotal));
         }
@@ -695,6 +794,16 @@ class InvoiceApiIT extends ApiIntegrationTest {
                 + "|| grand_total || '|' || (select string_agg(quantity || 'x' || unit_price || '@' || gst_percent, ',' "
                 + "order by line_no) from estimate_items where estimate_id = e.id) from estimates e where id = ?",
                 String.class, estimate);
+    }
+
+    /** Number, status, supplier, totals and lines of an invoice as stored. */
+    private String invoiceSnapshot(UUID id) {
+        return jdbc.queryForObject("select invoice_number || '|' || status || '|' || supplier_state_code || '|' "
+                + "|| supplier_gstin || '|' || supplier_name || '|' || taxable_amount || '|' || cgst_amount || '|' "
+                + "|| sgst_amount || '|' || igst_amount || '|' || grand_total || '|' || invoice_date || '|' "
+                + "|| (select string_agg(quantity || 'x' || unit_price || '=' || taxable_value || '+' || tax_amount, ',' "
+                + "order by line_no) from invoice_items where invoice_id = i.id) from invoices i where id = ?",
+                String.class, id);
     }
 
     private List<String> actions(UUID id) {

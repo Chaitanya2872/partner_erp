@@ -77,7 +77,8 @@ public final class InvoiceDocumentRenderer {
                 + header(i.supplier(), company, title, i.invoiceNumber() == null ? "Draft" : i.invoiceNumber(),
                 i.invoiceDate(), i.dueDate(), null)
                 + parties(i) + "<div class=\"pos\"><span class=\"lab\">Place of supply</span> " + pos
-                + (i.tax().taxTypeLabel() == null ? "" : " · " + esc(i.tax().taxTypeLabel())) + "</div>"
+                + (i.tax().taxTypeLabel() == null ? "" : " · " + esc(i.tax().taxTypeLabel()))
+                + " · <span class=\"lab\">Tax payable on reverse charge</span> No</div>"
                 + "<table><thead>" + head + "</thead><tbody>" + rows + "</tbody></table>"
                 + totals(i.totals(), i.discountPercent(), inter, stateTax)
                 + (i.notes() == null ? "" : "<div class=\"note\">" + esc(i.notes()) + "</div>") + "</div>";

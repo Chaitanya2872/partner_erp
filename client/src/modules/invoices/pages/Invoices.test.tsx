@@ -7,6 +7,7 @@ import { authService } from "@/services/auth.service";
 import { leadService } from "@/modules/leads/services/leadService";
 import { estimateService } from "@/modules/estimates/services/estimateService";
 import { settingsService } from "@/modules/settings/services/settingsService";
+import { paymentService } from "@/modules/payments/services/paymentService";
 import type { Estimate, ProductOption } from "@/modules/estimates/types/estimate.types";
 import { invoiceService } from "../services/invoiceService";
 import type { GstRegistration, Invoice, InvoiceMeta, InvoicePreview, InvoiceSummary, TaxTreatment } from "../types/invoice.types";
@@ -22,6 +23,9 @@ vi.mock("@/modules/estimates/services/estimateService", () => ({
 }));
 vi.mock("@/modules/settings/services/settingsService", () => ({
   settingsService: { gstRegistration: vi.fn(), updateGstRegistration: vi.fn() },
+}));
+vi.mock("@/modules/payments/services/paymentService", () => ({
+  paymentService: { list: vi.fn(), meta: vi.fn(), invoiceOptions: vi.fn(), record: vi.fn() },
 }));
 vi.mock("../services/invoiceService", () => ({
   invoiceService: {
@@ -213,7 +217,7 @@ const preview = (lineCount: number, tax: TaxTreatment = intra): InvoicePreview =
   feeOverride: false,
 });
 
-const registration: GstRegistration = { legalName: "IOTIQ", address: null, stateCode: null, stateName: null, gstin: null, complete: false, version: 4, states };
+const registration: GstRegistration = { legalName: "IOTIQ", address: null, stateCode: null, stateName: null, gstin: null, einvoicingApplicable: null, complete: false, version: 4, states };
 
 /** Invoices read + write (ADMIN template); no delete, export, approve, internal copy or B2C prices. */
 const writer = () => makeMe("ADMIN");
@@ -235,6 +239,7 @@ beforeEach(() => {
   vi.mocked(invoiceService.meta).mockResolvedValue(meta);
   vi.mocked(invoiceService.list).mockResolvedValue({ content: summaries, meta: { page: 0, size: 20, totalElements: 2, totalPages: 1 } });
   vi.mocked(invoiceService.get).mockResolvedValue(draft);
+  vi.mocked(paymentService.list).mockResolvedValue({ content: [], meta: { page: 0, size: 100, totalElements: 0, totalPages: 0 } });
   vi.mocked(invoiceService.history).mockResolvedValue([
     { id: "h1", at: "2026-10-26T00:00:00Z", actorName: "Test Admin", action: "INVOICE_CREATED", changes: [{ field: "grandTotal", from: null, to: "2360.00" }] },
   ]);
@@ -290,8 +295,13 @@ describe("invoice details", () => {
     expect(screen.queryByRole("button", { name: /Discard/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Issue invoice/ }));
     const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
+    // The supply type has to be confirmed: unsupported supplies (exports, reverse charge, bill of supply, …) aren't issued here.
     await userEvent.click(within(dialog).getByRole("button", { name: "Issue invoice" }));
-    await vi.waitFor(() => expect(invoiceService.issue).toHaveBeenCalledWith("i1", { version: 2, expectedGrandTotal: "2360.00" }));
+    expect(await within(dialog).findByText("Confirm that this is a regular domestic taxable supply.")).toBeInTheDocument();
+    expect(invoiceService.issue).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: "This is a regular domestic taxable supply." }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Issue invoice" }));
+    await vi.waitFor(() => expect(invoiceService.issue).toHaveBeenCalledWith("i1", { version: 2, expectedGrandTotal: "2360.00", regularSupplyConfirmed: true }));
   });
 
   it("asks an approver for a note before confirming a doubtful tax treatment", async () => {
@@ -527,8 +537,13 @@ describe("GST registration settings", () => {
     expect(settingsService.updateGstRegistration).not.toHaveBeenCalled();
     await userEvent.selectOptions(screen.getByLabelText(/Registered state/), "36");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    // The e-invoicing declaration is required; issuing is blocked while it applies.
+    expect(await screen.findByText("Say whether e-invoicing applies to the company.")).toBeInTheDocument();
+    expect(settingsService.updateGstRegistration).not.toHaveBeenCalled();
+    await userEvent.selectOptions(screen.getByLabelText(/E-invoicing/), "no");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await vi.waitFor(() =>
-      expect(settingsService.updateGstRegistration).toHaveBeenCalledWith({ legalName: "IOTIQ", address: "Plot 7, Hyderabad", stateCode: "36", gstin: "36AABCI1234A1ZC", version: 4 }),
+      expect(settingsService.updateGstRegistration).toHaveBeenCalledWith({ legalName: "IOTIQ", address: "Plot 7, Hyderabad", stateCode: "36", gstin: "36AABCI1234A1ZC", einvoicingApplicable: false, version: 4 }),
     );
   });
 

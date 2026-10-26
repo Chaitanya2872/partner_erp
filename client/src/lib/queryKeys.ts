@@ -57,6 +57,15 @@ export const queryKeys = {
     preview: (id: string | undefined, input: unknown) => ["invoices", "preview", id ?? "new", input] as const,
     leadOptions: (q: string) => ["invoices", "lead-options", q] as const,
   },
+  payments: {
+    all: ["payments"] as const,
+    list: (filters: Record<string, unknown>) => ["payments", "list", filters] as const,
+    report: (filters: Record<string, unknown>) => ["payments", "report", filters] as const,
+    meta: ["payments", "meta"] as const,
+    detail: (id: string) => ["payments", id] as const,
+    history: (id: string) => ["payments", id, "history"] as const,
+    invoiceOptions: (q: string) => ["payments", "invoice-options", q] as const,
+  },
   settings: {
     gstRegistration: ["settings", "gst-registration"] as const,
   },

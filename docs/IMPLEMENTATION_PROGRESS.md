@@ -13,8 +13,8 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 6 | Lead management | COMPLETED (approved 2026-10-26) | 2026-10-25 | 2026-10-25 |
 | 7 | Product & price sheet | COMPLETED (approved 2026-10-26) | 2026-10-26 | 2026-10-26 |
 | 8 | Estimate management | COMPLETED (conditionally approved 2026-10-26; finalized) | 2026-10-26 | 2026-10-26 |
-| 9 | Invoice management | NOT_STARTED | — | — |
-| 10 | Payment management | NOT_STARTED | — | — |
+| 9 | Invoice management | COMPLETED (approved 2026-10-26, checkpoint `7cafbc8`) | 2026-10-26 | 2026-10-26 |
+| 10 | Payment management | COMPLETED, awaiting approval | 2026-10-26 | 2026-10-26 |
 | 11 | Partner payouts | NOT_STARTED | — | — |
 | 12 | Dashboard & reports | NOT_STARTED | — | — |
 | 13 | Settings & administration | NOT_STARTED | — | — |
@@ -838,7 +838,7 @@ Phase 9, invoice management: approved and completed (see below).
 
 ## Phase 9: Invoice management
 
-- **Status:** COMPLETED, awaiting approval. Implements the Phase 9 approval of 2026-10-26. Decisions, deviations and the GST questions that still need a decision are in DECISIONS.md §J (C9-1 to C9-8, P9-G1 to P9-G7, P9-01 to P9-12).
+- **Status:** COMPLETED; approved 2026-10-26 (Git checkpoint `7cafbc8` accepted). Implements the Phase 9 approval of 2026-10-26. Decisions, deviations and the GST questions that still need a decision are in DECISIONS.md §J (C9-1 to C9-8, P9-G1 to P9-G7, P9-01 to P9-12).
 - **Dates:** started and completed 2026-10-26.
 
 ### Delivered
@@ -894,4 +894,111 @@ Phase 9, invoice management: approved and completed (see below).
 - Frontend suite timeouts under heavy parallel load are a test-infrastructure issue (as in Phases 7–8).
 
 ### Next phase
-Phase 10, payment management, after your approval. Not started.
+Phase 10, payment management: approved on 2026-10-26 and completed (see below).
+
+## Phase 10: Payment management
+
+- **Status:** COMPLETED, awaiting approval. Implements the approval of 2026-10-26: Phase 9 accepted, the GST and accounting instructions, conversion integrity, and payments. Decisions, accounting assumptions, unsupported transactions, required Finance approvals and open options are in DECISIONS.md §K (C10-1 to C10-6, P10-A1 to A7, P10-01 to P10-12, O-1 to O-6).
+- **Dates:** started and completed 2026-10-26.
+
+### Delivered
+- **Ledger:** append-only `payments`. Receipts are recorded against issued invoices; partial and multiple receipts are supported. Each entry has a `PAY-YYYY-NNNNNN` number, a method and a reference (required except for Cash; card-like numbers refused), plus optional notes. Balances and payment status stay derived from the ledger, so issued invoices are never written. A DB trigger blocks edits and deletes.
+- **Validation:** BigDecimal on the server, with the invoice row locked for every write.
+  - Overpayment is refused (`422 OVERPAYMENT`). Settled, draft and cancelled invoices are refused.
+  - The payment date can't be in the future or before the invoice date.
+  - The ex-GST share is proportional; the settling receipt takes the remainder (P10-A2).
+- **Duplicate prevention:**
+  - an idempotency key with a request hash (a replay returns the same entry);
+  - a hard block on a repeated reference on the same invoice;
+  - a "possible duplicate" warning the user can confirm (same reference elsewhere, or same amount, date and method).
+- **Reversals:**
+  - They need `PAYMENTS:REVERSE_PAYMENT` and a written reason.
+  - The original receipt is kept. A mirrored REVERSAL entry restores the balance, and invoice snapshots are untouched.
+  - Duplicate reversals are refused by the API and by a UNIQUE index.
+  - Receipts with a partner payout are refused until Phase 11 defines the payout adjustment.
+- **Reporting and export:**
+  - ledger search and filters;
+  - totals (received, reversed, net, ex-GST, by method) and receivables (outstanding and overdue);
+  - CSV export with the reversal reason;
+  - audit rows `PAYMENT_RECORDED` and `PAYMENT_REVERSED`, with masked references.
+- **Invoices:** cancellation is allowed once every receipt is reversed (only live payments block it). Partner revenue excludes reversed receipts.
+- **GST follow-ups (approval §1):**
+  - Settings now has an e-invoicing declaration. It is required, and issue is blocked while e-invoicing applies.
+  - Issue requires confirming a regular domestic taxable supply, which excludes reverse charge, exports/SEZ, composition and cess.
+  - Invoices whose lines are all at 0% GST are refused (bill of supply).
+  - The tax invoice prints "Tax payable on reverse charge: No".
+- **Conversion integrity (approval §2):** a new regression test covers discard → re-conversion → issue → cancel → re-conversion, with history and snapshot checks (see the table in DECISIONS.md §K).
+- **Frontend (`modules/payments`):**
+  - The ledger page has metrics, net by method, filters and export.
+  - The Record payment dialog has an invoice picker, a balance check, an idempotency key and duplicate confirmation.
+  - The details page shows the invoice balance, reversal info and history, and has the Reverse dialog.
+  - The invoice page gets a Payments card. Navigation enables Payments; the coming-soon example moves to Payouts (Phase 11).
+
+### Files
+- **Server:**
+  - `db/migration/V17__payments_management.sql`
+  - `modules/payments/{entity/Payment, entity/PaymentEntryType, repository/PaymentRepository, dto/*, service/PaymentRules, service/PaymentService, controller/PaymentController}`. The empty `mapper/PaymentMapper` stub was removed.
+  - Modified:
+    - `modules/invoices/{service/InvoiceService, repository/InvoiceRepository, dto/InvoiceActionRequest, service/InvoiceDocumentRenderer}`
+    - `modules/settings/{entity/CompanySettings, dto/GstRegistrationRequest, dto/GstRegistrationResponse, service/GstRegistrationService}`
+    - `modules/partners/repository/PartnerMetricsRepository`
+    - `modules/audit/service/AuditActions`
+    - `modules/sequences/service/DocumentNumberService` (`PAY`)
+    - `modules/products/service/ProductCsv` (plain numbers, including negatives, are not formula-guarded)
+  - Tests:
+    - `unit/payments/PaymentRulesTest` (6)
+    - `integration/payments/PaymentApiIT` (8)
+    - `InvoiceApiIT` (+2: conversion integrity and unsupported supplies; 19 in total)
+    - fixtures updated in `ConstraintsIT`, `PartnerApiIT` and `MigrationAndSeedIT` (V17)
+- **Client:**
+  - `modules/payments/{types/payment.types, services/paymentService, hooks/usePayments, components/PaymentParts, components/RecordPaymentDialog, components/ReversePaymentDialog, components/InvoicePaymentsCard, pages/PaymentsPage, pages/PaymentDetailsPage, pages/Payments.test}`
+  - Modified: `modules/invoices/{types/invoice.types, pages/InvoiceDetailsPage, pages/Invoices.test}`, `modules/settings/components/GstRegistrationCard`, `lib/queryKeys.ts`, `lib/status.ts` (payment entry statuses), `app/navigation.ts`, `app/router.tsx`, `app/routing.test.tsx`, `app/lazyRoutes.test.tsx`.
+
+### Browser verification (2026-10-26)
+- **Setup:**
+  - Backend jar on 8091 against **`partner_erp_test`** (Flyway V17), Vite on 5181.
+  - Fixture accounts only: a Super Admin, and an Admin on the default template (Payments write without reversal or export).
+  - Test data created through the API: a test GST registration (state 36), and issued invoices `INV-2026-000027` (₹21,240) and `INV-2026-000028` (₹10,620) for "P9 Direct Client".
+  - The server on 8080 (PID 28376) was not touched.
+  - Afterwards both test servers and the browser sessions were stopped, and `company_settings` was restored: name and address back to the originals; state, GSTIN and e-invoicing reset to null. The test invoices and payments remain in `partner_erp_test`, since payments can't be deleted by design.
+- **Verified:**
+  - **Guards.** On `INV-2026-000027`, the form refuses ₹25,000 (more than the balance), and the server refuses a card-like reference on the field.
+  - **Partial receipt.** A ₹10,000 UPI receipt gives `PAY-2026-000023`: paid ₹10,000, balance ₹11,240. The ex-GST share is ₹8,474.58 (10,000 × 18,000 / 21,240, checked by hand).
+  - **Duplicates.**
+    - The same reference, typed in a different case with spaces, is hard-blocked.
+    - The same amount, date and method with a new reference shows "Possible duplicate". "Record anyway" records `PAY-2026-000024`.
+  - **Reversal of `PAY-2026-000023`.**
+    - An empty reason is refused.
+    - With a reason, the reversal `PAY-2026-000025` (−₹10,000) is recorded. The receipt is kept and shown as Reversed, and the balance is back to ₹11,240.
+    - History shows the reference masked (`••0001`).
+    - The Reverse button disappears. A second reversal through the API gives `409 PAYMENT_ALREADY_REVERSED`.
+  - **Full settlement.** From the Payments page, using the invoice picker, `INV-2026-000028` is settled in full by cheque. The amount defaults to the balance; the invoice then shows Paid and Record payment is hidden. Cancelling the paid invoice is refused with a message to reverse the payments first.
+  - **Ledger page and CSV.** The page shows metrics, net by method, filters, reversal rows ("reverses PAY-…") and struck-through reversed receipts. The CSV contains the reversal reason, and negative amounts appear as plain numbers.
+  - **Admin permissions.** The Admin can record but sees no Reverse or Export, and the API returns `403` for both. A direct `DELETE` in the database is refused by the trigger.
+  - **390 px.** The Record payment dialog and the pages have no horizontal page overflow.
+- **Issues found and fixed:**
+  1. The metric cards overflowed at four columns with crore amounts. They now use 2 columns below `xl`.
+  2. Legacy refunds appeared as an extra row above the total, although they are already included in it. They are now an "Includes …" row below the total.
+  3. The history showed raw method codes. It now shows labels.
+
+### Build and test results (2026-10-26)
+- `mvn verify` (offline, no `clean`; port 8080 untouched): **252 tests, 0 failures, 0 errors, 0 skipped** (85 unit, 167 integration).
+- `npm test -- --maxWorkers=4`: **183 tests in 21 files, 0 failures** (`Payments.test.tsx` 7; `Invoices.test.tsx` updated for the supply confirmation and the e-invoicing declaration). One run made while `mvn verify` was running at the same time had 2 load timeouts (11.7 s, the known parallel-load issue). The re-run on an idle machine passed fully.
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings).
+- `npm run build`: OK (PaymentDetailsPage 8.3 kB, PaymentsPage 6.8 kB, RecordPaymentDialog 6.3 kB).
+
+### Known issues / limitations
+- Not implemented, pending approval (DECISIONS.md §K):
+  - refunds and credit/debit notes;
+  - advances;
+  - customer TDS;
+  - payout adjustment on reversal (receipts with payouts can't be reversed);
+  - maker-checker for reversals;
+  - back-dated reversals.
+- Unsupported GST transactions (e-invoicing, reverse charge, exports/SEZ, composition, cess, bill of supply) are blocked at issue, not supported. Per-line HALF_UP rounding and the ex-GST allocation of receipts await Finance validation.
+- Fee accrual, clawback and tier upgrades on payment (BR-M4 to BR-M8) belong to Phase 11; no payouts are created yet.
+- The development database `partner_erp` is still at V15. It applies V16 and V17 on its next restart with this build.
+- Rows recorded before Phase 10 (test fixtures) have no payment number and show as "Payment".
+
+### Next phase
+Phase 11, partner payouts, after your approval. Not started.

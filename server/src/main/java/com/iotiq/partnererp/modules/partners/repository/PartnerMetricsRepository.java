@@ -26,6 +26,8 @@ public class PartnerMetricsRepository {
     /**
      * BR-P12: Σ payment net (ex-GST) with {@code payment_date >= since}, per partner. Refunds are negative and
      * reduce the total; future-dated payments count, as in the source. Partners without payments are absent.
+     * A reversed receipt never counts, and neither does its reversal (P10-09): the receipt was recorded in error, so
+     * it is left out whatever the reversal date.
      */
     public Map<UUID, BigDecimal> paidRevenueSince(Collection<UUID> partnerIds, LocalDate since) {
         if (partnerIds.isEmpty()) {
@@ -34,8 +36,9 @@ public class PartnerMetricsRepository {
         Map<UUID, BigDecimal> result = new HashMap<>();
         jdbc.query("""
                         SELECT partner_id, SUM(net_amount) AS revenue
-                          FROM payments
-                         WHERE partner_id IN (:ids) AND payment_date >= :since
+                          FROM payments p
+                         WHERE partner_id IN (:ids) AND payment_date >= :since AND entry_type <> 'REVERSAL'
+                           AND NOT EXISTS (SELECT 1 FROM payments r WHERE r.reversed_payment_id = p.id)
                          GROUP BY partner_id
                         """,
                 new MapSqlParameterSource("ids", partnerIds).addValue("since", since),

@@ -64,6 +64,12 @@ public final class AuditActions {
     public static final String INVOICE_CANCELLED = "INVOICE_CANCELLED";
     public static final String INVOICE_DRAFT_DELETED = "INVOICE_DRAFT_DELETED";
 
+    public static final String ENTITY_PAYMENT = "PAYMENT";
+    /** A receipt recorded against an issued invoice (Phase 10). References are recorded masked. */
+    public static final String PAYMENT_RECORDED = "PAYMENT_RECORDED";
+    /** A receipt reversed by a reversal entry, with the reason (Phase 10). Logged against the receipt. */
+    public static final String PAYMENT_REVERSED = "PAYMENT_REVERSED";
+
     public static final String ENTITY_SETTINGS = "SETTINGS";
     /** Supplier GST registration (state, GSTIN, legal name, address). */
     public static final String GST_REGISTRATION_UPDATED = "GST_REGISTRATION_UPDATED";

@@ -75,8 +75,8 @@ describe("protected routing and navigation", () => {
 
   it("labels unbuilt modules as not yet available", async () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("ADMIN"));
-    renderApp("/payments");
-    expect(await screen.findByText(/delivered in Phase 10/)).toBeInTheDocument();
+    renderApp("/payouts");
+    expect(await screen.findByText(/delivered in Phase 11/)).toBeInTheDocument();
   });
 
   it("hides internal B2C columns without VIEW_INTERNAL_B2C", async () => {

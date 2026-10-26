@@ -24,7 +24,8 @@ import java.util.Objects;
 
 /**
  * The supplier's GST registration in Company Settings (Phase 9 decision 1): legal name, address, registered state and
- * GSTIN. Invoices copy these values when they are issued, so later changes never alter issued invoices.
+ * GSTIN, plus whether e-invoicing applies (which this system doesn't support). Invoices copy the registration when
+ * they are issued, so later changes never alter issued invoices.
  */
 @Service
 public class GstRegistrationService {
@@ -82,6 +83,9 @@ public class GstRegistrationService {
                         + ", not " + state.label() + "."));
             }
         }
+        if (r.einvoicingApplicable() == null) {
+            errors.add(new FieldError("einvoicingApplicable", "Say whether e-invoicing (IRN/QR) applies to the company."));
+        }
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }
@@ -90,6 +94,7 @@ public class GstRegistrationService {
         settings.setAddress(address);
         settings.setStateCode(state.getCode());
         settings.setGstin(gstin);
+        settings.setEinvoicingApplicable(r.einvoicingApplicable());
         Map<String, Object> after = snapshot(settings);
         if (!before.equals(after)) {
             repository.saveAndFlush(settings);
@@ -110,14 +115,16 @@ public class GstRegistrationService {
 
     private static Map<String, Object> snapshot(CompanySettings s) {
         return AuditService.values("legalName", s.getCompanyName(), "address", s.getAddress(),
-                "stateCode", s.getStateCode(), "gstin", s.getGstin());
+                "stateCode", s.getStateCode(), "gstin", s.getGstin(), "einvoicingApplicable", s.getEinvoicingApplicable());
     }
 
     private static GstRegistrationResponse toResponse(CompanySettings s) {
         GstState state = GstState.byCode(s.getStateCode()).orElse(null);
-        boolean complete = state != null && s.getGstin() != null && s.getAddress() != null && !s.getAddress().isBlank();
+        boolean complete = state != null && s.getGstin() != null && s.getAddress() != null && !s.getAddress().isBlank()
+                && s.getEinvoicingApplicable() != null;
         return new GstRegistrationResponse(s.getCompanyName(), s.getAddress(), s.getStateCode(),
-                state == null ? null : state.getDisplayName(), s.getGstin(), complete, s.getVersion(),
+                state == null ? null : state.getDisplayName(), s.getGstin(), s.getEinvoicingApplicable(), complete,
+                s.getVersion(),
                 Arrays.stream(GstState.values()).map(g -> new InvoiceMeta.State(g.getCode(), g.getDisplayName(), g.isUtgst()))
                         .toList());
     }

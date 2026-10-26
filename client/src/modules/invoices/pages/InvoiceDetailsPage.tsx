@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { DescriptionList, DetailRow, Timeline, type TimelineEntry } from "@/comp
 import { FormField } from "@/components/forms/FormField";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Textarea } from "@/components/ui/Input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
@@ -21,6 +22,7 @@ import { saveTextFile } from "@/utils/download";
 import { formatCurrency, formatDate, formatDateTime, formatPercent, NOT_AVAILABLE } from "@/utils/format";
 import { invoiceService } from "../services/invoiceService";
 import { useInvoice, useInvoiceMeta } from "../hooks/useInvoices";
+import { InvoicePaymentsCard } from "@/modules/payments/components/InvoicePaymentsCard";
 import { EstimateComparisonNotice, InvoiceLinesTable, InvoiceStatusBadge, InvoiceTotalsCard, TaxTreatmentNotice } from "../components/InvoiceParts";
 import type { Invoice, InvoiceHistoryEntry, InvoiceParty } from "../types/invoice.types";
 
@@ -58,11 +60,16 @@ export function InvoiceDetailsPage() {
   const [pending, setPending] = useState<Pending>(null);
   const [text, setText] = useState("");
   const [textError, setTextError] = useState<string | null>(null);
+  const [regularSupply, setRegularSupply] = useState(false);
+  const [regularSupplyError, setRegularSupplyError] = useState<string | null>(null);
+  const regularSupplyId = useId();
 
   const close = () => {
     setPending(null);
     setText("");
     setTextError(null);
+    setRegularSupply(false);
+    setRegularSupplyError(null);
   };
   const refresh = () =>
     Promise.all([
@@ -76,13 +83,18 @@ export function InvoiceDetailsPage() {
       setTextError(field.message);
       return;
     }
+    const declaration = error instanceof ApiRequestError ? error.fieldErrors.find((f) => f.field === "regularSupplyConfirmed") : undefined;
+    if (declaration) {
+      setRegularSupplyError(declaration.message);
+      return;
+    }
     toast.error(errorMessage(error));
     close();
     void refresh();
   };
 
   const issue = useMutation({
-    mutationFn: (i: Invoice) => invoiceService.issue(i.id, { version: i.version, expectedGrandTotal: i.totals.grandTotal }),
+    mutationFn: (i: Invoice) => invoiceService.issue(i.id, { version: i.version, expectedGrandTotal: i.totals.grandTotal, regularSupplyConfirmed: true }),
     onSuccess: async (saved) => {
       toast.success(`Issued as ${saved.invoiceNumber}.`);
       close();
@@ -197,7 +209,7 @@ export function InvoiceDetailsPage() {
       ) : null}
       {supplierIncomplete ? (
         <Alert tone="warning" title="GST registration incomplete">
-          Set the supplier&apos;s registered state, GSTIN and address in Settings before issuing.
+          Set the supplier&apos;s registered state, GSTIN, address and the e-invoicing declaration in Settings before issuing.
         </Alert>
       ) : null}
       {i.status === "CANCELLED" ? (
@@ -271,6 +283,8 @@ export function InvoiceDetailsPage() {
         <PartyCard title="Billed to" party={i.billing} />
       </div>
 
+      {!draft && canRead("PAYMENTS") ? <InvoicePaymentsCard invoice={i} /> : null}
+
       <ContentCard title="Tax breakdown" description="Each line keeps its taxable value, rate and tax, rounded to the paisa.">
         <InvoiceLinesTable lines={i.lines} tax={i.tax} />
       </ContentCard>
@@ -293,7 +307,14 @@ export function InvoiceDetailsPage() {
         {i.issuedAt ? ` · issued ${formatDateTime(i.issuedAt)}${i.issuedByName ? ` by ${i.issuedByName}` : ""}` : ""} · updated {formatDateTime(i.updatedAt)}
       </p>
 
-      <ConfirmDialog open={pending === "issue"} title="Issue this invoice?" confirmLabel="Issue invoice" busy={issue.isPending} onConfirm={() => issue.mutate(i)} onCancel={close}>
+      <ConfirmDialog
+        open={pending === "issue"}
+        title="Issue this invoice?"
+        confirmLabel="Issue invoice"
+        busy={issue.isPending}
+        onConfirm={() => (regularSupply ? issue.mutate(i) : setRegularSupplyError("Confirm that this is a regular domestic taxable supply."))}
+        onCancel={close}
+      >
         <p>
           It gets the next invoice number, today&apos;s date and a due date {i.dueDays} days later. After issue its lines, prices, tax, customer details and number
           can&apos;t change; it can only be cancelled.
@@ -304,6 +325,33 @@ export function InvoiceDetailsPage() {
         </p>
         {i.comparison ? <EstimateComparisonNotice comparison={i.comparison} taxDecided={!!i.tax.taxType} /> : null}
         {i.lead && i.lead.stage !== "WON" ? <p>The lead is marked Won.</p> : null}
+        <div className="rounded-md border border-border p-3">
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id={regularSupplyId}
+              className="mt-0.5"
+              checked={regularSupply}
+              aria-invalid={regularSupplyError ? true : undefined}
+              aria-describedby={regularSupplyError ? `${regularSupplyId}-error` : undefined}
+              onCheckedChange={(v) => {
+                setRegularSupply(v === true);
+                setRegularSupplyError(null);
+              }}
+            />
+            <label htmlFor={regularSupplyId} className="font-medium">
+              This is a regular domestic taxable supply.
+            </label>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Not supported, so don&apos;t issue here: exports, SEZ supplies, reverse charge, composition-scheme supplies, supplies with cess, exempt or nil-rated
+            supplies (bill of supply), credit or debit notes, and e-invoices (IRN/QR).
+          </p>
+          {regularSupplyError ? (
+            <p id={`${regularSupplyId}-error`} className="mt-1 text-xs text-danger" role="alert">
+              {regularSupplyError}
+            </p>
+          ) : null}
+        </div>
       </ConfirmDialog>
 
       <ConfirmDialog open={pending === "discard"} title="Discard this draft?" confirmLabel="Discard draft" danger busy={discard.isPending} onConfirm={() => discard.mutate(i)} onCancel={close}>
@@ -354,7 +402,8 @@ export function InvoiceDetailsPage() {
       >
         {hasPayments ? (
           <Alert tone="warning" title="Payments recorded">
-            Invoices with payments or partner payouts can&apos;t be cancelled until credit notes are available (Phase 10).
+            Invoices with payments can&apos;t be cancelled. If a payment was recorded by mistake, reverse it first. Refunds need credit notes, which aren&apos;t
+            supported.
           </Alert>
         ) : null}
         <p>The invoice stays on record as cancelled and its number is never reused. The reason is kept in its history.</p>

@@ -116,8 +116,10 @@ import java.util.stream.Collectors;
  *       details.</li>
  *   <li>Conversion copies the estimate's commercial values unchanged, locks the estimate (INVOICED) and allows one
  *       live invoice per estimate. Discarding the draft gives the estimate its previous status back.</li>
- *   <li>Cancellation needs {@code INVOICES:DELETE} and a reason, and is refused while payments or payouts exist:
- *       credit notes and reversals arrive with Phase 10.</li>
+ *   <li>Cancellation needs {@code INVOICES:DELETE} and a reason, and is refused while unreversed payments or any
+ *       payouts exist (credit notes aren't supported).</li>
+ *   <li>Only regular domestic taxable supplies are issued: issuing needs an explicit confirmation of that, a declared
+ *       e-invoicing status that is "not applicable", and at least one taxable line (P10-G1).</li>
  *   <li>Partner-safe and internal data stay apart: partner DTOs, documents, exports and audit entries never contain
  *       B2C names, B2C rates or the uplift.</li>
  * </ul>
@@ -554,8 +556,13 @@ public class InvoiceService {
         requireDraft(invoice, "issued");
         CompanySettings settings = settings();
         if (!supplierComplete(settings)) {
-            throw new BusinessException("SUPPLIER_REGISTRATION_INCOMPLETE",
-                    "Add the company's GST registration (state, GSTIN and address) in Settings before issuing invoices.");
+            throw new BusinessException("SUPPLIER_REGISTRATION_INCOMPLETE", "Add the company's GST registration "
+                    + "(state, GSTIN, address and the e-invoicing declaration) in Settings before issuing invoices.");
+        }
+        if (Boolean.TRUE.equals(settings.getEinvoicingApplicable())) {
+            throw new BusinessException("EINVOICING_NOT_SUPPORTED", "E-invoicing (IRN and QR code) applies to the "
+                    + "company, and this system can't generate e-invoices. Issue the invoice through the e-invoice "
+                    + "system instead.");
         }
         // Lock the lead first, so concurrent issues for one lead queue here and the Won move sees its current state.
         Lead lead = invoice.getLead() == null ? null : leadRepository.lockLive(invoice.getLead().getId()).orElse(null);
@@ -580,6 +587,15 @@ public class InvoiceService {
         }
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
+        }
+        if (invoice.getItems().stream().allMatch(item -> item.getGstPercent().signum() == 0)) {
+            throw new BusinessException("BILL_OF_SUPPLY_NOT_SUPPORTED", "Every line has 0% GST. Exempt or nil-rated "
+                    + "supplies need a bill of supply, which isn't supported.");
+        }
+        if (request == null || !Boolean.TRUE.equals(request.regularSupplyConfirmed())) {
+            throw ValidationException.of("regularSupplyConfirmed", "Confirm that this is a regular domestic taxable "
+                    + "supply. Exports, SEZ supplies, reverse charge, composition, cess and exempt supplies aren't "
+                    + "supported.");
         }
 
         // Recompute from the stored inputs and the current registration, exactly as a save would.
@@ -620,7 +636,7 @@ public class InvoiceService {
         auditService.record(AuditActions.INVOICE_ISSUED, AuditActions.ENTITY_INVOICE, id,
                 AuditService.values("status", InvoiceStatus.DRAFT),
                 AuditService.values("status", InvoiceStatus.ISSUED, "invoiceNumber", invoice.getInvoiceNumber(),
-                        "invoiceDate", invoice.getInvoiceDate(), "dueDate", invoice.getDueDate(),
+                        "regularSupplyConfirmed", true, "invoiceDate", invoice.getInvoiceDate(), "dueDate", invoice.getDueDate(),
                         "supplierStateCode", invoice.getSupplierStateCode(),
                         "supplierGstin", InvoiceMapper.maskGstin(invoice.getSupplierGstin()),
                         "placeOfSupplyCode", invoice.getPlaceOfSupplyCode(), "taxType", invoice.getTaxType(),
@@ -632,7 +648,7 @@ public class InvoiceService {
 
     /**
      * Cancel an issued invoice ({@code INVOICES:DELETE}, checked by the controller) with a reason. Refused while any
-     * payment or payout is recorded against it: reversing those needs the credit-note handling of Phase 10. The
+     * unreversed payment or any payout is recorded against it (credit notes aren't supported). The
      * number stays used and the estimate stays invoiced (it can be converted again).
      */
     @Transactional
@@ -653,9 +669,10 @@ public class InvoiceService {
         if (reason.length() > InvoiceRules.MAX_REASON) {
             throw ValidationException.of("reason", "Must be at most " + InvoiceRules.MAX_REASON + " characters.");
         }
-        if (repository.paymentCount(id) > 0 || repository.payoutCount(id) > 0) {
+        if (repository.livePaymentCount(id) > 0 || repository.payoutCount(id) > 0) {
             throw BusinessException.conflict("INVOICE_HAS_PAYMENTS", "Payments are recorded against this invoice, so "
-                    + "it can't be cancelled. Reversals and credit notes arrive with payment management.");
+                    + "it can't be cancelled. Reverse them first if they were recorded by mistake; refunds need "
+                    + "credit notes, which aren't supported.");
         }
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoice.setCancelledAt(clock.instant());
@@ -1115,7 +1132,7 @@ public class InvoiceService {
 
     private static boolean supplierComplete(CompanySettings s) {
         return GstState.byCode(s.getStateCode()).isPresent() && s.getGstin() != null
-                && s.getAddress() != null && !s.getAddress().isBlank();
+                && s.getAddress() != null && !s.getAddress().isBlank() && s.getEinvoicingApplicable() != null;
     }
 
     // ---- loading, scope, responses

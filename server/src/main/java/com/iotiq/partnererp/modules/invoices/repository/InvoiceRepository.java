@@ -43,8 +43,10 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID>, JpaSpec
             + " where invoice_id in (:ids) group by invoice_id", nativeQuery = true)
     List<PaidAmount> paidAmounts(@Param("ids") Collection<UUID> ids);
 
-    @Query(value = "select count(*) from payments where invoice_id = :id", nativeQuery = true)
-    long paymentCount(@Param("id") UUID id);
+    /** Payments still counting towards the invoice: receipts (and carried-over refunds) that were not reversed. */
+    @Query(value = "select count(*) from payments p where p.invoice_id = :id and p.entry_type <> 'REVERSAL'"
+            + " and not exists (select 1 from payments r where r.reversed_payment_id = p.id)", nativeQuery = true)
+    long livePaymentCount(@Param("id") UUID id);
 
     @Query(value = "select count(*) from partner_payouts where invoice_id = :id", nativeQuery = true)
     long payoutCount(@Param("id") UUID id);
