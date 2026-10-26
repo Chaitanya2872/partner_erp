@@ -14,8 +14,8 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 7 | Product & price sheet | COMPLETED (approved 2026-10-26) | 2026-10-26 | 2026-10-26 |
 | 8 | Estimate management | COMPLETED (conditionally approved 2026-10-26; finalized) | 2026-10-26 | 2026-10-26 |
 | 9 | Invoice management | COMPLETED (approved 2026-10-26, checkpoint `7cafbc8`) | 2026-10-26 | 2026-10-26 |
-| 10 | Payment management | COMPLETED, awaiting approval | 2026-10-26 | 2026-10-26 |
-| 11 | Partner payouts | COMPLETED, awaiting approval | 2026-10-26 | 2026-10-27 |
+| 10 | Payment management | COMPLETED (approved, commit `8a6a024`) | 2026-10-26 | 2026-10-26 |
+| 11 | Partner payouts | COMPLETED, fully verified (conditionally approved; commit `6cedf2f`, docs follow-up committed separately) | 2026-10-26 | 2026-10-27 |
 | 12 | Dashboard & reports | NOT_STARTED | — | — |
 | 13 | Settings & administration | NOT_STARTED | — | — |
 | 14 | End-to-end testing & QA | NOT_STARTED | — | — |
@@ -898,7 +898,7 @@ Phase 10, payment management: approved on 2026-10-26 and completed (see below).
 
 ## Phase 10: Payment management
 
-- **Status:** COMPLETED, awaiting approval. Implements the approval of 2026-10-26: Phase 9 accepted, the GST and accounting instructions, conversion integrity, and payments. Decisions, accounting assumptions, unsupported transactions, required Finance approvals and open options are in DECISIONS.md §K (C10-1 to C10-6, P10-A1 to A7, P10-01 to P10-12, O-1 to O-6).
+- **Status:** COMPLETED and approved. Git checkpoint `8a6a024` (`feat: complete phase 10 payments management`). Implements the approval of 2026-10-26: Phase 9 accepted, the GST and accounting instructions, conversion integrity, and payments. Decisions, accounting assumptions, unsupported transactions, required Finance approvals and open options are in DECISIONS.md §K (C10-1 to C10-6, P10-A1 to A7, P10-01 to P10-12, O-1 to O-6).
 - **Dates:** started and completed 2026-10-26.
 
 ### Delivered
@@ -1005,7 +1005,7 @@ Phase 11, partner payouts, after your approval. *(Delivered; see below.)*
 
 ## Phase 11: Partner payouts
 
-- **Status:** COMPLETED, awaiting approval. Rules, lifecycle, TDS, reversal handling, deviations and open questions are in DECISIONS.md §L (C11-1 to C11-7, P11-01 to P11-09, L-1 to L-6). API: API_DESIGN.md §3.9. Schema: DATABASE_DESIGN.md §12 (V18).
+- **Status:** COMPLETED and **fully verified**. Implemented and committed as `6cedf2f` (`feat: complete phase 11 partner payouts management`), which you accepted with a conditional approval. The full backend regression on the final code then passed (287 tests, see below). Rules, lifecycle, TDS, reversal handling, deviations and open questions are in DECISIONS.md §L (C11-1 to C11-7, P11-01 to P11-09, L-1 to L-8). API: API_DESIGN.md §3.9. Schema: DATABASE_DESIGN.md §12 (V18).
 - **Dates:** started 2026-10-26; verified, finalised and committed 2026-10-27.
 
 ### Delivered
@@ -1050,12 +1050,18 @@ Phase 11, partner payouts, after your approval. *(Delivered; see below.)*
 
 ### Build and test results
 - **Backend, full suite (`mvn verify`, 2026-10-26, before browser verification):** **281 tests, 0 failures** (95 unit, 186 integration). `ProductApiIT` 17/17. A separate targeted `PayoutApiIT` run passed 21/21, and the five regression tests added after the full run passed on their own.
-- **Backend after the browser-verification fixes (2026-10-27).** The full suite was **not** re-run, by instruction, to limit memory use. Production code changed only in `PayoutService`: closed-payout totals, the manual-TDS approval rule, blocker wording and the minus sign in amounts. Re-run:
+- **Backend after the browser-verification fixes (2026-10-27), targeted.** At that point the full suite was not re-run, by instruction, to limit memory use. Production code changed only in `PayoutService`: closed-payout totals, the manual-TDS approval rule, blocker wording and the minus sign in amounts. Re-run:
   - all unit tests: **95/95**;
   - `PayoutApiIT`, **22/22** (21 + `whoeverChangesTheTdsByHandCantApproveThatPayout`; the rejected/failed test also asserts closed-payout totals);
   - `PaymentApiIT` 8/8, `InvoiceApiIT` 19/19, `PartnerApiIT` 16/16, `ConstraintsIT` 16/16, `PersistenceIT` 8/8, `MigrationAndSeedIT` 8/8.
 
-  These ran against a throwaway `partner_erp_p11check_test` database (dropped afterwards), so the browser-verification records in `partner_erp_test` survived. Expected full-suite count: 282.
+  These ran against a throwaway `partner_erp_p11check_test` database (dropped afterwards), so the browser-verification records in `partner_erp_test` survived.
+- **Final full backend regression (2026-10-27, on commit `6cedf2f`).** `mvn -o verify`, without `clean`. Run alone, after a memory check (2.5 GB available, about 13 GB commit headroom, no other test JVMs, Vite or browser running).
+  - **287 tests: 95 unit, 192 integration. 0 failures, 0 errors, 0 skipped. BUILD SUCCESS** (6 min 28 s).
+  - The count is 287, not the ~282 estimated: the 281 baseline didn't include the five regression tests, which had only been run separately. 281 + 5 + 1 new test (`whoeverChangesTheTdsByHandCantApproveThatPayout`) = 287.
+  - Integration tests by class: EstimateApiIT 19, InvoiceApiIT 19, LeadApiIT 22, PartnerApiIT 16, PaymentApiIT 8, PayoutApiIT 22, ConstraintsIT 16, MigrationAndSeedIT 8, PersistenceIT 8, ProductApiIT 17, AuditAndBootstrapIT 4, AuthIT 12, InternalB2cSecurityIT 3, PermissionIT 6, RoleManagementIT 4, UserManagementIT 8.
+  - `TEST_DB_URL` pointed the suite at a throwaway `partner_erp_regress_test` database, dropped afterwards. That way the Flyway clean didn't wipe the immutable Phase 11 browser records in `partner_erp_test` (all 5 P11 payouts still present).
+- **Payout reversal safeguard review (2026-10-27).** See DECISIONS.md §L, "Disbursement safeguard review". No production change.
 - **Frontend (final code, run in sequence):**
   - `npm test -- --maxWorkers=4`: **196 tests in 22 files, 0 failures** (`Payouts.test.tsx` 13).
   - `npm run lint`: 0 errors, the 4 existing fast-refresh warnings.
@@ -1134,16 +1140,17 @@ Phase 11, partner payouts, after your approval. *(Delivered; see below.)*
   - Kept in `partner_erp_test` because they are immutable records: the confirmed TDS test version, the payouts `PO-2026-000024…28`, adjustments `ADJ-2026-000005/6`, the payments and reversals, and the PAN verification.
 
 ### Known issues / limitations
-- **Needs approval (DECISIONS.md §L):**
-  - statutory TDS values (nothing is configured in development);
-  - live bank transfers;
-  - a clawback window and recovery when no further commission is earned;
-  - tier auto-upgrade and payout business days;
-  - the FY basis for TDS;
-  - a register for lower-deduction certificates.
-- Per-line HALF_UP rounding of commission and the ex-GST allocation need Finance validation (as in Phase 10).
+- **Pending Finance decisions (DECISIONS.md §L, L-1 to L-8).** Nothing is invented or assumed for any of them:
+  1. statutory TDS rates and thresholds (L-1; nothing is configured in development);
+  2. bank transfer integration (L-2);
+  3. clawback policy: time window and recovery when no further commission is earned (L-3);
+  4. automatic tier upgrades (L-4);
+  5. payout business-day rules (L-4);
+  6. financial-year treatment for TDS (L-5);
+  7. lower-deduction certificates (L-6);
+  8. Finance approval of rounding: per-line HALF_UP commission and the ex-GST allocation of receipts (L-7);
+  9. policy for a receipt reversed while its transfer is processing (L-8).
 - The development database `partner_erp` is still at V15. It applies V16–V18 on its next restart with this build.
-- The full backend suite has not been re-run since the fixes (see above).
 
 ### Next phase
 Phase 12, dashboard and reports, after your approval. Not started.

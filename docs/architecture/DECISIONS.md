@@ -460,3 +460,23 @@ Nothing is debited from a partner's account. Historical payouts and lines are ne
 | L-4 | Tier auto-upgrade on payment (D-06) and payout business days | Not implemented. |
 | L-5 | FY basis for TDS | The payout's as-of date; the paid date must fall in the same FY. |
 | L-6 | Lower or nil deduction certificates | Entered as a manual TDS change with a reason; there is no certificate register. |
+| L-7 | Finance approval of rounding | Commission is rounded HALF_UP to 2 decimals per receipt line; TDS HALF_UP on the payout; the ex-GST share of each receipt follows Phase 10 P10-A2. Pending Finance sign-off. |
+| L-8 | Receipt reversed while the transfer is processing | Disbursement is never *started* for a payout with a reversed receipt (see the safeguard review below). Once the transfer has started, it can be recorded as Paid only with an explicit acknowledgement, and the reversed commission becomes a negative adjustment. Options (a second person, a mandatory note, or Finance confirmation that the bank transfer can't be recalled) need a decision. |
+
+### Disbursement safeguard review (2026-10-27)
+
+Requested: block disbursement of payouts that contain reversed receipts, require cancellation or reconciliation first, keep completed history, and use negative adjustments for reversals found after completion. Findings against the code (`PayoutService.startProcessing` / `markPaid`, `PayoutApiIT`):
+
+| State when the receipt is reversed | Current behaviour | Meets the requirement? |
+|---|---|---|
+| Draft / Pending approval | Submit and approval are refused until it is recalculated, which releases the line. | Yes |
+| Approved (no transfer started) | **Start transfer is refused** (`409 PAYOUT_BLOCKED`). The action is hidden and the blocker says to cancel. The only way on is Cancel (Payouts approve), which releases the lines for a new payout. Amounts never change. Covered by `aReceiptReversedAfterApprovalBlocksThePayoutUntilItIsCancelled`. | Yes: disbursement is blocked until it is cancelled |
+| Processing (transfer already started outside the system) | Mark paid is refused (`409 PAYOUT_BLOCKED`) unless the user sets `acknowledgeReversedSources`. Then the payout is recorded Paid unchanged, and a REVERSAL adjustment (−the line's commission) is carried forward. Alternatively, Mark failed releases the lines. Covered by `aReceiptReversedDuringProcessingIsPaidOnlyWithAcknowledgement`. | Reconciliation of an already-started transfer, not a new disbursement. See the conflict below. |
+| Paid | Unchanged; a negative adjustment is carried into the next payout. | Yes |
+
+**Conflict (not changed, needs a decision, L-8).** In this system the disbursement decision is *Start transfer*; *Mark paid* records what the bank already did. Refusing Mark paid outright for a Processing payout would leave only *Mark failed*. If the money actually left the bank, that would release the receipts and pay the same commission again in the next payout, and the recorded history would be false. Removing the acknowledgement path would therefore weaken controls and change the approved lifecycle (Processing → Paid / Failed). Possible tightenings, each needing approval:
+- require a written reconciliation note with the acknowledgement;
+- require a second person to confirm it;
+- require Finance to confirm the bank transfer can't be recalled.
+
+The existing controls stay as they are.
