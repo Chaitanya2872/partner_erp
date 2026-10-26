@@ -48,6 +48,45 @@ class LeadApiIT extends ApiIntegrationTest {
         partnerB = partner("Beta " + tag);
     }
 
+    // ------------------------------------------------------------------------------------------------ D-16
+
+    @Test
+    void everyLeadGetsAYearlyNumberAndAnOptionalValidatedEmail() throws Exception {
+        String year = String.valueOf(LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")).getYear());
+        String first = mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)),
+                        body(lead(partnerA, "clientEmail", "  Rao.Family@Example.COM "))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.clientEmail").value("rao.family@example.com"))
+                .andReturn().getResponse().getContentAsString();
+        String second = mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)), body(lead(partnerA))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.clientEmail").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String a = JsonPath.read(first, "$.data.leadNumber");
+        String b = JsonPath.read(second, "$.data.leadNumber");
+        assertThat(a).matches("LEAD-" + year + "-\\d{6}");
+        assertThat(Integer.parseInt(b.substring(10))).isEqualTo(Integer.parseInt(a.substring(10)) + 1);
+
+        mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)), body(lead(partnerA, "clientEmail", "rao@"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("clientEmail"));
+
+        // The number is found by search, can't be changed and is assigned even to rows written outside the API.
+        String found = search("q", a.toLowerCase(java.util.Locale.ROOT));
+        assertIds(found, UUID.fromString(JsonPath.read(first, "$.data.id")));
+        UUID id = UUID.fromString(JsonPath.read(first, "$.data.id"));
+        mvc.perform(withJson(put("/api/v1/leads/{id}", id).with(bearer(admin)),
+                        body(lead(partnerA, "leadNumber", "LEAD-1999-000001", "clientEmail", "", "version", 0))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.leadNumber").value(a))
+                .andExpect(jsonPath("$.data.clientEmail").doesNotExist());
+        UUID raw = UUID.randomUUID();
+        jdbc.update("insert into leads (id, partner_id, client_name, project_type) values (?, ?, ?, 'VILLA')",
+                raw, partnerA, "Raw " + tag);
+        assertThat(jdbc.queryForObject("select lead_number from leads where id = ?", String.class, raw))
+                .matches("LEAD-" + year + "-\\d{6}").isNotIn(a, b);
+    }
+
     // ------------------------------------------------------------------------------------------------ CRUD
 
     @Test

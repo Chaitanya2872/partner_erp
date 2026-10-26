@@ -237,7 +237,8 @@ public class ProductService {
         Product product = repository.lock(id).orElseThrow(() -> new ResourceNotFoundException("Product", id));
         if (metrics.isReferenced(id)) {
             throw BusinessException.conflict("PRODUCT_IN_USE",
-                    "This product is used on estimates or invoices, so it can't be deleted. Deactivate it instead.");
+                    "This product has been used on an estimate or invoice, so it can't be deleted, even if that "
+                            + "document was later deleted. Deactivate it instead.");
         }
         Map<String, Object> before = ProductMapper.auditSnapshot(product);
         repository.delete(product);

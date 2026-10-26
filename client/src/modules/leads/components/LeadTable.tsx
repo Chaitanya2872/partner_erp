@@ -53,7 +53,7 @@ export function LeadTable({ caption, rows, meta, actions, showPartner = true, ..
             {l.clientName}
           </Link>
           <div className="truncate text-xs text-muted-foreground">
-            {[l.projectTypeLabel, l.units ? `${l.units} units` : null, l.city].filter(Boolean).join(" · ")}
+            {[l.leadNumber, l.projectTypeLabel, l.units ? `${l.units} units` : null, l.city].filter(Boolean).join(" · ")}
           </div>
           {l.conflict ? (
             <div className="mt-1">

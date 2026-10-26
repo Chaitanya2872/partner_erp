@@ -13,7 +13,8 @@ import java.util.UUID;
  *
  * @param protectionActive BR-L7: {@code protectionUntil >= today}
  */
-public record LeadSummary(UUID id, String clientName, String clientPhone, String city, ProjectType projectType,
+public record LeadSummary(UUID id, String leadNumber, String clientName, String clientPhone, String clientEmail,
+                          String city, ProjectType projectType,
                           String projectTypeLabel, Integer units, BigDecimal budget, LeadStage stage, String stageLabel,
                           PartnerRef partner, Instant acknowledgedAt, BigDecimal lockedFeePercent,
                           LocalDate protectionUntil, boolean protectionActive, boolean conflict, SlaStatus sla,

@@ -20,10 +20,14 @@ public class ProductMetricsRepository {
         this.jdbc = jdbc;
     }
 
-    /** True when any estimate, invoice or internal B2C document line points at the product. */
+    /**
+     * True when a document line ever used the product (decision 2, 2026-10-26): the permanent
+     * {@code first_referenced_at} marker, set by a database trigger, or a line that points at it now.
+     */
     public boolean isReferenced(UUID productId) {
         Boolean referenced = jdbc.queryForObject("""
-                SELECT EXISTS (SELECT 1 FROM estimate_items WHERE product_id = :id)
+                SELECT EXISTS (SELECT 1 FROM products WHERE id = :id AND first_referenced_at IS NOT NULL)
+                    OR EXISTS (SELECT 1 FROM estimate_items WHERE product_id = :id)
                     OR EXISTS (SELECT 1 FROM invoice_items WHERE product_id = :id)
                     OR EXISTS (SELECT 1 FROM b2c_document_items WHERE product_id = :id)
                 """, Map.of("id", productId), Boolean.class);

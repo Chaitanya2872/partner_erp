@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, Pencil, Trash2 } from "lucide-react";
+import { BadgeCheck, FilePlus2, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ErrorState, LoadingState } from "@/components/feedback/States";
 import { ContentCard, PageActions, PageContainer, PageHeader } from "@/components/layout/Page";
@@ -51,6 +51,8 @@ export function LeadDetailsPage() {
   const canEdit = canWrite("LEADS");
   const canApprove = canPerform("LEADS", "APPROVE");
   const canDelete = canPerform("LEADS", "DELETE");
+  // BR-E5: Lost leads don't get new estimates.
+  const canEstimate = canWrite("ESTIMATES") && l.stage !== "LOST";
 
   return (
     <PageContainer>
@@ -63,9 +65,9 @@ export function LeadDetailsPage() {
             {l.conflict ? <DuplicateBadge /> : null}
           </>
         }
-        description={[l.projectTypeLabel, l.units ? `${l.units} units` : null, l.city].filter(Boolean).join(" · ")}
+        description={[l.leadNumber, l.projectTypeLabel, l.units ? `${l.units} units` : null, l.city].filter(Boolean).join(" · ")}
         actions={
-          canEdit || canApprove || canDelete ? (
+          canEdit || canApprove || canDelete || canEstimate ? (
             <PageActions>
               {/* P6-13: Won and Lost leads are reopened before they can be acknowledged. */}
               {canApprove && !l.acknowledgedAt && !isClosed(l.stage) ? (
@@ -76,6 +78,13 @@ export function LeadDetailsPage() {
               {canDelete ? (
                 <Button variant="destructive-outline" onClick={() => actions.requestDelete(l)}>
                   <Trash2 aria-hidden="true" /> Delete
+                </Button>
+              ) : null}
+              {canEstimate ? (
+                <Button asChild>
+                  <Link to={`/estimates/new?leadId=${l.id}`}>
+                    <FilePlus2 aria-hidden="true" /> New estimate
+                  </Link>
                 </Button>
               ) : null}
               {canEdit ? (
@@ -149,6 +158,15 @@ export function LeadDetailsPage() {
               {l.clientPhone ? (
                 <a href={`tel:${l.clientPhone}`} className="text-accent-ink hover:underline">
                   {l.clientPhone}
+                </a>
+              ) : (
+                NOT_AVAILABLE
+              )}
+            </DetailRow>
+            <DetailRow label="Email">
+              {l.clientEmail ? (
+                <a href={`mailto:${l.clientEmail}`} className="text-accent-ink hover:underline">
+                  {l.clientEmail}
                 </a>
               ) : (
                 NOT_AVAILABLE

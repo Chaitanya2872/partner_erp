@@ -19,6 +19,7 @@ const optional = (max: number) => z.string().trim().max(max, `Use at most ${max}
 const schema = z.object({
   clientName: z.string().trim().min(1, "Client name is required.").max(200, "Use at most 200 characters."),
   clientPhone: optional(30).refine((v) => v === "" || (/^[0-9+()\-\s]+$/.test(v) && /^(\D*\d){7,15}\D*$/.test(v)), "Enter a valid phone number."),
+  clientEmail: optional(254).refine((v) => v === "" || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), "Enter a valid email address, or leave it blank."),
   city: optional(150),
   partnerId: z.string().min(1, "Choose the referring partner."),
   projectType: z.string().min(1, "Choose a project type."),
@@ -36,12 +37,12 @@ type FormValues = z.input<typeof schema>;
 type ParsedValues = z.output<typeof schema>;
 
 const FIELDS = [
-  "clientName", "clientPhone", "city", "partnerId", "projectType", "units", "budget", "stage", "stageReason", "presalesOwner",
+  "clientName", "clientPhone", "clientEmail", "city", "partnerId", "projectType", "units", "budget", "stage", "stageReason", "presalesOwner",
   "expectedClose", "source", "notes",
 ] as const;
 
 const LABELS: Record<string, string> = {
-  clientName: "Client name", clientPhone: "Phone", city: "City", partnerId: "Referring partner", projectType: "Project type",
+  clientName: "Client name", clientPhone: "Phone", clientEmail: "Email", city: "City", partnerId: "Referring partner", projectType: "Project type",
   units: "Units", budget: "Budget", stage: "Stage", stageReason: "Reason for the stage change", presalesOwner: "Presales owner",
   expectedClose: "Expected close", source: "Source", notes: "Notes",
 };
@@ -74,6 +75,7 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
     defaultValues: {
       clientName: lead?.clientName ?? "",
       clientPhone: lead?.clientPhone ?? "",
+      clientEmail: lead?.clientEmail ?? "",
       city: lead?.city ?? "",
       partnerId: lead?.partner.id ?? (meta.partners.some((p) => p.id === defaultPartnerId) ? defaultPartnerId : ""),
       projectType: lead?.projectType ?? "VILLA",
@@ -98,6 +100,7 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
     const input: LeadInput = {
       clientName: v.clientName,
       clientPhone: v.clientPhone,
+      clientEmail: v.clientEmail,
       city: v.city,
       partnerId: v.partnerId,
       projectType: v.projectType as ProjectType,
@@ -139,6 +142,9 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
           </FormField>
           <FormField label="Phone" error={errors.clientPhone?.message}>
             <Input type="tel" inputMode="tel" autoComplete="off" {...register("clientPhone")} />
+          </FormField>
+          <FormField label="Email" error={errors.clientEmail?.message} hint="Optional.">
+            <Input type="email" inputMode="email" autoComplete="off" {...register("clientEmail")} />
           </FormField>
           <FormField label="City" error={errors.city?.message}>
             <Input autoComplete="off" {...register("city")} />

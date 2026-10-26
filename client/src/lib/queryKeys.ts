@@ -35,6 +35,18 @@ export const queryKeys = {
     detail: (id: string) => ["products", id] as const,
     history: (id: string) => ["products", id, "history"] as const,
   },
+  estimates: {
+    all: ["estimates"] as const,
+    list: (filters: Record<string, unknown>) => ["estimates", "list", filters] as const,
+    meta: ["estimates", "meta"] as const,
+    detail: (id: string) => ["estimates", id] as const,
+    history: (id: string) => ["estimates", id, "history"] as const,
+    internal: (id: string) => ["estimates", id, "internal"] as const,
+    preview: (id: string | undefined, input: unknown) => ["estimates", "preview", id ?? "new", input] as const,
+    productOptions: (q: string) => ["estimates", "product-options", q] as const,
+    leadOptions: (q: string) => ["estimates", "lead-options", q] as const,
+    leadOption: (id: string) => ["estimates", "lead-options", "id", id] as const,
+  },
   auditLogs: {
     all: ["audit-logs"] as const,
     list: (filters: Record<string, unknown>) => ["audit-logs", "list", filters] as const,

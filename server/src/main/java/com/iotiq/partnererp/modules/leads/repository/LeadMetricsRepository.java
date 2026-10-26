@@ -30,13 +30,13 @@ public class LeadMetricsRepository {
         this.jdbc = jdbc;
     }
 
-    /** Date of the earliest-dated estimate per lead, any status (§4.1). Leads without estimates are absent. */
+    /** Date of the earliest-dated live estimate per lead, any status (§4.1). Leads without estimates are absent. */
     public Map<UUID, LocalDate> earliestEstimateDates(Collection<UUID> leadIds) {
         if (leadIds.isEmpty()) {
             return Map.of();
         }
         Map<UUID, LocalDate> result = new HashMap<>();
-        jdbc.query("SELECT lead_id, MIN(estimate_date) AS d FROM estimates WHERE lead_id IN (:ids) GROUP BY lead_id",
+        jdbc.query("SELECT lead_id, MIN(estimate_date) AS d FROM estimates WHERE lead_id IN (:ids) AND deleted_at IS NULL GROUP BY lead_id",
                 new MapSqlParameterSource("ids", leadIds),
                 rs -> {
                     result.put(rs.getObject("lead_id", UUID.class), rs.getObject("d", LocalDate.class));
@@ -68,13 +68,14 @@ public class LeadMetricsRepository {
         return names.stream().findFirst();
     }
 
-    /** Whether any estimate, invoice, payment or internal B2C document points at the lead (D-26). */
+    /** Whether any live estimate, invoice, payment or internal B2C document points at the lead (D-26). Deleted estimates and their twins don't count. */
     public boolean hasDocuments(UUID leadId) {
         Boolean exists = jdbc.queryForObject("""
-                        SELECT EXISTS (SELECT 1 FROM estimates WHERE lead_id = :id)
+                        SELECT EXISTS (SELECT 1 FROM estimates WHERE lead_id = :id AND deleted_at IS NULL)
                             OR EXISTS (SELECT 1 FROM invoices WHERE lead_id = :id)
                             OR EXISTS (SELECT 1 FROM payments WHERE lead_id = :id)
-                            OR EXISTS (SELECT 1 FROM b2c_documents WHERE lead_id = :id)
+                            OR EXISTS (SELECT 1 FROM b2c_documents d LEFT JOIN estimates e ON e.id = d.estimate_id
+                                       WHERE d.lead_id = :id AND (d.estimate_id IS NULL OR e.deleted_at IS NULL))
                         """, new MapSqlParameterSource("id", leadId), Boolean.class);
         return Boolean.TRUE.equals(exists);
     }
@@ -88,7 +89,7 @@ public class LeadMetricsRepository {
         jdbc.query("""
                         SELECT l.id
                           FROM leads l
-                          LEFT JOIN LATERAL (SELECT MIN(e.estimate_date) AS d FROM estimates e WHERE e.lead_id = l.id) est ON true
+                          LEFT JOIN LATERAL (SELECT MIN(e.estimate_date) AS d FROM estimates e WHERE e.lead_id = l.id AND e.deleted_at IS NULL) est ON true
                          WHERE l.deleted_at IS NULL AND (
                                (l.acknowledged_at IS NOT NULL AND l.acknowledged_at - l.created_at >= make_interval(secs => :ackSecs))
                             OR (l.acknowledged_at IS NULL AND l.stage NOT IN ('WON', 'LOST')

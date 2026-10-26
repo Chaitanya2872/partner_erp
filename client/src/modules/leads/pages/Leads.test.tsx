@@ -52,8 +52,10 @@ const sla = { ackHours: 3, ackBreach: false, estimateDays: null, estimateBreach:
 
 const fresh: LeadSummary = {
   id: "l1",
+  leadNumber: "LEAD-2026-000001",
   clientName: "Rao Residence",
   clientPhone: "9876543210",
+  clientEmail: null,
   city: "Hyderabad",
   projectType: "VILLA",
   projectTypeLabel: "Villa",
@@ -126,7 +128,7 @@ describe("lead list", () => {
     signIn(editor());
     renderApp("/leads");
     const freshRow = await rowOf("Rao Residence");
-    expect(within(freshRow).getByText("Villa · 3 units · Hyderabad")).toBeInTheDocument();
+    expect(within(freshRow).getByText("LEAD-2026-000001 · Villa · 3 units · Hyderabad")).toBeInTheDocument();
     expect(within(freshRow).getByText("Possible duplicate")).toBeInTheDocument();
     expect(within(freshRow).getByText("Ack late")).toBeInTheDocument();
     // Without Leads approve there is no acknowledge button, and without delete no delete button.

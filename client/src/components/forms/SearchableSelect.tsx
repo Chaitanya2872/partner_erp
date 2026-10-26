@@ -21,6 +21,8 @@ interface SearchableSelectProps {
   clearLabel?: string;
   disabled?: boolean;
   loading?: boolean;
+  /** Called with the typed search text, for lists searched on the server; matching options still filter locally. */
+  onQueryChange?: (query: string) => void;
   className?: string;
   id?: string;
   "aria-label"?: string;
@@ -44,6 +46,7 @@ export const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectPr
     clearLabel,
     disabled,
     loading,
+    onQueryChange,
     className,
     id,
     ...aria
@@ -72,6 +75,7 @@ export const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectPr
     setOpen(next);
     if (next) {
       setQuery("");
+      onQueryChange?.("");
       setActive(Math.max(0, all.findIndex((o) => o.value === value)));
     }
   };
@@ -130,6 +134,7 @@ export const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectPr
               placeholder={searchPlaceholder}
               onChange={(e) => {
                 setQuery(e.target.value);
+                onQueryChange?.(e.target.value);
                 setActive(0);
               }}
               onKeyDown={onKeyDown}

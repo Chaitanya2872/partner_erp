@@ -12,7 +12,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 5 | Partner management | COMPLETED (approved 2026-10-25) | 2026-10-25 | 2026-10-25 |
 | 6 | Lead management | COMPLETED (approved 2026-10-26) | 2026-10-25 | 2026-10-25 |
 | 7 | Product & price sheet | COMPLETED (approved 2026-10-26) | 2026-10-26 | 2026-10-26 |
-| 8 | Estimate management | NOT_STARTED | — | — |
+| 8 | Estimate management | COMPLETED (conditionally approved 2026-10-26; finalized) | 2026-10-26 | 2026-10-26 |
 | 9 | Invoice management | NOT_STARTED | — | — |
 | 10 | Payment management | NOT_STARTED | — | — |
 | 11 | Partner payouts | NOT_STARTED | — | — |
@@ -758,3 +758,80 @@ Phase 7, product & price sheet: see below.
 
 ### Next phase
 Phase 8, estimates and the internal B2C twin, after your approval. Not started.
+
+---
+
+## Phase 8: Estimate management
+
+- **Status:** COMPLETED. Conditionally approved on 2026-10-26; the finalization decisions (D-19, D-13, D-09/D-26, restricted lead picker approved; D-15 accepted temporarily; D-21 provisional) are implemented below. Conflicts and as-built decisions in DECISIONS.md §I (C-1 to C-11, P8-01 to P8-16).
+- **Dates:** started and completed 2026-10-26.
+
+### Delivered
+- **Numbering:** `EST-YYYY-NNNNNN` (twin `INT-EST-YYYY-NNNNNN`) and `LEAD-YYYY-NNNNNN` from `document_sequences` with one atomic upsert in the saving transaction (P8-01, P8-03). Existing leads numbered by migration V15; a DB trigger numbers leads written outside the API.
+- **Leads (D-16):** optional, validated, searchable client email; lead number on list, detail and search; "New estimate" on open leads.
+- **Products:** restricted picker `/products/options` for Estimates writers (minimum fields, B2C only with the internal action, P8-04); permanent delete protection once referenced, enforced in the API and by a database trigger (P8-05).
+- **Estimates API:** list/filter/sort/export, meta, server-side preview, create, edit with snapshot-preserving lines, send/accept/reject with lead side effects, soft delete, history, printable partner document; internal twin and stamped internal document (P8-06 to P8-13).
+- **Calculation:** `DocumentCalculator` (HALF_UP, discount before GST, GST per line, CGST/SGST split for display).
+- **Frontend:** `modules/estimates` with the register (status/validity filters, search, export), the editor (lead picker, server-searched product picker, editable qty/rate/GST, live server totals, fee rules, B2C comparison for internal users only) and the detail page (totals, status actions with confirmation, delete, partner/internal copy in a sandboxed frame with Print and Download HTML, history). Navigation entry enabled; audit log viewer knows the estimate actions and target.
+
+### Files
+- **Server:**
+  - `db/migration/V15__estimates_and_lead_numbers.sql`
+  - `modules/sequences/service/DocumentNumberService`, `common/util/DocumentCalculator`
+  - `modules/estimates/{controller/EstimateController, controller/InternalEstimateController, service/EstimateService, service/EstimateRules, service/EstimateDocumentRenderer, mapper/EstimateMapper, repository/EstimateRepository, entity/Estimate, dto/*}`
+  - `modules/b2c/service/B2CDocumentService` (twin sync), `AuditActions` (estimate actions)
+  - Leads: `Lead`, `LeadRequest`, `LeadResponse`, `LeadSummary`, `LeadMapper`, `LeadService` (number, email, `applyAutomaticStage`), `LeadMetricsRepository` (deleted estimates excluded)
+  - Products: `ProductController` (`/options` access), `ProductService` (delete message), `ProductMetricsRepository` (`first_referenced_at`)
+  - Tests: `unit/estimates/DocumentCalculatorTest` (5), `EstimateRulesTest` (5), `EstimateDocumentRendererTest` (3), `integration/estimates/EstimateApiIT` (16); `LeadApiIT` +1, `MigrationAndSeedIT` (V15), `AbstractIntegrationTest.deleteTestProducts`, `ProductApiIT` cleanup.
+- **Client:**
+  - `modules/estimates/{types/estimate.types, services/estimateService, hooks/useEstimates, components/EstimateForm, components/EstimateTotals, components/EstimateStatusBadge, pages/EstimatesPage, pages/EstimateFormPage, pages/EstimateDetailsPage, pages/Estimates.test}`
+  - Leads: `types/lead.types`, `components/LeadForm`, `components/LeadTable`, `pages/LeadDetailsPage`, `pages/Leads.test`
+  - `lib/queryKeys.ts`, `app/navigation.ts`, `app/router.tsx`, `app/routing.test.tsx`, `app/lazyRoutes.test.tsx` (coming-soon example now `/invoices`), `modules/audit/pages/AuditLogsPage.tsx`.
+
+### Browser verification (2026-10-26)
+- **Setup:** backend on 8091 against **`partner_erp_test`** (Flyway at V15), Vite on 5181. Fixture accounts only: a Super Admin (all rights) and an Admin with the default template (Estimates write, no delete/export, no internal rights, no Partners approve). Test data created through the API: partner "P8 Test Partner", lead "P8 Test Client" (got `LEAD-2026-000056` and the email), products `P8-GLIDE` (B2C price set) and `P8-NOB2C` (no B2C price). The server on 8080 was not touched. Test servers and browser sessions were stopped afterwards; the test records remain in `partner_erp_test`.
+- **Verified:**
+  - Lead page: email link, lead number, "New estimate" → editor with the lead preselected, default terms and validity (+15 days).
+  - Editor (Super Admin): product search and add, B2C names under each line, live totals; qty 2 + 1 at ₹9,000 with 5% discount gave ₹27,000 → −₹1,350 → ₹25,650, CGST/SGST ₹2,308.50 each, total ₹30,267.00 (checked by hand); "Internal B2C comparison" with the missing-B2C warning.
+  - Saved as `EST-2026-000030`; detail page totals and history. The partner copy contains no B2C name, B2C price or twin number; the internal tab shows the "INTERNAL ONLY" stamp, `INT-EST-2026-000030`, B2C names and rates, and "No B2C price set".
+  - Mark sent (confirmation) → status Sent, lead moved "Registered → Estimate sent" automatically with the reason in lead history.
+  - Admin: no internal tab, no Delete, read-only fee, no B2C text; edited a quantity on the Sent estimate (status kept, total ₹50,445.00, history "Items: changed; Total: ₹30,267.00 → ₹50,445.00"). Via the API: internal copy `403`, preview without the `internal` block, fee override `403 FEE_OVERRIDE_NOT_PERMITTED`, export `403`.
+  - 390 px: list, detail and edit pages without horizontal page overflow.
+- **Issues found and fixed:** (1) the edit page overflowed at 390 px because the items table's screen-reader labels escaped the scroll container (wrapper now `relative`); (2) history showed raw numbers (amounts, percentages, dates are now formatted); (3) the edit header showed the lower-case status label (now the status badge).
+
+### Build and test results (2026-10-26, final)
+- `mvn verify` (no `clean`; port 8080 untouched): **203 tests, 0 failures, 0 errors, 0 skipped** (66 unit, 137 integration). New: `DocumentCalculatorTest` 5, `EstimateRulesTest` 5, `EstimateDocumentRendererTest` 3, `EstimateApiIT` 16, `LeadApiIT` +1. Regression suites incl. `InternalB2cSecurityIT`, `ConstraintsIT`, `PersistenceIT`, `ProductApiIT`, `LeadApiIT` pass.
+- `npm test`: **153 tests in 19 files, 0 failures** with `--maxWorkers=4` (`Estimates.test.tsx` 12). With the default worker count on this loaded machine, the first test of 4–5 files timed out (20 s), different files each run; those files pass alone. Same infrastructure issue as Phase 7.
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings).
+- `npm run build`: OK. Route chunks: EstimateFormPage 18.3 kB, EstimateDetailsPage 13.0 kB, EstimatesPage 5.0 kB (6.8 / 5.2 / 2.1 kB gzip).
+
+### Known issues / limitations
+- No server-side PDF (D-15): documents are HTML, printed or saved as PDF by the browser.
+- The editor's lead picker needs Leads read and lists the 100 most recent open leads (P8-15).
+- Estimate numbers use the calendar year at save time (P8-01, needs confirmation).
+- Edit is allowed in Accepted and Rejected (D-09 recommendation, needs approval); fee override uses `PARTNERS:APPROVE` (D-13, needs approval).
+- Free-text lines are not supported; convert-to-invoice arrives in Phase 9.
+- Frontend suite timeouts under heavy parallel load (test infrastructure).
+
+### Finalization (2026-10-26)
+- **D-19 (approved):** `EST-YYYY-NNNNNN`, calendar year of the creation date, immutable, atomic allocation. No code change needed; documented.
+- **D-13 (approved):** `PARTNERS:APPROVE` + mandatory reason kept. The audit rows now also store `defaultFeePercent` beside the previous and new `feePercent` and the reason (actor and time are audit columns). Creation history in the app shows the override.
+- **D-09/D-26 (approved):** Draft, Sent, Accepted and Rejected estimates can be edited and soft-deleted; Invoiced can't (server `409`). The editor shows a warning for Sent/Accepted/Rejected and asks for confirmation before saving; the delete dialog warns for the same statuses. Status never changes on edit or delete; both are audited.
+- **Restricted lead picker (approved):** `GET /estimates/lead-options` (Estimates write): minimum fields, search on lead number/client/partner only, Lost and deleted leads excluded, Estimates and Leads data scopes respected; create/edit apply the same rule to a lead id. The editor uses it instead of `/leads`, so Leads read is no longer needed.
+- **D-15 (temporary):** browser printing kept; server PDF recorded as a mandatory pre-production requirement.
+- **D-21 (provisional):** GST totals unchanged. The tax type is no longer defaulted to CGST + SGST: a new estimate must choose (`400 igst`), edits keep the stored choice; the CGST/SGST split is documented as provisional.
+- **Tests added:** `EstimateApiIT` +3 (edit/delete in Sent, Accepted and Rejected keep the status and are audited; the tax type is never assumed; restricted lead picker fields, search, exclusions, scopes and create without Leads read) and the fee test now checks the audit contents (actor, previous/new/default rate, reason). `Estimates.test.tsx` +4 (picker without Leads read, ineligible linked lead, tax type required, confirmation before saving a sent estimate, delete warning; one older lead test replaced).
+- **Files:** server `EstimateService`, `EstimateController`, `dto/EstimateLeadOption`, `EstimateApiIT`; client `components/forms/SearchableSelect` (`onQueryChange`), `modules/estimates/{types, services, hooks, components/EstimateForm, pages/EstimateFormPage, pages/EstimateDetailsPage, pages/Estimates.test}`, `lib/queryKeys.ts`.
+
+### Final test results (2026-10-26, after finalization)
+- `mvn verify` (no `clean`; port 8080 untouched): **206 tests, 0 failures, 0 errors, 0 skipped** (66 unit, 140 integration; `EstimateApiIT` 19).
+- `npm test -- --maxWorkers=4`: **157 tests in 19 files, 0 failures** (`Estimates.test.tsx` 16).
+- `npm run lint`: 0 errors (the same 4 fast-refresh warnings).
+- `npm run build`: OK (EstimateFormPage 19.0 kB, EstimateDetailsPage 13.4 kB, EstimatesPage 5.0 kB).
+- The finalization changes were verified by automated tests only; the browser walkthrough above predates them.
+
+### Phase 9 dependencies
+See DECISIONS.md §I "Dependencies for Phase 9": tax treatment and invoice tax snapshots (D-21) **before** invoice work, invoice header/line snapshots, invoice edit/cancel policy (D-09 for invoices), estimate → invoice locking, `INV` numbering format, server PDF before production, and a restricted lead picker for invoices without an estimate.
+
+### Next phase
+Phase 9, invoice management, after your approval. Not started.

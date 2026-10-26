@@ -61,10 +61,7 @@ class ProductApiIT extends ApiIntegrationTest {
 
     @AfterEach
     void removeTestProducts() {
-        String like = tag + "%";
-        jdbc.update("delete from estimates where id in (select estimate_id from estimate_items ei join products p "
-                + "on p.id = ei.product_id where p.sku ilike ?)", like);
-        jdbc.update("delete from products where sku ilike ?", like);
+        deleteTestProducts(tag + "%");
     }
 
     // ------------------------------------------------------------------------------------------------ create

@@ -29,6 +29,7 @@ import com.iotiq.partnererp.modules.leads.repository.LeadRepository;
 import com.iotiq.partnererp.modules.leads.repository.LeadStageHistoryRepository;
 import com.iotiq.partnererp.modules.partners.entity.Partner;
 import com.iotiq.partnererp.modules.partners.repository.PartnerRepository;
+import com.iotiq.partnererp.modules.sequences.service.DocumentNumberService;
 import com.iotiq.partnererp.modules.settings.entity.CompanySettings;
 import com.iotiq.partnererp.modules.settings.repository.CompanySettingsRepository;
 import com.iotiq.partnererp.security.AuthenticatedUser;
@@ -41,6 +42,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -56,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -69,6 +72,7 @@ import java.util.stream.Collectors;
  *       (BR-L6, D-05).</li>
  *   <li>Acknowledging locks the partner's current fee rate and starts protection (BR-L5).</li>
  *   <li>Delete is a soft delete, refused while documents point at the lead (D-26).</li>
+ *   <li>Every lead gets a LEAD-YYYY-NNNNNN number on create; the client email is optional (D-16).</li>
  * </ul>
  */
 @Service
@@ -76,6 +80,8 @@ public class LeadService {
 
     private static final BigDecimal MAX_BUDGET = new BigDecimal("999999999999.99");
     private static final Pattern PHONE_CHARS = Pattern.compile("[0-9+()\\-\\s]+");
+    /** Same rule as the database check {@code ck_leads_client_email}. */
+    private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     private final LeadRepository leadRepository;
     private final LeadStageHistoryRepository historyRepository;
@@ -85,12 +91,14 @@ public class LeadService {
     private final UserRepository userRepository;
     private final DataScopeService dataScopeService;
     private final AuditService auditService;
+    private final DocumentNumberService numbers;
     private final Clock clock;
 
     public LeadService(LeadRepository leadRepository, LeadStageHistoryRepository historyRepository,
                        LeadMetricsRepository metrics, PartnerRepository partnerRepository,
                        CompanySettingsRepository settingsRepository, UserRepository userRepository,
-                       DataScopeService dataScopeService, AuditService auditService, Clock clock) {
+                       DataScopeService dataScopeService, AuditService auditService, DocumentNumberService numbers,
+                       Clock clock) {
         this.leadRepository = leadRepository;
         this.historyRepository = historyRepository;
         this.metrics = metrics;
@@ -99,6 +107,7 @@ public class LeadService {
         this.userRepository = userRepository;
         this.dataScopeService = dataScopeService;
         this.auditService = auditService;
+        this.numbers = numbers;
         this.clock = clock;
     }
 
@@ -164,6 +173,7 @@ public class LeadService {
         Normalized input = normalize(request);
         Partner partner = partner(input.partnerId());
         Lead lead = new Lead();
+        lead.setLeadNumber(numbers.next(DocumentNumberService.LEAD));
         apply(lead, input, partner);
         lead.setStage(input.stage() == null ? LeadStage.NEW : input.stage());
         String protecting = protectingPartner(lead.getClientPhone(), partner.getId(), null);
@@ -281,6 +291,31 @@ public class LeadService {
         auditService.record(AuditActions.LEAD_DELETED, AuditActions.ENTITY_LEAD, id, before, null);
     }
 
+    /**
+     * Automatic stage change caused by a document (BUSINESS_RULES §4.3), e.g. an estimate marked sent. {@code rule}
+     * maps the current stage to the new one. It runs in the caller's transaction and needs no Leads permission,
+     * except that reopening a Won or Lost lead still needs {@code LEADS:APPROVE} (D-04). Deleted leads are skipped.
+     * Writes an AUTO_STAGE history entry and a LEAD_STAGE_CHANGED audit entry with {@code reason}.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void applyAutomaticStage(UUID leadId, UnaryOperator<LeadStage> rule, String reason, AuthenticatedUser user) {
+        Lead lead = leadRepository.lockLive(leadId).orElse(null);
+        if (lead == null) {
+            return;
+        }
+        LeadStage from = lead.getStage();
+        LeadStage to = rule.apply(from);
+        if (to == from) {
+            return;
+        }
+        checkTransition(from, to, user);
+        lead.setStage(to);
+        leadRepository.saveAndFlush(lead);
+        history(lead, LeadEventType.AUTO_STAGE, from, to, reason, user);
+        auditService.record(AuditActions.LEAD_STAGE_CHANGED, AuditActions.ENTITY_LEAD, leadId,
+                AuditService.values("stage", from), AuditService.values("stage", to, "reason", reason));
+    }
+
     // ------------------------------------------------------------------------------------------- helpers
 
     /** D-04: any stage to any stage, except that leaving Won or Lost needs {@code LEADS:APPROVE}. */
@@ -380,6 +415,7 @@ public class LeadService {
     private static void apply(Lead lead, Normalized input, Partner partner) {
         lead.setClientName(input.clientName());
         lead.setClientPhone(input.clientPhone());
+        lead.setClientEmail(input.clientEmail());
         lead.setCity(input.city());
         lead.setPartner(partner);
         lead.setProjectType(input.projectType());
@@ -416,6 +452,8 @@ public class LeadService {
                 String like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("clientName")), like, '\\'),
+                        cb.like(cb.lower(root.get("leadNumber")), like, '\\'),
+                        cb.like(cb.lower(cb.coalesce(root.get("clientEmail"), "")), like, '\\'),
                         cb.like(cb.lower(cb.coalesce(root.get("city"), "")), like, '\\'),
                         cb.like(cb.lower(partner.get("name")), like, '\\')));
             }
@@ -444,7 +482,7 @@ public class LeadService {
     // ------------------------------------------------------------------------------------------- validation
 
     /** Trimmed input; blanks become null. */
-    record Normalized(String clientName, String clientPhone, String city, UUID partnerId, ProjectType projectType,
+    record Normalized(String clientName, String clientPhone, String clientEmail, String city, UUID partnerId, ProjectType projectType,
                       Integer units, BigDecimal budget, LeadStage stage, String stageReason, String presalesOwner,
                       LocalDate expectedClose, String source, String notes) {
     }
@@ -460,6 +498,13 @@ public class LeadService {
             long digits = phone.chars().filter(Character::isDigit).count();
             if (!PHONE_CHARS.matcher(phone).matches() || digits < 7 || digits > 15) {
                 errors.add(new FieldError("clientPhone", "Enter a valid phone number."));
+            }
+        }
+        String email = text(r.clientEmail(), "clientEmail", 254, errors);
+        if (email != null) {
+            email = email.toLowerCase(Locale.ROOT);
+            if (!EMAIL.matcher(email).matches()) {
+                errors.add(new FieldError("clientEmail", "Enter a valid email address, or leave it blank."));
             }
         }
         String city = text(r.city(), "city", 150, errors);
@@ -487,7 +532,7 @@ public class LeadService {
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }
-        return new Normalized(clientName, phone, city, r.partnerId(), r.projectType(), r.units(), budget, r.stage(),
+        return new Normalized(clientName, phone, email, city, r.partnerId(), r.projectType(), r.units(), budget, r.stage(),
                 stageReason, presalesOwner, r.expectedClose(), source, notes);
     }
 

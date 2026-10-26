@@ -10,6 +10,7 @@ public final class AuditActions {
     public static final String ENTITY_PARTNER = "PARTNER";
     public static final String ENTITY_LEAD = "LEAD";
     public static final String ENTITY_PRODUCT = "PRODUCT";
+    public static final String ENTITY_ESTIMATE = "ESTIMATE";
 
     public static final String LOGIN_SUCCEEDED = "LOGIN_SUCCEEDED";
     public static final String LOGIN_FAILED = "LOGIN_FAILED";
@@ -45,6 +46,12 @@ public final class AuditActions {
     public static final String PRODUCT_IMPORTED = "PRODUCT_IMPORTED";
     /** Summary of a committed CSV import: counts only. */
     public static final String PRODUCT_IMPORT_COMPLETED = "PRODUCT_IMPORT_COMPLETED";
+
+    /** Estimate audit entries hold partner-safe values only: never B2C names, B2C prices or the uplift. */
+    public static final String ESTIMATE_CREATED = "ESTIMATE_CREATED";
+    public static final String ESTIMATE_UPDATED = "ESTIMATE_UPDATED";
+    public static final String ESTIMATE_STATUS_CHANGED = "ESTIMATE_STATUS_CHANGED";
+    public static final String ESTIMATE_DELETED = "ESTIMATE_DELETED";
 
     private AuditActions() {
     }

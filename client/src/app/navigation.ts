@@ -43,7 +43,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: "/dashboard", module: "DASHBOARD", icon: LayoutDashboard },
   { path: "/partners", module: "PARTNERS", icon: Handshake, group: "Funnel" },
   { path: "/leads", module: "LEADS", icon: ClipboardList, group: "Funnel" },
-  { path: "/estimates", module: "ESTIMATES", icon: FileSpreadsheet, group: "Sales", phase: 8 },
+  { path: "/estimates", module: "ESTIMATES", icon: FileSpreadsheet, group: "Sales" },
   { path: "/invoices", module: "INVOICES", icon: FileText, group: "Sales", phase: 9 },
   { path: "/payments", module: "PAYMENTS", icon: Wallet, group: "Sales", phase: 10 },
   { path: "/payouts", module: "PAYOUTS", icon: Banknote, group: "Sales", phase: 11 },

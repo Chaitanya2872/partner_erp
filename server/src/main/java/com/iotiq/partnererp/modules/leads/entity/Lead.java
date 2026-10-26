@@ -26,7 +26,8 @@ import java.util.UUID;
 @Table(name = "leads")
 public class Lead extends AuditableEntity {
 
-    @Column(name = "lead_number", length = 20)
+    /** LEAD-YYYY-NNNNNN, allocated once on create and never changed (D-16). */
+    @Column(name = "lead_number", nullable = false, length = 20, updatable = false)
     private String leadNumber;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

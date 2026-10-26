@@ -62,6 +62,10 @@ const ACTIONS = [
   "PRODUCT_DELETED",
   "PRODUCT_IMPORTED",
   "PRODUCT_IMPORT_COMPLETED",
+  "ESTIMATE_CREATED",
+  "ESTIMATE_UPDATED",
+  "ESTIMATE_STATUS_CHANGED",
+  "ESTIMATE_DELETED",
 ];
 
 const SECURITY_ACTIONS = new Set(["LOGIN_FAILED", "ACCOUNT_LOCKED", "REFRESH_TOKEN_REUSED"]);
@@ -211,6 +215,7 @@ export function AuditLogsPage() {
               <option value="PARTNER">Partners</option>
               <option value="LEAD">Leads</option>
               <option value="PRODUCT">Products</option>
+              <option value="ESTIMATE">Estimates</option>
             </Select>
             {canPickActor ? (
               <SearchableSelect

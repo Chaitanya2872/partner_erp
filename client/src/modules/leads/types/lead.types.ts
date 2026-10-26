@@ -30,8 +30,11 @@ export interface SlaStatus {
 
 export interface LeadSummary {
   id: string;
+  /** LEAD-YYYY-NNNNNN, assigned by the server (D-16). */
+  leadNumber: string;
   clientName: string;
   clientPhone: string | null;
+  clientEmail: string | null;
   city: string | null;
   projectType: ProjectType;
   projectTypeLabel: string;
@@ -102,6 +105,7 @@ export interface LeadMeta {
 export interface LeadInput {
   clientName: string;
   clientPhone: string;
+  clientEmail: string;
   city: string;
   partnerId: string;
   projectType: ProjectType | "";

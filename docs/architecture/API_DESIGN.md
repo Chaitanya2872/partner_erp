@@ -107,9 +107,9 @@ Legend: **Perm** = required permission. **Src** = originating source action.
 ### 3.4 Leads (implemented, Phase 6; src: newLead, editLead, ackLead, delLead, stage change)
 | Method | Path | Authority | Notes |
 |---|---|---|---|
-| GET | /leads | LEADS:READ | `q` (client, city, partner name), `stage`, `partnerId`, `conflict`, `slaBreach` (true/false), `page`, `size` (20), `sort` ∈ createdAt, clientName, city, budget, expectedClose (default createdAt desc). Rows: partner, stage, budget, `acknowledgedAt`, `lockedFeePercent`, `protectionUntil`, `protectionActive`, `conflict`, `sla` block. Deleted leads never appear |
+| GET | /leads | LEADS:READ | `q` (client, city, partner name, lead number, email), `stage`, `partnerId`, `conflict`, `slaBreach` (true/false), `page`, `size` (20), `sort` ∈ createdAt, clientName, city, budget, expectedClose (default createdAt desc). Rows: partner, stage, budget, `acknowledgedAt`, `lockedFeePercent`, `protectionUntil`, `protectionActive`, `conflict`, `sla` block. Deleted leads never appear |
 | GET | /leads/meta | LEADS:READ | stages, project types, referring partners (name, status, tier name, current fee %), SLA targets and protection days |
-| POST | /leads | LEADS:WRITE | 201. Stage defaults to NEW. Phone protected for another partner: saved with `conflict: true` and `conflictPartnerName` (warning only, BR-L6/D-05) |
+| POST | /leads | LEADS:WRITE | 201. Stage defaults to NEW. `leadNumber` `LEAD-YYYY-NNNNNN` is assigned by the server and never changes; `clientEmail` optional, format-checked (P8-03). Phone protected for another partner: saved with `conflict: true` and `conflictPartnerName` (warning only, BR-L6/D-05) |
 | GET | /leads/{id} | LEADS:READ | + `sla` block (ackHours, ackBreach, estimateDays, estimateBreach, hasEstimate, targets, protectionDaysLeft), `acknowledgedByName`, current `conflictPartnerName` |
 | PUT | /leads/{id} | LEADS:WRITE (+APPROVE to leave Won/Lost) | with `version`; re-runs the conflict check; `stage` + optional `stageReason` follow D-04; the partner can change until acknowledgement, never after (P6-06, approved) |
 | PATCH | /leads/{id}/stage | LEADS:WRITE (+APPROVE to leave Won/Lost, else `403 STAGE_REOPEN_NOT_PERMITTED`) | `{stage, reason?, version}` |
@@ -127,7 +127,7 @@ Permissions map onto the existing codes (no new permission code): `PRODUCTS:READ
 |---|---|---|---|
 | GET | /products | PRODUCTS:READ | `q` (SKU, partner name, category label; B2C name only for internal callers), `category`, `active`, `b2cMissing` (internal only, ignored otherwise), paging, `sort` ∈ sku, partnerName, category, partnerPrice, updatedAt (default category, SKU) |
 | GET | /products/meta | PRODUCTS:READ | categories with total/active counts, default GST (company settings), default unit `nos`, max alternative names (20) |
-| GET | /products/options | PRODUCTS:READ (Phase 8 decides access for Estimates write users) | active products for document line pickers, at most 50: `id, sku, category, name, hsn, unit, rate, gstPercent` (+ `b2cName, b2cRate` for internal callers) |
+| GET | /products/options | PRODUCTS:READ **or** ESTIMATES:WRITE (P8-04) | active products for document line pickers, at most 50, `q` and `category` filters: `id, sku, category, name, hsn, unit, rate, gstPercent` (+ `b2cName, b2cRate` for internal callers) |
 | GET | /products/{id} | PRODUCTS:READ | internal or partner-safe view |
 | GET | /products/{id}/history | PRODUCTS:READ | audited changes, newest first; internal fields removed for other callers, and internal-only updates hidden |
 | POST | /products | PRODUCTS:WRITE + internal | `403 INTERNAL_B2C_REQUIRED` without the action (the B2C name is required). `400` field errors; duplicate SKU (ignoring case) → `sku: "That SKU already exists."` |
@@ -140,17 +140,26 @@ Permissions map onto the existing codes (no new permission code): `PRODUCTS:READ
 
 Server-side entry point for Phases 8–9: `ProductService.lineSnapshot(id)` returns the §6.2 line snapshot (`name` = partner name, `rate` = partner price, `b2cName`, `b2cRate` = B2C price or 0, `hsn`, `unit`, `gstPercent`) and refuses deactivated products with `422 PRODUCT_INACTIVE`.
 
-### 3.6 Estimates (src: newEst, editDoc, delDoc, estStatus, toInv, viewDoc, dlDoc)
-| GET | /estimates | DOC_READ | `q` (no/partner/client), `status`, `partnerId`, `leadId`, `expired` |
+### 3.6 Estimates (src: newEst, editDoc, delDoc, estStatus, viewDoc, dlDoc) — as built in Phase 8
+
+Permissions use the existing codes: `ESTIMATES:READ/WRITE/DELETE/EXPORT`; fee override `PARTNERS:APPROVE` (D-13, P8-07). D-19, D-13, D-09/D-26 and the restricted lead picker were **approved on 2026-10-26**; the CGST/SGST split is provisional (D-21). Every response here is partner-safe: no B2C names or prices, no twin number, no uplift (P8-11).
+
+| Method | Path | Permission | Notes |
 |---|---|---|---|
-| POST | /estimates | DOC_WRITE | `{leadId, estimateDate, validUntil?, discountPercent, igst, billTo, feePercent?, notes, lines:[{productId, quantity, unitPrice, gstPercent}]}`. feePercent ≠ default needs DOC_FEE_OVERRIDE + `feeOverrideReason`. Creates twin in the same transaction. |
-| GET | /estimates/{id} | DOC_READ | partner-safe DTO |
-| PUT | /estimates/{id} | DOC_WRITE | blocked when INVOICED (D-09) |
-| DELETE | /estimates/{id} | DOC_WRITE | 422 when INVOICED (D-26); cascades twin |
-| POST | /estimates/{id}/send · /accept · /reject | DOC_WRITE | status transitions + lead side effects (BR-E4, §4.3) |
-| POST | /estimates/{id}/convert-to-invoice | DOC_WRITE | returns invoice draft payload (prefill). The invoice is created by `POST /invoices` with `estimateId` |
-| POST | /estimates/preview | DOC_WRITE | server-side totals for the editor (no persistence) |
-| GET | /estimates/{id}/pdf · /print | DOC_READ | partner copy only |
+| GET | /estimates | ESTIMATES:READ | `q` (estimate no., lead no., client, partner), `status`, `partnerId`, `leadId`, `expired`, paging, `sort` ∈ estimateDate, estimateNumber, validUntil, createdAt (default date, number desc). Rows: number, dates, status, `expired`, lead no., client, partner, bill-to, taxable, total |
+| GET | /estimates/meta | ESTIMATES:READ | statuses, bill-to options, validity days, default terms, default GST, max lines (100), `canOverrideFee` |
+| GET | /estimates/export | ESTIMATES:EXPORT | CSV (UTF-8 BOM, ≤ 5,000 rows) with the list filters: `estimate, date, valid_until, status, expired, lead, client, partner, bill_to, taxable_amount, grand_total` |
+| GET | /estimates/lead-options | ESTIMATES:WRITE (no Leads read needed) | `q` (lead number, client name, partner name only), `leadId` (that lead if eligible). At most 50 live, non-Lost leads, newest first: `id, leadNumber, clientName, partner{id, name}`. Estimates scope must be ALL and, when the user has Leads access, so must the Leads scope; otherwise empty (P8-15) |
+| POST | /estimates/preview?estimateId= | ESTIMATES:WRITE | body as POST; nothing saved. `{lines, totals, defaultFeePercent, feePercent, feeOverride}` plus `internal {lines, totals, uplift, missingB2cPrices}` only for `PRODUCTS:VIEW_INTERNAL_B2C` |
+| POST | /estimates | ESTIMATES:WRITE | 201. `{leadId, igst, estimateDate?, validUntil?, discountPercent?, billTo?, feePercent?, feeOverrideReason?, notes?, lines:[{productId, quantity, unitPrice, gstPercent}]}`. `igst` is required (`400 igst`, D-21). Number `EST-YYYY-NNNNNN` from the creation date's calendar year, immutable (P8-01); the twin is written in the same transaction. Lost, deleted or out-of-scope lead → `400 leadId` |
+| GET | /estimates/{id} | ESTIMATES:READ | partner copy with lines, totals (incl. CGST/SGST), lead and partner refs, `expired`, `sentOn`, `version` |
+| PUT | /estimates/{id} | ESTIMATES:WRITE | same body + `version` (`igst` omitted keeps the stored choice); lines with their saved `id` keep their snapshot (P8-06). Allowed in Draft, Sent, Accepted and Rejected; the status never changes. `409 ESTIMATE_INVOICED`, `409 CONCURRENT_MODIFICATION`. Audited as `ESTIMATE_UPDATED` |
+| POST | /estimates/{id}/send · /accept · /reject | ESTIMATES:WRITE | optional `{version}`. Draft → Sent → Accepted/Rejected, lead side effects (P8-10). `409 INVALID_STATUS_TRANSITION`; accepting for a Lost lead without `LEADS:APPROVE` → `403 STAGE_REOPEN_NOT_PERMITTED` |
+| DELETE | /estimates/{id} | ESTIMATES:DELETE | 204, soft delete in Draft, Sent, Accepted and Rejected (status kept, audited as `ESTIMATE_DELETED`); `409 ESTIMATE_INVOICED` |
+| GET | /estimates/{id}/history | ESTIMATES:READ | audited changes, newest first (partner-safe values only) |
+| GET | /estimates/{id}/document | ESTIMATES:READ | printable partner copy, `text/html` attachment `<number>.html` (no server PDF, D-15) |
+
+Fee rules (D-13, approved): default = 0 for partner purchases, else the lead's locked rate, else the partner's tier rate. A different value needs `PARTNERS:APPROVE` (`403 FEE_OVERRIDE_NOT_PERMITTED`) and `feeOverrideReason` (`400`). The audit row stores the previous rate, new rate, default rate and reason, with actor and time. Documents are printable HTML until server PDFs are added (mandatory before production, D-15). Convert to invoice arrives in Phase 9.
 
 ### 3.7 Invoices (src: newInv, editDoc, cancelInv, recPay)
 | GET | /invoices | DOC_READ | `q`, `paymentStatus` (UNPAID, PARTLY_PAID, PAID, OVERDUE, PARTLY_PAID_OVERDUE, CANCELLED), `partnerId`, date range |
@@ -178,6 +187,15 @@ Server-side entry point for Phases 8–9: `ProductService.lineSnapshot(id)` retu
 | POST | /payouts/{id}/reverse | PAYOUT_REVERSE | `{reason}` (D-12) |
 
 ### 3.10 Internal B2C (all require **B2C_VIEW**; never routed for PARTNER)
+
+**As built in Phase 8 (estimates):** `B2C_VIEW` is the existing `INTERNAL_B2C:READ`.
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | /internal/estimates/{id} | INTERNAL_B2C:READ + ESTIMATES:READ | twin `INT-EST-YYYY-NNNNNN`: B2C lines (B2C name, partner name, B2C rate), B2C and partner totals, uplift, `b2cIncomplete`, `missingB2cPrices` |
+| GET | /internal/estimates/{id}/document | INTERNAL_B2C:READ + ESTIMATES:READ | stamped "INTERNAL ONLY" HTML, attachment `INTERNAL-<twin number>.html` |
+
+Planned (not built):
 | GET | /internal/b2c-documents | `type`, `partnerId`, date range |
 |---|---|---|
 | GET | /internal/b2c-documents/{id} | |

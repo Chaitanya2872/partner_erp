@@ -14,7 +14,8 @@ import java.util.UUID;
  * @param conflictPartnerName BR-L6: the partner currently protecting the same phone, if any. On a save that sets
  *                            {@code conflict} it is the name the warning toast shows.
  */
-public record LeadResponse(UUID id, String clientName, String clientPhone, String city, PartnerRef partner,
+public record LeadResponse(UUID id, String leadNumber, String clientName, String clientPhone, String clientEmail,
+                           String city, PartnerRef partner,
                            ProjectType projectType, String projectTypeLabel, Integer units, BigDecimal budget,
                            LeadStage stage, String stageLabel, String presalesOwner, LocalDate expectedClose,
                            String source, String notes, Instant acknowledgedAt, String acknowledgedByName,

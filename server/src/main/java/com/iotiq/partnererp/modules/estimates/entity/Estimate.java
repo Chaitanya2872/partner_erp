@@ -10,9 +10,11 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Partner-price estimate (source "estimates"). Each one has an internal B2C twin.
@@ -84,6 +86,29 @@ public class Estimate extends SalesDocument {
 
     public void setSentOn(LocalDate sentOn) {
         this.sentOn = sentOn;
+    }
+
+    /** Soft delete (Phase 8): the row, its number and its twin stay; lists and detail no longer show it. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @Column(name = "deleted_by")
+    private UUID deletedBy;
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public UUID getDeletedBy() {
+        return deletedBy;
+    }
+
+    public void setDeletedBy(UUID deletedBy) {
+        this.deletedBy = deletedBy;
     }
 
     public List<EstimateItem> getItems() {
