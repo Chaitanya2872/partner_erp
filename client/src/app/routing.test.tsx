@@ -5,12 +5,20 @@ import { catalog, makeMe, roles } from "@/test/fixtures";
 import { authService } from "@/services/auth.service";
 import { productService } from "@/modules/products/services/productService";
 import { roleService } from "@/modules/settings/services/roleService";
+import { dashboardService } from "@/modules/dashboard/services/dashboardService";
+import { reportService } from "@/modules/reports/services/reportService";
 
 vi.mock("@/services/auth.service", () => ({
   authService: { restore: vi.fn(), me: vi.fn(), modules: vi.fn(), login: vi.fn(), logout: vi.fn(), changePassword: vi.fn() },
 }));
 vi.mock("@/modules/products/services/productService", () => ({ productService: { list: vi.fn() } }));
 vi.mock("@/modules/settings/services/roleService", () => ({ roleService: { list: vi.fn(), update: vi.fn() } }));
+vi.mock("@/modules/dashboard/services/dashboardService", () => ({
+  dashboardService: { overview: vi.fn(), sales: vi.fn(), partners: vi.fn(), products: vi.fn(), finance: vi.fn(), alerts: vi.fn() },
+}));
+vi.mock("@/modules/reports/services/reportService", () => ({
+  reportService: { catalog: vi.fn(), run: vi.fn(), exportCsv: vi.fn(), partnerOptions: vi.fn() },
+}));
 
 const product = {
   id: "p1",
@@ -28,6 +36,8 @@ const product = {
 beforeEach(() => {
   vi.mocked(authService.modules).mockResolvedValue(catalog);
   vi.mocked(roleService.list).mockResolvedValue(roles);
+  vi.mocked(dashboardService.alerts).mockResolvedValue({ restricted: [], groups: [], generatedAt: "2026-10-27T05:00:00Z" });
+  vi.mocked(reportService.catalog).mockResolvedValue([]);
   vi.mocked(productService.list).mockResolvedValue({
     content: [product as never],
     meta: { page: 0, size: 50, totalElements: 1, totalPages: 1 },
@@ -73,10 +83,18 @@ describe("protected routing and navigation", () => {
     expect(screen.getByText(/must set a new password/i)).toBeInTheDocument();
   });
 
-  it("labels unbuilt modules as not yet available", async () => {
+  it("opens the reports module for a Reports reader and refuses it otherwise", async () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("ADMIN"));
     renderApp("/reports");
-    expect(await screen.findByText(/delivered in Phase 12/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(screen.queryByText(/delivered in Phase 12/)).not.toBeInTheDocument();
+  });
+
+  it("refuses the reports module without Reports read", async () => {
+    vi.mocked(authService.restore).mockResolvedValue(makeMe("USER"));
+    renderApp("/reports");
+    expect(await screen.findByRole("heading", { name: /don't have access/i })).toBeInTheDocument();
+    expect(reportService.catalog).not.toHaveBeenCalled();
   });
 
   it("hides internal B2C columns without VIEW_INTERNAL_B2C", async () => {

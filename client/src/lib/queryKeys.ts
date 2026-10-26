@@ -79,6 +79,17 @@ export const queryKeys = {
     adjustments: (filters: Record<string, unknown>) => ["payouts", "adjustments", filters] as const,
     tds: ["payouts", "tds"] as const,
   },
+  dashboard: {
+    all: ["dashboard"] as const,
+    section: (section: string, period: Record<string, unknown>) => ["dashboard", section, period] as const,
+    alerts: ["dashboard", "alerts"] as const,
+  },
+  reports: {
+    all: ["reports"] as const,
+    catalog: ["reports", "catalog"] as const,
+    run: (code: string, filters: Record<string, unknown>) => ["reports", code, filters] as const,
+    partnerOptions: (q: string) => ["reports", "partner-options", q] as const,
+  },
   settings: {
     gstRegistration: ["settings", "gst-registration"] as const,
   },

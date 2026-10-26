@@ -16,7 +16,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 9 | Invoice management | COMPLETED (approved 2026-10-26, checkpoint `7cafbc8`) | 2026-10-26 | 2026-10-26 |
 | 10 | Payment management | COMPLETED (approved, commit `8a6a024`) | 2026-10-26 | 2026-10-26 |
 | 11 | Partner payouts | COMPLETED, fully verified (conditionally approved; commit `6cedf2f`, docs follow-up committed separately) | 2026-10-26 | 2026-10-27 |
-| 12 | Dashboard & reports | NOT_STARTED | — | — |
+| 12 | Dashboard, analytics & reports | COMPLETED (awaiting review; see the Phase 12 commit) | 2026-10-27 | 2026-10-27 |
 | 13 | Settings & administration | NOT_STARTED | — | — |
 | 14 | End-to-end testing & QA | NOT_STARTED | — | — |
 | 15 | Production preparation | NOT_STARTED | — | — |
@@ -1154,3 +1154,107 @@ Phase 11, partner payouts, after your approval. *(Delivered; see below.)*
 
 ### Next phase
 Phase 12, dashboard and reports, after your approval. Not started.
+
+---
+## Phase 12: Dashboard, analytics & reports
+
+- **Status:** COMPLETED and awaiting your review. Commit: `feat: complete phase 12 dashboards analytics and reports` (not pushed).
+- **Where things are documented:**
+  - KPI formulas, period rules, access model, alerts, reports and open questions: DECISIONS.md §M (P12-01 to P12-10, M-1 to M-7).
+  - API: API_DESIGN.md §3.2 and §3.11.
+  - Schema: DATABASE_DESIGN.md §13 (V19).
+- **Dates:** started and completed 2026-10-27.
+
+### Delivered
+- **Backend aggregation.** All figures come from SQL aggregates on the server (`DashboardQueries`), with no row loops and no cache.
+  - Collections come from standing ledger entries. Reversals are excluded and reported separately.
+  - Paid-within-tolerance invoices are never counted as collected; the ₹0.50 tolerance residual is reported on its own.
+  - Commission uses the fee % snapshotted on the invoice.
+  - Won and lost come from the last move into the closed stage, so reopened leads are not double-counted.
+- **Dashboard endpoints** (`/dashboard/overview|sales|partners|products|finance|alerts`), each with preset or custom periods. Periods use IST business dates, both ends inclusive; this FY starts 1 April; custom ranges are capped at 1,096 days. Each response also carries a previous-period comparison and day or month buckets.
+- **Operational alerts** (12 kinds), derived on request for visible modules only.
+- **Ten reports** (`/reports/{code}`): partners, leads, products, estimates, invoices, payments, receivables, commissions, payouts, and TDS and adjustments. Each has:
+  - status, partner and search filters;
+  - whitelisted sorting and pagination;
+  - totals over every matching row;
+  - CSV export (BOM, formula guard, ≤ 10,000 rows).
+- **Access.** `DASHBOARD:READ` and `REPORTS:READ` open the endpoints. A module contributes only when the user reads it with the ALL scope, and this is checked before any query runs.
+  - Cross-module columns are dropped when one of their modules isn't visible.
+  - Export needs `REPORTS:EXPORT` plus the module's own export.
+  - PAN is masked; there are no bank details, client contacts, B2C prices or costs.
+  - Responses are `no-store`.
+- **V19:** four reporting indexes. V1–V18 are untouched.
+- **Frontend:**
+  - Recharts 3.10.1 (pinned) with shared `TrendChart`, `BarsChart`, `DonutChart` and `FunnelChart`. Every chart has a Chart/Table switch, uses the `--chart-*` tokens and has no animation.
+  - `/dashboard`: alerts, then Overview, Sales, Partners, Products and Finance tabs, with the period kept in the URL. Restricted modules are explained.
+  - `/reports`: replaces the coming-soon page. It has a picker, filters, a sortable paginated table, totals and an export button shown only when the server allows it.
+
+### Files
+- **Server:**
+  - `modules/dashboard` (controller, DTOs, `DashboardService`, `repository/DashboardQueries`);
+  - `modules/reports` (controller, DTOs, `ReportService`, `ReportCatalog`, `ReportDefinition`, `ReportPeriod`, `AnalyticsAccess`);
+  - `V19__reporting_indexes.sql`.
+- **Server tests:** `unit/reports/ReportPeriodTest`; `integration/analytics/{AnalyticsFixtures, DashboardApiIT, ReportApiIT}`; `MigrationAndSeedIT` now expects V19.
+- **Client:**
+  - `components/charts/{Charts.tsx, chartUtils.ts}`;
+  - `modules/dashboard/{components (AlertsPanel, AnalyticsTabs, DashboardStats, PeriodFilter), hooks/usePeriod, services, types, utils/change, pages/DashboardPage}`;
+  - `modules/reports/{components (RevenueChart, LeadFunnelChart), pages/ReportsPage, services, types}`;
+  - `lib/queryKeys`, `app/navigation`, `app/router`.
+  - `ChartContainer` lets the title shrink so the chart action stays beside it.
+- **Client tests:** `Charts.test.tsx`, `Dashboard.test.tsx`, `Reports.test.tsx`, plus updates to `routing.test.tsx` and `lazyRoutes.test.tsx`.
+
+### Tests
+- **Backend.** Full `mvn -o verify` (no clean, alone) on a throwaway `partner_erp_p12_test`, which was dropped afterwards: **102 unit + 209 integration tests, 0 failures, BUILD SUCCESS.**
+  - New: ReportPeriodTest 7, DashboardApiIT 10, ReportApiIT 7.
+  - Covered: exact KPI figures, reversals, tolerance, reopened leads, snapshot commission, scopes and permissions, column dropping, PAN masking, export guards, validation and empty periods.
+- **Frontend.** `npm test -- --maxWorkers=4`: **25 files, 221 tests passed.** `npm run lint`: 0 errors (4 warnings, all in files outside this phase). `npm run build`: OK. The dashboard chunk is 426 kB (120 kB gzip, including Recharts) and is loaded only on `/dashboard`.
+
+### Browser verification (8091 / 5181, `partner_erp_test`, test accounts only)
+- **Seed data.** Created through the API: test leads `LEAD-2026-000001…4` (one acknowledged, one won, one lost) and estimate `EST-2026-000001` (sent).
+- **KPIs vs independent SQL (This FY).** All matched exactly:
+
+  | KPI | Value |
+  |---|---|
+  | Invoiced | 30 invoices, ₹8,44,880.00 gross, ₹7,16,000.00 taxable |
+  | Collected | ₹5,65,612.93 gross, ₹4,79,332.99 ex-GST |
+  | Outstanding | 19 invoices, ₹2,85,166.67 |
+  | Tolerance residual | 1 invoice, ₹0.40 |
+  | Commission earned | ₹45,344.97 |
+  | Paid payouts | ₹29,160.00 net, ₹3,240.00 TDS |
+  | Leads | 4 total, 2 open, ₹5,00,000.00 pipeline |
+  | Partners | 23 total, 23 new |
+
+  The invoices report has 31 rows, matching SQL. Its totals cover issued invoices only, because cancelled rows carry zero amounts.
+- **Dashboard.** All five tabs, alerts, the period filter and the resolved range were checked; the Chart/Table switches work. Dark mode was checked on the Finance tab.
+- **Roles.**
+  - Super Admin: every report is exportable.
+  - Read-only Admins: every report is available, with no export. The API returns 403 on export.
+  - `adminW` was temporarily narrowed to Leads SELF, no Products, Estimates or Payouts, and Reports export, then restored exactly (verified):
+    - Leads, Products, Estimates and Payouts were listed as restricted, and the Leads, Products, Estimates, Commissions, Payouts and TDS reports were unavailable (the leads report returns 403).
+    - The partners report dropped the leads and commission columns, and sorting by a hidden column returned 400.
+    - Invoices export returned 403 without `INVOICES:EXPORT`, and 200 with 31 rows once it was granted.
+    - The UI showed tabs Overview, Sales, Partners and Finance, the scope notice, and no export button.
+- **CSV.** BOM `EF BB BF`, `text/csv`, `no-store`, and filename `iotiq-report-tds-adjustments-2026-04-01-to-2026-10-27.csv`. PAN appears only as `••111F` / `••222F` / `••333F`.
+- **390 px.** No horizontal page overflow on the dashboard or reports; wide tables scroll inside their cards.
+- **Performance.** All dashboard endpoints and the invoices report answered in 9–45 ms. EXPLAIN shows `ix_payments_date` with `ux_payments_reversed` for standing collections, plus the new `ix_partners_created` and `ix_payouts_paid_on`.
+- **Defects found and fixed:**
+  1. The Chart/Table button wrapped under long chart descriptions.
+  2. The Finance "Collected" card showed a gross value with an ex-GST trend. The trend now appears only on the ex-GST card.
+  3. Report code columns showed raw enums (`INTERIOR_DESIGNER`, `D1_30`). They now show readable labels.
+  4. The report detail link sat on an empty first column (partner code "—"). It now goes on the first column that has a value.
+
+  Frontend tests were added for 3 and 4.
+- **Cleanup.** The 8091 and 5181 servers and the browser session were stopped; port 8080 was not touched and nothing was listening there. The `adminW` permissions were restored. The seeded test leads and estimate were kept in `partner_erp_test`.
+
+### Known issues / limitations
+- **Chart palette.** The existing `--chart-3…5` tokens fail colour-vision separation. They are unchanged, and identity is carried by labels, dash patterns and tables (M-1).
+- **Scoped analytics.** SELF/TEAM users get no analytics for the scoped module (M-2).
+- **Calendar year.** Available only through a Custom range (M-3).
+- **Fixture data.** Some test-fixture invoices store `gst_amount` 0 while their grand total includes GST, so "Invoiced GST" reads ₹0.00 on the test database. Real invoices store GST.
+- **Dependency audit.** `npm audit` reports an existing high-severity advisory for `zod` < 4.6.6 (GHSA-mrhx-c7xc-m3w5). It was not changed in this phase.
+- **Large page chunk.** Recharts makes the dashboard page chunk 120 kB gzip.
+- **Development database.** `partner_erp` is still at V15 and applies V16–V19 on its next restart.
+- **Pending Finance decisions.** DECISIONS.md §L, L-1 to L-8, are unchanged and still pending.
+
+### Next phase
+Phase 13, settings and administration, after your approval. Not started.

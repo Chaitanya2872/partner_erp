@@ -79,13 +79,25 @@ Legend: **Perm** = required permission. **Src** = originating source action.
 | GET | /modules | authenticated | Module catalogue: display names, supported columns, module actions. |
 | GET | /permissions | authenticated | Action catalogue (generic + module actions). |
 
-### 3.2 Dashboard
-| GET | /dashboard/summary | REPORT_READ (uplift field only with B2C_VIEW) | KPIs of BUSINESS_RULES §9 |
+### 3.2 Dashboard and analytics (as built in Phase 12)
+
+**Permissions.** Every endpoint needs `DASHBOARD:READ`. Each section contains only modules the caller reads with the **ALL** data scope. Other modules come back as `null` and are listed in `restricted: [{module, reason: NO_ACCESS|SCOPE_SELF|SCOPE_TEAM}]`. This is decided before any query runs (DECISIONS.md §M).
+
+**Common parameters.**
+- `preset`: one of `TODAY`, `LAST_7_DAYS`, `LAST_30_DAYS`, `THIS_MONTH`, `LAST_MONTH`, `THIS_QUARTER`, `THIS_FY` (the default) or `CUSTOM`.
+- `from`, `to`: ISO dates, required together for `CUSTOM`. The range must be at most 1,096 days and start no earlier than 2000-01-01; otherwise the response is 400.
+- Each response includes `period {preset, from, to, previousFrom, previousTo, granularity: DAY|MONTH, today, timezone}`.
+
+**Response conventions.** Amounts are decimal strings with 2 decimal places. A rate is `null` when its denominator is zero. Responses carry `Cache-Control: no-store`.
+
+| Method | Path | Permission | Notes |
 |---|---|---|---|
-| GET | /dashboard/funnel | LEAD_READ | per stage {stage,count,budget} + win rate |
-| GET | /dashboard/alerts | auth (filtered by permission) | `[{level:BAD|WARN, type, text, entityType, entityId}]`. Types: ACK_BREACH, ESTIMATE_BREACH, PROTECTION_EXPIRING, ESTIMATE_EXPIRED, INVOICE_OVERDUE, PAYOUT_OVERDUE, AGREEMENT_UNSIGNED |
-| GET | /dashboard/top-partners | REPORT_READ | top 5 by paid revenue 12 m |
-| GET | /dashboard/tier-mix | PARTNER_READ | excludes Inactive |
+| GET | /dashboard/overview | DASHBOARD:READ | KPI groups `partners`, `leads`, `estimates`, `invoices`, `payments` and `payouts`. Also `revenueTrend` (invoiced taxable vs collected ex-GST), `leadFunnel`, `tierMix`, `paymentMethods`, `receivableAging` and `topPartners` (top 5 by collections). |
+| GET | /dashboard/sales | DASHBOARD:READ | Lead KPIs, the funnel and a created/won/lost trend. Also open-lead ageing, `followUps` (with the SLA hours and days applied), `byPartner` (top 20) and `conversion` (lead → estimate, estimate → invoice, win rate). Includes estimate KPIs when Estimates are visible. |
+| GET | /dashboard/partners | DASHBOARD:READ | Partner KPIs, statuses and tier mix. With Payments: realised revenue, rankings (top 10; the invoiced column needs Invoices and the commission column Payouts), and a new-partners plus collections trend. With Payouts: positive balances and negative balances. |
+| GET | /dashboard/products | DASHBOARD:READ | Product KPIs (`missingB2cPrice` only with PRODUCTS:VIEW_INTERNAL_B2C) and categories. With Invoices: sales from invoice line snapshots (top 10 by value and by quantity, sales by category, sales on lines not in the price sheet). |
+| GET | /dashboard/finance | DASHBOARD:READ | Invoicing (with tolerance residual and cancelled totals), receivable ageing, collections, payment methods and trend. Also collection efficiency, payout KPIs (by status, liabilities, paid, TDS, negative adjustments) and partner balances. |
+| GET | /dashboard/alerts | DASHBOARD:READ | Current alerts for visible modules, not filtered by period: `groups [{code, severity: danger|warning|info, module, title, detail, count, amount, href, items[≤5] {id, label, detail, href}}]` and `generatedAt`. Codes are listed in DECISIONS.md §M P12-04. |
 
 ### 3.3 Partners (implemented, Phase 5; src: newCp, editCp, openCp, tierOne, tierAll)
 | Method | Path | Authority | Notes |
@@ -261,11 +273,16 @@ Planned (not built):
 | GET | /internal/b2c-documents/{id}/pdf · /print | stamped INTERNAL ONLY |
 | GET | /internal/estimates/{id}/editor-context | per-line B2C rates for the editor (B2C_VIEW only) |
 
-### 3.11 Reports (src: REPORTS, repCsv)
-| GET | /reports | list of available report types (filtered by permission) |
-|---|---|---|
-| GET | /reports/{type} | `type ∈ funnel, partner-scorecard, receivables-ageing, payout-ledger, monthly-sales, sla-performance, tier-summary` (REPORT_READ) and `price-vs-b2c` (B2C_VIEW). Optional filters (enhancement): `from, to, fy, partnerId, stage, status` |
-| GET | /reports/{type}/export | CSV with the source column headers |
+### 3.11 Reports (as built in Phase 12)
+
+**Permissions.** Every endpoint needs `REPORTS:READ`. A report also needs its module read with the ALL scope. Columns that depend on another module are left out when that module is not visible. Responses carry `Cache-Control: no-store`.
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | /reports | REPORTS:READ | The catalogue, each entry with: `code`, `title`, `description`, `module`, `available` and `reason` (NO_ACCESS/SCOPE_SELF/SCOPE_TEAM), `canExport`, `dateBasis`, the visible `columns [{key, label, type, sortable, total}]`, `statusColumn`, `statuses`, `partnerFilter`, `searchColumns` and the default sort. |
+| GET | /reports/partner-options | REPORTS:READ + Partners visible | `q` → at most 20 `{id, name, code}`, for the partner filter. |
+| GET | /reports/{code} | REPORTS:READ + module | Codes: `partners`, `leads`, `products`, `estimates`, `invoices`, `payments`, `receivables`, `commissions`, `payouts` and `tds-adjustments`. Parameters: the period parameters, `status` (one of the report's statuses), `partnerId` (when the report supports it), `q` (≤ 100 chars, over the visible search columns), `sort=key,asc|desc` (visible sortable columns only), `page`, `size` (≤ 200, default 20; the page asks for 25). Returns `{code, title, period, columns, rows [{id, link, …column keys}], totals {key: sum over all matching rows}, page, size, totalElements, totalPages, sort}`. An unknown code returns 404; an invalid filter or sort returns 400 listing the allowed values. |
+| GET | /reports/{code}/export | REPORTS:EXPORT + the module's EXPORT | Same filters (no paging). `text/csv` with a BOM, formula-guarded, served as `iotiq-report-{code}-{from}-to-{to}.csv`. It has the visible columns only, and status codes as labels. More than 10,000 rows returns `422 REPORT_TOO_LARGE`. |
 
 ### 3.12 Settings & administration
 | GET/PUT | /settings | SETTINGS_READ / SETTINGS_WRITE | company + rules (validated ranges) |
@@ -291,4 +308,4 @@ Planned (not built):
 | `POST /estimates/{id}/convert-to-invoice` | returns a prefill, the client then POSTs `/invoices` | Matches the source flow (opens the editor prefilled, user may edit before saving) |
 | *(none)* | `/estimates/{id}/send|accept|reject` | Source estimate status actions |
 | *(none)* | tier-review preview/apply, partner statement, product import dry-run, payout reverse, `/estimates/preview` | Source actions / production needs |
-| `/reports/{reportType}` | kept, with 8 named types | SRS FR-10 |
+| `/reports/{reportType}` | `/reports/{code}` with 10 reports (Phase 12) replacing the 8 planned types; the funnel, SLA and tier summaries moved to `/dashboard/sales` and `/dashboard/partners` | SRS FR-10; Phase 12 report list |

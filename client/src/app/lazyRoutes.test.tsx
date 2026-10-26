@@ -10,6 +10,9 @@ import { authService } from "@/services/auth.service";
 vi.mock("@/services/auth.service", () => ({
   authService: { restore: vi.fn(), me: vi.fn(), modules: vi.fn(), login: vi.fn(), logout: vi.fn(), changePassword: vi.fn() },
 }));
+vi.mock("@/modules/reports/services/reportService", () => ({
+  reportService: { catalog: vi.fn().mockResolvedValue([]), run: vi.fn(), exportCsv: vi.fn(), partnerOptions: vi.fn() },
+}));
 
 const LAZY = Symbol.for("react.lazy");
 
@@ -27,7 +30,7 @@ function allRoutes(list: RouteObject[]): RouteObject[] {
 
 describe("route-level code splitting", () => {
   it("loads every page lazily, including the shell and the login page", () => {
-    const paths = ["/login", "/", "dashboard", "products", "users", "users/:id/permissions", "roles", "audit-logs", "account/password", "leads", "leads/:id", "leads/new", "estimates", "estimates/new", "estimates/:id", "estimates/:id/edit", "invoices", "invoices/new", "invoices/:id", "invoices/:id/edit", "payments", "payments/:id", "payouts", "payouts/:id", "settings"];
+    const paths = ["/login", "/", "dashboard", "products", "users", "users/:id/permissions", "roles", "audit-logs", "account/password", "leads", "leads/:id", "leads/new", "estimates", "estimates/new", "estimates/:id", "estimates/:id/edit", "invoices", "invoices/new", "invoices/:id", "invoices/:id/edit", "payments", "payments/:id", "payouts", "payouts/:id", "reports", "settings"];
     const byPath = new Map(allRoutes(routes).map((r) => [r.path, r]));
     for (const path of paths) {
       const route = byPath.get(path);
@@ -41,6 +44,6 @@ describe("route-level code splitting", () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("ADMIN"));
     renderApp("/reports");
     expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
-    expect(screen.getByText(/delivered in Phase 12/)).toBeInTheDocument();
+    expect(await screen.findByText("No reports are available.")).toBeInTheDocument();
   });
 });

@@ -97,7 +97,7 @@ export function ChartContainer({ title, description, children, loading, empty, u
   return (
     <Card>
       <CardHeader>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 basis-48">
           <CardTitle>{title}</CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>

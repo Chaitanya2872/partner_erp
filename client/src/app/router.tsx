@@ -43,6 +43,7 @@ const SettingsPage = named(() => import("@/modules/settings/pages/SettingsPage")
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
 const RolesPage = named(() => import("@/modules/settings/pages/RolesPage"), "RolesPage");
+const ReportsPage = named(() => import("@/modules/reports/pages/ReportsPage"), "ReportsPage");
 const AuditLogsPage = named(() => import("@/modules/audit/pages/AuditLogsPage"), "AuditLogsPage");
 const ComingSoonPage = named(() => import("@/pages/ComingSoonPage"), "ComingSoonPage");
 
@@ -118,6 +119,7 @@ export const routes: RouteObject[] = [
       { path: "payments", handle: handle({ nav: "/payments" }), element: guard(<PaymentsPage />, ["PAYMENTS"]) },
       { path: "payments/:id", handle: handle({ nav: "/payments", crumb: "Details" }), element: guard(<PaymentDetailsPage />, ["PAYMENTS"]) },
       { path: "payouts", handle: handle({ nav: "/payouts" }), element: guard(<PayoutsPage />, ["PAYOUTS"]) },
+      { path: "reports", handle: handle({ nav: "/reports" }), element: guard(<ReportsPage />, ["REPORTS"]) },
       { path: "payouts/:id", handle: handle({ nav: "/payouts", crumb: "Details" }), element: guard(<PayoutDetailsPage />, ["PAYOUTS"]) },
       { path: "products", handle: handle({ nav: "/products" }), element: guard(<ProductsPage />, ["PRODUCTS"]) },
       { path: "products/new", handle: handle({ nav: "/products", crumb: "New product" }), element: guard(<ProductFormPage />, ["PRODUCTS"]) },

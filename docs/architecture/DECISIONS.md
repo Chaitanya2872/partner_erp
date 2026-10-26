@@ -480,3 +480,151 @@ Requested: block disbursement of payouts that contain reversed receipts, require
 - require Finance to confirm the bank transfer can't be recalled.
 
 The existing controls stay as they are.
+
+## M. Phase 12 decisions (as built, 2026-10-27)
+
+Phase 12 adds the dashboard, analytics and reports. Every figure is aggregated in SQL on the server (`DashboardQueries`, `ReportCatalog`) on each request, with no cache. The client formats values and draws charts; it never computes a business figure.
+
+### Sources reviewed
+- BUSINESS_RULES: lead SLA (BR-L*), invoice tolerance (BR-V6), ledger and reversals (§K), commission (§L).
+- The Phase 10 ledger: `payments.amount` / `net_amount` and `reversed_payment_id`.
+- The Phase 11 payout tables and the `PayoutQueries` balances.
+- `LeadMetricsRepository` (SLA breaches) and `PartnerMetricsRepository` (paid revenue).
+- ADR-12 / P4-06, which chose Recharts for Phase 12.
+
+### Access model (P12-02)
+
+| Rule | As built |
+|---|---|
+| Opening | Every `/dashboard/*` endpoint needs `DASHBOARD:READ`. Every `/reports*` endpoint needs `REPORTS:READ`. Report CSV needs `REPORTS:EXPORT`. |
+| Module figures | A module's figures are computed only when the user has READ on it **and** its data scope is ALL (`AnalyticsAccess`). Otherwise the section is `null`, and the module is listed in `restricted` as `NO_ACCESS`, `SCOPE_SELF` or `SCOPE_TEAM`. The check runs **before** any query, so no organisation-wide aggregate is ever computed for a scoped user. (SELF/TEAM would return no records anyway, D-30.) A partial total is never shown as if it were complete. |
+| Cross-module columns | A figure that joins modules needs access to all of them. Partner rankings need Partners and Payments; their invoiced column also needs Invoices, and their commission column Payouts. Report columns declare the modules they need (`Column.requires`). If one is missing, the column is dropped from the response, totals, sort, search and CSV. |
+| Reports | A report is available when its module is visible under the same rule. Search, sort and status filters accept only visible columns and listed values. Anything else returns a 400 that names only the allowed values. |
+| Export | A report CSV needs `REPORTS:EXPORT` **and** the module's own `EXPORT`, so a report never exports more than the module's own export would. The file has the same visible columns and at most 10,000 rows (`422 REPORT_TOO_LARGE`). It is written with a BOM and the `ProductCsv` formula guard, and served with `Cache-Control: no-store`. |
+| Sensitive data | No report or dashboard figure includes bank details, client phone or email, B2C prices, landed costs or transfer references. PAN appears only in the TDS and adjustments report, masked as `••` + last four (`PartnerMapper.mask`), and can't be searched or sorted. "Products missing a B2C price" is returned only with `PRODUCTS:VIEW_INTERNAL_B2C`. Alerts cover only modules the user can see. |
+| Navigation | The frontend hides tabs, links and the export button using the same permissions, but the server enforces every rule; nothing depends on what the menu shows. No role was created, and no migration grants a permission. |
+| Caching | None. Responses carry `Cache-Control: no-store`. TanStack Query keys include the period and filters, and are cleared with the rest of the cache on sign-out. |
+
+### Periods and dates (P12-03)
+- **Time zone:** Asia/Kolkata (`AppConstants.BUSINESS_ZONE`). A period is two business dates, both **inclusive**.
+  - Timestamp columns (`created_at`, history `occurred_at`) are compared as `[from 00:00 IST, to + 1 day 00:00 IST)`.
+  - Date columns (`invoice_date`, `payment_date`, `estimate_date`, `paid_date`, `as_of_date`) are compared directly.
+- **Presets** are resolved on the server from today's IST date. The default is This financial year.
+
+  | Preset | Range |
+  |---|---|
+  | Today | Today only. |
+  | Last 7 days, Last 30 days | Ending today. |
+  | This month, Last month | Calendar months. |
+  | This quarter | Calendar quarter. Calendar quarters coincide with Indian FY quarters (Apr–Jun, Jul–Sep, Oct–Dec, Jan–Mar). |
+  | This financial year | 1 April to today (`PayoutRules.fyStart`). |
+  | Custom | Any two dates, within the limits below. |
+
+- **Financial vs calendar year:** the dashboard and reports use the Indian financial year (1 April – 31 March) for "This FY", payout TDS and paid-in-FY balances. For calendar-year reporting, use a Custom range (1 Jan – 31 Dec); there is no calendar-year preset.
+- **Custom ranges:** both dates are required, with `from ≤ to`, no earlier than 2000-01-01, and at most 1,096 days long (three years plus a leap day). Any violation is a 400 with field errors.
+- **Previous period** (for the trend arrows): the same number of days, ending the day before `from`.
+- **Buckets:** by day for periods up to 62 days, otherwise by month. The first monthly bucket starts at `from`. Empty buckets are zero.
+- **"As of today" figures** ignore the period, and the screen says so. They are receivables, ageing, open pipeline, payout liabilities, balances and alerts.
+
+### KPI definitions
+**Rounding:** amounts are in rupees, rounded HALF_UP to 2 decimals after aggregation. Rates are `part / whole × 100` to 2 decimals. A rate is `null` when the whole is 0, and shows as "—", never as 0 %.
+
+| KPI | Definition |
+|---|---|
+| Invoiced (gross / taxable / GST) | Σ `grand_total` / `taxable_amount` / `gst_amount` of live (not soft-deleted) **ISSUED** invoices with `invoice_date` in the period. Drafts never count. Cancelled invoices are reported separately (count and value). |
+| Collected (gross) | Σ `payments.amount` of **standing** ledger entries with `payment_date` in the period. An entry is standing if it is not a `REVERSAL` and has not been reversed. A reversed receipt and its reversal are both excluded. Legacy `REFUND` entries stay and reduce the total. Invoice payment status (Paid within the ₹0.50 tolerance) is never used. |
+| Collected (ex-GST) | Σ `net_amount` of the same entries: the Phase 10 ex-GST share of each receipt (P10-A2). Partner rankings and trends use this revenue figure. |
+| GST collected | Collected gross − collected ex-GST. |
+| Reversed | Count and Σ of `REVERSAL` entries dated in the period, shown as a positive amount. |
+| Outstanding receivables | Live issued invoices whose balance is **over ₹0.50** today. Balance = `grand_total − Σ payments.amount`, with reversals negative. |
+| Overdue | Outstanding invoices with `due_date` before today. Ageing buckets: not due; 1–30, 31–60 and 61–90 days past due; 90+ days. |
+| Tolerance residual | Invoices with 0 < balance ≤ ₹0.50, which show as Paid under BR-V6. Count and Σ balance are reported separately and are **not** counted as collected or outstanding. |
+| Partly paid | Outstanding invoices with Σ payments > 0. |
+| Collection efficiency | Collected gross ÷ invoiced gross in the same period × 100. Needs Invoices and Payments. It can exceed 100 % when earlier invoices are collected. |
+| New leads | Live leads with `created_at` in the period. |
+| Open leads / pipeline | Live leads that are not Won or Lost. Pipeline = Σ `budget`; leads without a budget are counted separately. |
+| Won / lost in period | Live leads currently Won (or Lost) whose **latest move into that stage** falls in the period. The move is read from `lead_stage_history` (`from_stage IS DISTINCT FROM to_stage`), falling back to `created_at`. A lead reopened and closed again counts once, at its last close. A reopened lead that is open now does not count. |
+| Win rate | Won ÷ (won + lost) in the period. |
+| Overall conversion | Leads currently Won ÷ all live leads. |
+| Lead → estimate | Of the leads created in the period, those with at least one live estimate (any status). |
+| Estimates | Live estimates with `estimate_date` in the period, by status. Value = Σ `grand_total` of non-drafts. |
+| Estimate → invoice | Non-draft estimates of the period that have a live ISSUED invoice raised from them ÷ all non-draft estimates of the period. |
+| Follow-ups (today) | Open leads that are past `expected_close`; or not acknowledged within the acknowledgement SLA (from company settings, with the same half-hour rounding as `LeadMetricsRepository`); or acknowledged but still without an estimate after the estimate SLA. **SLA violations in period** = leads created in the period that breached either SLA (`slaBreachedIds`). |
+| Partners | Counts by status today. New = `created_at` in the period. Tier mix = active partners by current tier. |
+| Commission earned | Σ `round(net_amount × invoice.fee_percent / 100, 2)` over standing `RECEIPT` entries in the period. It uses the fee % frozen on the invoice, **never** the partner's current tier. Once a receipt is allocated, the commissions report uses the payout line's stored %. |
+| Unbilled commission | The same formula over all standing receipts (any date) that have no live payout line. |
+| Payout liabilities | As of today: commission of payouts in Draft or Pending approval ("pending"), and in Approved or Processing ("approved"). |
+| Paid payouts | PAID payouts with `paid_date` in the period: count, commission, TDS and net. |
+| Negative adjustments | Approved negative adjustments not yet carried into a live payout line: count and Σ. |
+| Partner balances | `PayoutQueries.balances` as of today: eligible commission, carried adjustments, available, in progress, and paid this FY. Negative balances = partners with carried deductions. |
+| Product sales | From invoice **line snapshots** (`invoice_items.quantity`, `taxable_value`) of live issued invoices dated in the period, grouped by product. Lines without a product appear as "Not in price sheet". The B2C prices on the lines are never read. |
+
+### Operational alerts (P12-04)
+Alerts are derived on request from current data, only for modules the user can see. Each alert has a count, an optional amount and up to five records.
+
+**Danger:**
+- Overdue invoices.
+- Payouts blocked by a reversed receipt.
+
+**Warning:**
+- Leads not acknowledged within the SLA.
+- Acknowledged leads still without an estimate after the SLA.
+- Open leads past their expected close date.
+- Sent estimates past their validity date.
+- Payouts and adjustments awaiting approval.
+- TDS configuration not confirmed. This one shows even at zero while no confirmed version exists.
+- Approved negative adjustments still to recover.
+- Active partners with an unsigned agreement.
+
+**Info:**
+- Partner protection ending within 15 days.
+- Active products without a partner price or HSN.
+
+### Reports (P12-05)
+
+| Code | Module | Period applies to | Notes |
+|---|---|---|---|
+| `partners` | Partners | Activity columns (leads, invoices, payments) | All partners. Each activity column needs its module. PAN shows only as "on file". |
+| `leads` | Leads | Lead created date | No client phone or email. |
+| `products` | Products | Sales columns: invoice date | Price sheet plus quantities and taxable value from line snapshots. No B2C price or cost. |
+| `estimates` | Estimates | Estimate date | Shows whether a live issued invoice was raised. |
+| `invoices` | Invoices | Invoice date | Issued and cancelled. Received = Σ standing receipts. Payment status mirrors `InvoiceRules`: a balance ≤ ₹0.50 shows as Paid but stays in the balance column. Cancelled invoices are listed with zero amounts, so totals cover issued invoices only. |
+| `payments` | Payments | Payment date | Receipts, reversals and legacy refunds. A reversed pair cancels out in the totals. |
+| `receivables` | Invoices | Invoice date | Invoices with a balance over ₹0.50 today, days past due and ageing bucket. |
+| `commissions` | Payouts | Payment date | Standing receipts × the snapshot fee %. Status: Not in a payout, In a payout, or Paid. |
+| `payouts` | Payouts | As-of date | Commission, TDS, net, status and dates. No bank details or transfer reference. |
+| `tds-adjustments` | Payouts | Payout as-of date / adjustment created date | TDS of non-legacy payouts (rejected, cancelled and failed excluded) and adjustments. PAN masked. |
+
+Every report has:
+- filters: status (where meaningful), partner and text search;
+- whitelisted sorting (`key,asc|desc`, nulls last, then id);
+- pagination, up to 200 rows a page;
+- totals over every matching row;
+- CSV export.
+
+### Decisions as built
+
+| ID | Topic | Decision |
+|---|---|---|
+| P12-01 | Aggregation | Server-side SQL aggregates only: no row loops and no N+1. One query per KPI group; results are rounded once. |
+| P12-02 | Access | As above: READ plus the ALL scope per module, checked before querying. Cross-module columns are dropped. Export needs REPORTS:EXPORT plus the module's EXPORT. |
+| P12-03 | Periods | IST business dates, inclusive. Presets are resolved by the server. At most 1,096 days. The FY starts 1 April. |
+| P12-04 | Alerts | Computed on each request; never stored or cached. |
+| P12-05 | Reports | Ten reports defined in the catalogue (`ReportCatalog`). A new column must declare the modules it needs. |
+| P12-06 | Indexes | V19 adds `ix_partners_created`, `ix_payouts_paid_on` (partial, PAID), `ix_payouts_as_of` and `ix_adjustments_created`. V1–V18 are unchanged. |
+| P12-07 | Charts | Recharts 3.10.1 (ADR-12, P4-06), pinned to the exact version and loaded only with the dashboard chunk. Colours come only from the `--chart-*` tokens and animation is off. Every chart has a Chart/Table switch and a text legend. Tooltips show only the plotted values. |
+| P12-08 | Chart colour encoding | The existing five-token palette fails the colour-vision-deficiency check: light mode protan ΔE 5.6 between `--chart-5` and `--chart-4`; dark mode deutan ΔE 3.8. `--chart-1` and `--chart-2` pass in both modes, so two-series lines use them, with the second line dashed. Categorical charts show at most 5 slices (the rest fold into "Other") and always show labels, values and shares. The tokens were **not** changed (see M-1). |
+| P12-09 | Dashboard UI | `/dashboard` shows alerts, then the tabs Overview, Sales, Partners, Products and Finance. A tab appears when a related module is readable. The period filter is kept in the URL (`?preset=&from=&to=&tab=`). Only the open tab is fetched. |
+| P12-10 | Reports UI | `/reports` replaces the "coming soon" page. It has a report picker (unavailable reports are disabled, with the reason), period, status, partner and search filters, a sortable paginated table and a totals panel. Export CSV appears when the server allows it. |
+
+### Needs a decision (not implemented)
+
+| # | Question | Current behaviour |
+|---|---|---|
+| M-1 | Chart palette: colour-blind users find the `--chart-3…5` tokens hard to tell apart. | Tokens unchanged; identity is carried by legends, labels, dash patterns and tables. Re-stepping the palette needs a design-system decision. |
+| M-2 | Scoped analytics: should SELF/TEAM users get dashboards over their own records? | Not offered: scoped modules are hidden (D-30 gives them no records today). |
+| M-3 | Calendar-year preset | Available only through a Custom range. |
+| M-4 | Revenue recognition basis | Revenue = realised collections (ex-GST) by payment date, with invoiced figures alongside. Finance may prefer accrual (invoice date) for some views. |
+| M-5 | Collection efficiency | Collected ÷ invoiced in the same period (cash vs billing), not a cohort measure. |
+| M-6 | Legacy refunds (§K O-3) | Kept in collections as negative entries; there is no credit-note model yet. |
+| M-7 | Pending Phase 11 Finance items L-1 to L-8 | Unchanged. While no TDS configuration is confirmed (L-1), the TDS alert stays on, and TDS figures show what was recorded. |

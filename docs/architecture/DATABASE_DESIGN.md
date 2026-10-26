@@ -252,3 +252,27 @@ Concurrency: recording and reversing lock the invoice row first (`PESSIMISTIC_WR
 | Legacy carry-over | Each PAID `partner_payouts` row becomes a legacy PAID payout (`tds_status` LEGACY) with one commission line, so its receipt is never paid again and a later reversal creates an adjustment. Unpaid accruals are not carried over (recomputed). Trigger `trg_partner_payouts_legacy` refuses new rows ("superseded"). |
 
 Concurrency: generation and recalculation lock the partner row (`SELECT … FOR UPDATE`); transitions lock the payout (`PESSIMISTIC_WRITE`) and check its version. The partial unique indexes back up the allocation rules. Payment reversal locks the payout holding the receipt before deciding what to do. `PayoutApiIT` and `ConstraintsIT` cover these rules.
+
+## 13. Phase 12 migration: V19 (as built 2026-10-27)
+
+`V19__reporting_indexes.sql` is forward-only and leaves V1–V18 unchanged. It adds indexes only: no tables, columns, data or permissions. It was applied to the test databases. The development database `partner_erp` will apply V16–V19 when its server restarts with this build.
+
+| Index | Columns | Used by |
+|---|---|---|
+| `ix_partners_created` | `partners (created_at)` | New partners in a period: KPI, trend and previous period. |
+| `ix_payouts_paid_on` | `payouts (paid_date) WHERE status = 'PAID'` | Paid commission, TDS and net in a period. The name `ix_payouts_paid_date` already belongs to the legacy `partner_payouts` table. |
+| `ix_payouts_as_of` | `payouts (as_of_date)` | Payouts report, and the TDS and adjustments report. |
+| `ix_adjustments_created` | `partner_adjustments (created_at)` | Adjustments in the TDS and adjustments report. |
+
+**Indexes earlier migrations already provide** cover the remaining aggregates:
+- invoices by `invoice_date`, and by `status` and `due_date`;
+- payments by `payment_date`, by partner and date, and by invoice; plus the unique index on `reversed_payment_id`, which backs the standing-entry `NOT EXISTS`;
+- leads by `created_at`, stage and partner; stage history by lead and `occurred_at`;
+- live estimates by `estimate_date` (`ix_estimates_live_date`);
+- invoice lines by invoice and product;
+- live payout lines by payment.
+
+**Read model.** There are no new views and no materialised or cached aggregates (DECISIONS.md §M P12-01):
+- Dashboard figures are computed per request by `DashboardQueries`.
+- Reports are computed per request by the SQL in `ReportCatalog`, with `COUNT(*)` and `SUM` over the same filtered subquery for totals, and `LIMIT/OFFSET` for the page.
+- Invoice balances reuse the `v_invoice_balance` rule: Σ ledger amounts, with reversals negative.
