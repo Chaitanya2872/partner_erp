@@ -284,19 +284,39 @@ Planned (not built):
 | GET | /reports/{code} | REPORTS:READ + module | Codes: `partners`, `leads`, `products`, `estimates`, `invoices`, `payments`, `receivables`, `commissions`, `payouts` and `tds-adjustments`. Parameters: the period parameters, `status` (one of the report's statuses), `partnerId` (when the report supports it), `q` (≤ 100 chars, over the visible search columns), `sort=key,asc|desc` (visible sortable columns only), `page`, `size` (≤ 200, default 20; the page asks for 25). Returns `{code, title, period, columns, rows [{id, link, …column keys}], totals {key: sum over all matching rows}, page, size, totalElements, totalPages, sort}`. An unknown code returns 404; an invalid filter or sort returns 400 listing the allowed values. |
 | GET | /reports/{code}/export | REPORTS:EXPORT + the module's EXPORT | Same filters (no paging). `text/csv` with a BOM, formula-guarded, served as `iotiq-report-{code}-{from}-to-{to}.csv`. It has the visible columns only, and status codes as labels. More than 10,000 rows returns `422 REPORT_TOO_LARGE`. |
 
-### 3.12 Settings & administration
-| GET/PUT | /settings | SETTINGS_READ / SETTINGS_WRITE | company + rules (validated ranges) |
+### 3.12 Settings & administration (as built in Phase 13; DECISIONS §N)
+
+Audit-log list and export responses are `Cache-Control: no-store`. Saves are versioned: a stale `version` returns `409`. Field errors return `400` with `fieldErrors`.
+
+| Method | Path | Perm | Notes |
 |---|---|---|---|
-| GET/PUT | /settings/tiers | SETTINGS_READ / SETTINGS_WRITE | 4 rows; names, fee, min, payout days |
-| GET | /users | USER_MANAGEMENT:READ | `q`, `roleId`, `status`, `page`, `size` (≤200), `sort` (fullName, email, status, createdAt, lastLoginAt) — **implemented** |
+| GET | /settings/company | SETTINGS:READ | GST registration fields (read-only here), `phone`, `email`, `terms`, `estimateValidityDays`, `invoiceDueDays`, `defaultGstPercent`, `acknowledgementHours`, `estimateSlaDays`, `leadProtectionDays`, `clawbackDays` (not applied, L-3), `updatedAt`, `updatedBy`, `version`, `canEdit`, `canManageCommercial`, `limits` |
+| PUT | /settings/company | SETTINGS:WRITE | Whole record `{phone, email, terms, estimateValidityDays, invoiceDueDays, defaultGstPercent, acknowledgementHours, estimateSlaDays, version}`; ranges in P13-03. Audited `COMPANY_SETTINGS_UPDATED` with changed fields only; an unchanged save writes nothing. Never alters stored documents or leads |
+| PUT | /settings/commercial | SETTINGS:WRITE + SETTINGS:MANAGE_SETTINGS | `{leadProtectionDays (1–730), version}`; applies to leads acknowledged afterwards. Audited `COMMERCIAL_SETTINGS_UPDATED` |
+| GET | /settings/tiers | SETTINGS:READ or PARTNERS:READ | `{tiers:[{id, level, name, commissionPercent, minimumRevenue, payoutBusinessDays, partners (not Inactive), updatedAt, updatedBy, version}], canEdit}` |
+| PUT | /settings/tiers | SETTINGS:WRITE + SETTINGS:MANAGE_SETTINGS | `{tiers:[{level, name, commissionPercent, minimumRevenue, payoutBusinessDays, version}]}`, all four, under a row lock; rules in P13-05. Audited `PARTNER_TIER_UPDATED` per changed tier. Forward-only: no snapshot is recalculated and no partner changes tier |
+| GET | /settings/numbering | SETTINGS:READ | Per series: `prefix`, `document`, `format`, `example`, `allocatedWhen`, `year`, `lastValue`, `capacity`. Read-only |
+| GET | /settings/security | SETTINGS:READ or USER_MANAGEMENT:READ | Password rules, lockout (`maxFailedAttempts`, `lockoutMinutes`), session lifetimes and rules, `lockedAccounts`, `pendingPasswordChanges`. Read-only; no secrets |
+| GET | /settings/controls | SETTINGS:READ | `[{area, control, permission, enforcedBy, reference}]`: the enforced approval and financial controls. Read-only |
+| GET / PUT | /settings/gst-registration | see §3.7 | Unchanged (Phase 9) |
+| GET / PUT / POST | /settings/tds, /settings/tds/confirm | see §3.9 | Unchanged (Phase 11) |
+| GET | /users | USER_MANAGEMENT:READ | `q`, `roleId`, `status`, `locked` (Phase 13: lockout in force), `page`, `size` (≤200), `sort` (fullName, email, status, createdAt, lastLoginAt) — **implemented** |
 | POST | /users | USER_MANAGEMENT:WRITE | `{fullName,email,roleId,temporaryPassword}` → 201; must change password at first sign-in. Non-Super-Admins: User role only — **implemented** |
 | GET / PUT | /users/{id} | READ / WRITE | PUT `{fullName,email,roleId,version}`; role change Super Admin only, never on oneself; resets permissions to the role template — **implemented** |
 | PATCH | /users/{id}/status | USER_MANAGEMENT:MANAGE_USERS | `{status: ACTIVE|DISABLED, version}`; disabling revokes all sessions; never oneself; last active Super Admin protected (`409 LAST_SUPER_ADMIN`) — **implemented** |
-| GET / PUT | /users/{id}/permissions | READ / USER_MANAGEMENT:MANAGE_PERMISSIONS (Super Admin) | `{modules:[{moduleCode,read,write,delete,export,approve,dataScope}], actions:[code]}`; full replacement, validated (400 with field errors); `editable` tells the client whether the viewer may change it — **implemented** |
-| — | password reset by an administrator | — | not in Phase 3 (an admin can create a new temporary account; self-service reset is not specified) |
+| POST | /users/{id}/unlock | USER_MANAGEMENT:MANAGE_USERS | `{version}`; ends a lockout and resets failed attempts; idempotent; never oneself; Admins only User accounts. Audited `ACCOUNT_UNLOCKED` — **Phase 13** |
+| POST | /users/{id}/password-reset | USER_MANAGEMENT:MANAGE_USERS | `{temporaryPassword, version}`; password policy applies; forces a change at next sign-in, clears the lock, revokes every session; never oneself; Admins only User accounts. Audited `PASSWORD_RESET` (no password) — **Phase 13** |
+| GET | /users/{id}/activity | USER_MANAGEMENT:READ | Audit entries targeting the user, newest first, paged; `ipAddress` only for viewers with AUDIT_LOGS:READ — **Phase 13** |
+| GET / PUT | /users/{id}/permissions | READ / USER_MANAGEMENT:MANAGE_PERMISSIONS (Super Admin) | `{modules:[{moduleCode,read,write,delete,export,approve,dataScope}], actions:[code]}`; full replacement, validated (400 with field errors); `editable` tells the client whether the viewer may change it; `differsFromRole` (Phase 13) lists modules and granted actions that differ from the role default — **implemented** |
+| POST | /users/{id}/permissions/preview | USER_MANAGEMENT:MANAGE_PERMISSIONS (Super Admin) | Same body and checks as PUT; returns `{changed, granted, revoked, scopeChanges, effective, differsFromRole}` and saves nothing — **Phase 13** |
 | GET | /roles, /roles/{id} | USER_MANAGEMENT:READ or ROLE_MANAGEMENT:READ | `userCount` only with ROLE_MANAGEMENT:READ — **implemented** |
 | PATCH | /roles/{id} | ROLE_MANAGEMENT:WRITE (Super Admin) | `{displayName, description, version}`; `code`/`id` changes → 400; duplicate name → `409 DUPLICATE_ROLE_NAME`; no create/delete endpoints by design — **implemented** |
-| GET | /audit-logs | AUDIT_LOGS:READ | `entityType`, `entityId`, `action`, `userId`, `from`, `to`, paging; newest first; values are parsed JSON with secrets redacted — **implemented** |
+| GET | /roles/{id}/permissions | ROLE_MANAGEMENT:READ | Role defaults: `{roleId, code, displayName, superAdmin, editable, modules, userCount, version}` (modules only; no actions) — **Phase 13** |
+| PUT | /roles/{id}/permissions | ROLE_MANAGEMENT:WRITE (Super Admin) | `{modules, version}`; validated for the role; Super Admin role refused (`SUPER_ADMIN_PERMISSIONS_FIXED`); applies to new accounts and role changes only. Audited `ROLE_PERMISSIONS_CHANGED` — **Phase 13** |
+| GET | /audit-logs | AUDIT_LOGS:READ | `module`, `entityType`, `entityId`, `action`, `userId`, `from`, `to`, `q` (≤ 100 chars; action, target type, actor, request id or full target id; never recorded values), paging; newest first; B2C product keys hidden without PRODUCTS:VIEW_INTERNAL_B2C — **Phase 13 adds `module`, `q`** |
+| GET | /audit-logs/catalog | AUDIT_LOGS:READ | `[{code, label, actions}]` — **Phase 13** |
+| GET | /audit-logs/actors | AUDIT_LOGS:READ | `q`; at most 20 `{id, fullName, email}` — **Phase 13** |
+| GET | /audit-logs/export | AUDIT_LOGS:EXPORT | Same filters; CSV (BOM, formula guard, IST), ≤ 10,000 rows (`422 AUDIT_EXPORT_TOO_LARGE`). Audited `AUDIT_LOG_EXPORTED` — **Phase 13** |
 | GET | /actuator/health, /actuator/info | public (health details internal only) | |
 
 ## 4. Differences from the prompt's suggested endpoint list

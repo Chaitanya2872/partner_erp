@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Lock, Pencil } from "lucide-react";
+import { Link } from "react-router";
+import { Lock, Pencil, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog } from "@/components/ui/Dialog";
@@ -64,15 +65,20 @@ export function RoleManagement() {
         error={roles.error}
         onRetry={() => roles.refetch()}
         skeletonRows={3}
-        rowActions={
-          editable
-            ? (role) => (
-                <Button size="sm" variant="outline" onClick={() => setEditing(role)} aria-label={`Edit ${role.displayName}`}>
-                  <Pencil aria-hidden="true" /> Edit
-                </Button>
-              )
-            : undefined
-        }
+        rowActions={(role) => (
+          <>
+            <Button asChild size="sm" variant="ghost">
+              <Link to={`/roles/${role.id}/permissions`} aria-label={`Default permissions of ${role.displayName}`}>
+                <ShieldCheck aria-hidden="true" /> Default permissions
+              </Link>
+            </Button>
+            {editable ? (
+              <Button size="sm" variant="outline" onClick={() => setEditing(role)} aria-label={`Edit ${role.displayName}`}>
+                <Pencil aria-hidden="true" /> Edit
+              </Button>
+            ) : null}
+          </>
+        )}
       />
       {editing ? (
         <EditRoleDialog

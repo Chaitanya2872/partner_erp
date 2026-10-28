@@ -22,7 +22,10 @@ import java.util.List;
 public record ReportPeriod(Preset preset, LocalDate from, LocalDate to, LocalDate previousFrom, LocalDate previousTo,
                            Granularity granularity) {
 
-    public enum Preset { TODAY, LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, THIS_QUARTER, THIS_FY, CUSTOM }
+    /** THIS_YEAR and LAST_YEAR are calendar years, January to December (Phase 13, M-3); THIS_FY starts on 1 April. */
+    public enum Preset {
+        TODAY, LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, THIS_QUARTER, THIS_FY, THIS_YEAR, LAST_YEAR, CUSTOM
+    }
 
     /** Trend buckets: one per day up to {@link #DAILY_MAX_DAYS} days, else one per month. */
     public enum Granularity { DAY, MONTH }
@@ -50,6 +53,11 @@ public record ReportPeriod(Preset preset, LocalDate from, LocalDate to, LocalDat
             }
             case THIS_QUARTER -> start = LocalDate.of(today.getYear(), ((today.getMonthValue() - 1) / 3) * 3 + 1, 1);
             case THIS_FY -> start = PayoutRules.fyStart(today);
+            case THIS_YEAR -> start = today.withDayOfYear(1);
+            case LAST_YEAR -> {
+                start = today.withDayOfYear(1).minusYears(1);
+                end = today.withDayOfYear(1).minusDays(1);
+            }
             default -> {
                 if (from == null || to == null) {
                     throw ValidationException.of(from == null ? "from" : "to", "Enter both dates of a custom range.");

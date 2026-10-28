@@ -43,6 +43,7 @@ const SettingsPage = named(() => import("@/modules/settings/pages/SettingsPage")
 const UsersPage = named(() => import("@/modules/users/pages/UsersPage"), "UsersPage");
 const UserPermissionsPage = named(() => import("@/modules/users/pages/UserPermissionsPage"), "UserPermissionsPage");
 const RolesPage = named(() => import("@/modules/settings/pages/RolesPage"), "RolesPage");
+const RolePermissionsPage = named(() => import("@/modules/settings/pages/RolePermissionsPage"), "RolePermissionsPage");
 const ReportsPage = named(() => import("@/modules/reports/pages/ReportsPage"), "ReportsPage");
 const AuditLogsPage = named(() => import("@/modules/audit/pages/AuditLogsPage"), "AuditLogsPage");
 const ComingSoonPage = named(() => import("@/pages/ComingSoonPage"), "ComingSoonPage");
@@ -133,6 +134,11 @@ export const routes: RouteObject[] = [
         element: guard(<UserPermissionsPage />, ["USER_MANAGEMENT"]),
       },
       { path: "roles", handle: handle({ nav: "/roles" }), element: guard(<RolesPage />, ["ROLE_MANAGEMENT"]) },
+      {
+        path: "roles/:id/permissions",
+        handle: handle({ nav: "/roles", crumb: "Default permissions" }),
+        element: guard(<RolePermissionsPage />, ["ROLE_MANAGEMENT"]),
+      },
       { path: "audit-logs", handle: handle({ nav: "/audit-logs" }), element: guard(<AuditLogsPage />, ["AUDIT_LOGS"]) },
       { path: "account/password", handle: handle({ crumb: "Change password" }), element: <ChangePasswordPage /> },
       ...comingSoon,

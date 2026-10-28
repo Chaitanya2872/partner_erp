@@ -2,8 +2,11 @@ package com.iotiq.partnererp.modules.roles.controller;
 
 import com.iotiq.partnererp.common.constants.AppConstants;
 import com.iotiq.partnererp.common.response.ApiResponse;
+import com.iotiq.partnererp.modules.roles.dto.RolePermissionsResponse;
 import com.iotiq.partnererp.modules.roles.dto.RoleResponse;
+import com.iotiq.partnererp.modules.roles.dto.UpdateRolePermissionsRequest;
 import com.iotiq.partnererp.modules.roles.dto.UpdateRoleRequest;
+import com.iotiq.partnererp.modules.roles.service.RolePermissionService;
 import com.iotiq.partnererp.modules.roles.service.RoleService;
 import com.iotiq.partnererp.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,9 +34,11 @@ import java.util.UUID;
 public class RoleController {
 
     private final RoleService roleService;
+    private final RolePermissionService rolePermissionService;
 
-    public RoleController(RoleService roleService) {
+    public RoleController(RoleService roleService, RolePermissionService rolePermissionService) {
         this.roleService = roleService;
+        this.rolePermissionService = rolePermissionService;
     }
 
     @Operation(summary = "List the active system roles")
@@ -54,6 +60,21 @@ public class RoleController {
     @PreAuthorize("hasAuthority('ROLE_MANAGEMENT:WRITE')")
     public ApiResponse<RoleResponse> update(@PathVariable UUID id, @Valid @RequestBody UpdateRoleRequest request) {
         return ApiResponse.ok(roleService.update(id, request));
+    }
+
+    @Operation(summary = "A role's default permissions (given to new accounts and accounts moved to the role)")
+    @GetMapping("/{id}/permissions")
+    @PreAuthorize("hasAuthority('ROLE_MANAGEMENT:READ')")
+    public ApiResponse<RolePermissionsResponse> permissions(@PathVariable UUID id) {
+        return ApiResponse.ok(rolePermissionService.get(id, SecurityUtils.requireCurrentUser()));
+    }
+
+    @Operation(summary = "Replace a role's default permissions (existing accounts are not changed)")
+    @PutMapping("/{id}/permissions")
+    @PreAuthorize("hasAuthority('ROLE_MANAGEMENT:WRITE')")
+    public ApiResponse<RolePermissionsResponse> replacePermissions(@PathVariable UUID id,
+                                                                   @Valid @RequestBody UpdateRolePermissionsRequest request) {
+        return ApiResponse.ok(rolePermissionService.replace(id, request, SecurityUtils.requireCurrentUser()));
     }
 
     private static boolean canSeeAssignments() {

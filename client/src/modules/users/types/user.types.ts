@@ -9,7 +9,9 @@ export interface User {
   status: UserStatus;
   mustChangePassword: boolean;
   lastLoginAt: string | null;
+  /** When a temporary sign-in lockout ends; null when none is in force. */
   lockedUntil: string | null;
+  locked: boolean;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -19,6 +21,8 @@ export interface UserFilters {
   q?: string;
   roleId?: string;
   status?: UserStatus | "";
+  /** true: only accounts under a sign-in lockout. */
+  locked?: boolean;
   page: number;
   size: number;
   sort?: string;
@@ -46,9 +50,22 @@ export interface UserPermissions {
   editable: boolean;
   modules: ModulePermission[];
   actions: string[];
+  /** Modules (and granted actions) that differ from the role default. */
+  differsFromRole: string[];
 }
 
 export interface PermissionDraft {
   modules: ModulePermission[];
   actions: string[];
+}
+
+/** What saving a proposed matrix would change (POST /users/{id}/permissions/preview; nothing is saved). */
+export interface PermissionPreview {
+  userId: string;
+  changed: boolean;
+  granted: string[];
+  revoked: string[];
+  scopeChanges: { moduleCode: string; from: string | null; to: string | null }[];
+  effective: string[];
+  differsFromRole: string[];
 }

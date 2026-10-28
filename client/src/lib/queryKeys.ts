@@ -6,11 +6,13 @@
 export const queryKeys = {
   modules: ["modules"] as const,
   roles: ["roles"] as const,
+  rolePermissions: (id: string) => ["roles", id, "permissions"] as const,
   users: {
     all: ["users"] as const,
     list: (filters: Record<string, unknown>) => ["users", "list", filters] as const,
     detail: (id: string) => ["users", id] as const,
     permissions: (id: string) => ["users", id, "permissions"] as const,
+    activity: (id: string, page: number) => ["users", id, "activity", page] as const,
   },
   partners: {
     all: ["partners"] as const,
@@ -91,10 +93,18 @@ export const queryKeys = {
     partnerOptions: (q: string) => ["reports", "partner-options", q] as const,
   },
   settings: {
+    all: ["settings"] as const,
     gstRegistration: ["settings", "gst-registration"] as const,
+    company: ["settings", "company"] as const,
+    tiers: ["settings", "tiers"] as const,
+    numbering: ["settings", "numbering"] as const,
+    security: ["settings", "security"] as const,
+    controls: ["settings", "controls"] as const,
   },
   auditLogs: {
     all: ["audit-logs"] as const,
     list: (filters: Record<string, unknown>) => ["audit-logs", "list", filters] as const,
+    catalog: ["audit-logs", "catalog"] as const,
+    actors: (q: string) => ["audit-logs", "actors", q] as const,
   },
 };

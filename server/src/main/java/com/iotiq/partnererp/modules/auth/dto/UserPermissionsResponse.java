@@ -9,7 +9,10 @@ import java.util.UUID;
  *
  * @param modules one entry per module, in catalogue order (read=false for no access)
  * @param actions granted module-specific action codes
+ * @param differsFromRole modules (and granted actions, as {@code MODULE:ACTION}) that differ from the role's default
+ *                        permissions, i.e. the user's overrides
  */
 public record UserPermissionsResponse(UUID userId, RoleRef role, boolean superAdmin, boolean editable,
-                                      List<ModulePermissionDto> modules, List<String> actions) {
+                                      List<ModulePermissionDto> modules, List<String> actions,
+                                      List<String> differsFromRole) {
 }

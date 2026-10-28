@@ -30,7 +30,7 @@ public class DocumentNumberService {
     public static final String PAYOUT = "PO";
     /** Partner adjustments, manual and reversal alike (Phase 11). */
     public static final String ADJUSTMENT = "ADJ";
-    static final int MAX = 999_999;
+    public static final int MAX = 999_999;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;

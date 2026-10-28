@@ -47,6 +47,22 @@ class ReportPeriodTest {
     }
 
     @Test
+    void calendarYearPresetsRunJanuaryToDecember() {
+        ReportPeriod thisYear = preset(Preset.THIS_YEAR);
+        assertThat(thisYear.from()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(thisYear.to()).isEqualTo(TODAY);
+        assertThat(thisYear.granularity()).isEqualTo(Granularity.MONTH);
+        ReportPeriod lastYear = preset(Preset.LAST_YEAR);
+        assertThat(lastYear.from()).isEqualTo(LocalDate.of(2025, 1, 1));
+        assertThat(lastYear.to()).isEqualTo(LocalDate.of(2025, 12, 31));
+        assertThat(lastYear.previousTo()).isEqualTo(LocalDate.of(2024, 12, 31));
+        assertThat(lastYear.days()).isEqualTo(365);
+        // On 1 January "this year" is one day, unlike the financial year.
+        ReportPeriod newYear = ReportPeriod.resolve(Preset.THIS_YEAR, null, null, LocalDate.of(2027, 1, 1), Preset.THIS_FY);
+        assertThat(newYear.days()).isEqualTo(1);
+    }
+
+    @Test
     void thePreviousPeriodHasTheSameLengthAndEndsTheDayBefore() {
         ReportPeriod p = ReportPeriod.resolve(null, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), TODAY, Preset.THIS_FY);
         assertThat(p.preset()).isEqualTo(Preset.CUSTOM);

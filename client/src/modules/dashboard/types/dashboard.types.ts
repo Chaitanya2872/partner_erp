@@ -1,7 +1,7 @@
 /** Phase 12 dashboard payloads (`/api/v1/dashboard/*`). Amounts arrive as decimal strings, rounded to 2 dp by the server. */
 export type Money = number | string;
 
-export type PeriodPreset = "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS" | "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_FY" | "CUSTOM";
+export type PeriodPreset = "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS" | "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_FY" | "THIS_YEAR" | "LAST_YEAR" | "CUSTOM";
 
 /** Preset plus the custom range; dates are Asia/Kolkata business dates, both ends inclusive. */
 export interface PeriodFilter {

@@ -8,9 +8,10 @@ import { bucketLabel, foldSlices, formatValue, hasAmounts, num, type SliceData, 
 
 /*
  * Phase 12 charts on Recharts (ADR-12). Colours come only from the --chart-* tokens so both themes stay legible.
- * The full five-token palette is not safe for colour-vision deficiencies (DECISIONS.md §M), so identity is never
- * colour alone: two-series lines pair --chart-1 (solid) with --chart-2 (dashed), multi-category charts carry a
- * legend with labels and values, and every chart can switch to a table. Tooltips show only the plotted values.
+ * The five tokens pass the colour-vision and separation checks in both themes (Phase 13, M-1). Three light-theme
+ * tokens are below 3:1 against the surface, so identity is still never colour alone: two-series lines pair
+ * --chart-1 (solid) with --chart-2 (dashed), multi-category charts carry a legend with labels and values, and every
+ * chart can switch to a table. Tooltips show only the plotted values.
  * Animation is off: figures appear in place and nothing moves for users who prefer reduced motion.
  */
 

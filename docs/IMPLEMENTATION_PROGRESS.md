@@ -17,7 +17,7 @@ Statuses: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `COMPLETED`
 | 10 | Payment management | COMPLETED (approved, commit `8a6a024`) | 2026-10-26 | 2026-10-26 |
 | 11 | Partner payouts | COMPLETED, fully verified (conditionally approved; commit `6cedf2f`, docs follow-up committed separately) | 2026-10-26 | 2026-10-27 |
 | 12 | Dashboard, analytics & reports | COMPLETED (awaiting review; see the Phase 12 commit) | 2026-10-27 | 2026-10-27 |
-| 13 | Settings & administration | NOT_STARTED | — | — |
+| 13 | Settings & administration | COMPLETED (verified 2026-10-28; awaiting review; see the Phase 13 commit) | 2026-10-27 | 2026-10-28 |
 | 14 | End-to-end testing & QA | NOT_STARTED | — | — |
 | 15 | Production preparation | NOT_STARTED | — | — |
 
@@ -1258,3 +1258,179 @@ Phase 12, dashboard and reports, after your approval. Not started.
 
 ### Next phase
 Phase 13, settings and administration, after your approval. Not started.
+
+## Phase 13: Settings & administration
+
+- **Status:** COMPLETED, awaiting your review. Development was accepted for verification on 2026-10-27. **Verification passed on 2026-10-28**: full backend regression, final frontend run and browser checks (see "Verification" below).
+- **Where things are documented:**
+  - Gap analysis, permissions, decisions P13-01 to P13-22, Phase 12 follow-ups, pending decisions P13-PD1 to PD5: DECISIONS.md §N.
+  - API: API_DESIGN.md §3.12.
+  - Schema: DATABASE_DESIGN.md §14 (V20).
+- **Dates:** started 2026-10-27; development complete 2026-10-27; verified 2026-10-28.
+
+### Status legend
+- **Implemented:** the code is written.
+- **Reviewed:** a static review of the code, contracts, validation and permissions was done.
+- **Tested:** automated tests ran and passed in the full regression (2026-10-28).
+- **Browser:** checked on 8091 / 5181 / `partner_erp_test` (2026-10-28). "API" means checked against the running server with a script; "IT only" means covered by the integration tests, not repeated by hand.
+
+### Delivered
+
+| Area | What | Implemented | Reviewed | Tested | Browser |
+|---|---|---|---|---|---|
+| Settings hub | `/settings` with nine tabs, the open tab kept in the URL (`?section=`) | ✓ | ✓ | Frontend (Settings.test) | ✓ all nine tabs |
+| Company | Contact details; GST registration (P9, reused); branding notice (P13-PD1) | ✓ | ✓ | Backend IT, frontend | ✓ (+ API: 409 on stale version, range checks) |
+| Documents | Estimate validity, invoice due days, default terms; read-only numbering | ✓ | ✓ | Backend IT, frontend | ✓ |
+| Tax & GST | Default GST %; read-only treatment and blocked scenarios (P9 unchanged) | ✓ | ✓ | Frontend | ✓ (+ API: GST > 100 refused) |
+| TDS | P11 card reused unchanged (draft, confirmation by a second user, no preset statutory values) | Reused | ✓ | P11 tests (incl. separation of duties) | ✓ renders; separation of duties IT only |
+| Tiers & commission | Four tiers editable together (Settings write + Manage settings), forward-only; lead protection; clawback shown as not applied | ✓ | ✓ | Backend IT (incl. snapshot immutability, concurrency), frontend | ✓ edit, validation, confirm, revert; snapshots unchanged |
+| Preferences | Lead SLA targets (live-read), marked as placeholders | ✓ | ✓ | Backend IT, frontend | ✓ |
+| Approvals | Read-only list of enforced controls (incl. L-8) | ✓ | ✓ | Backend IT, frontend | ✓ |
+| Security | Read-only password, lockout and session policy; locked-account count linking to the user list | ✓ | ✓ | Backend IT, frontend | ✓ (no secrets in the response) |
+| Users | `locked` filter (fixes the old "Locked" status filter, which never matched); unlock; administrator password reset (forced change, every session revoked); account activity (IP hidden from non-auditors) | ✓ | ✓ | Backend IT, frontend | ✓ |
+| Roles | Role default permissions page (modules only), Super Admin only, versioned, audited, never pushed to existing accounts | ✓ | ✓ | Backend IT, frontend | ✓ (change, audit, existing accounts unchanged, revert) |
+| Permissions | Server preview before every save; differences from the role marked; "Reset to role defaults" (saves only after preview) | ✓ | ✓ | Backend IT, frontend | ✓ |
+| Audit logs | Catalogue-driven module and action filters, metadata search, actor lookup, audited CSV export (`AUDIT_LOGS:EXPORT`), V20 append-only trigger | ✓ | ✓ | Backend IT, frontend | ✓ (+ DB: V20 refuses UPDATE, DELETE, TRUNCATE) |
+| Phase 12 M-1 | Chart palette replaced by one that passes the validator in light and dark | ✓ | ✓ | Validator run | ✓ light and dark |
+| Phase 12 M-3 | `THIS_YEAR` / `LAST_YEAR` presets (server and client) | ✓ | ✓ | ReportPeriodTest, DashboardApiIT | ✓ 01 Jan–today; 01 Jan–31 Dec 2025 |
+| Phase 12 M-5 | "Collected to invoiced (indicative)" wording | ✓ | ✓ | — | ✓ Finance tab |
+| Phase 12 M-2 | SELF/TEAM analytics stay fail-closed (D-30) | Unchanged | ✓ | P12 tests | IT only |
+| Zod advisory | `zod` 4.6.5 → 4.6.7 (patch; GHSA-mrhx-c7xc-m3w5 fixed in 4.6.6) | ✓ | ✓ | Frontend suite, `npm audit` 0 | — |
+
+### Defects found and fixed during development
+1. **Users "Locked" filter matched nothing.** A lockout sets `locked_until` and leaves the status ACTIVE. The filter now uses `locked=true`.
+2. **Stale audit action list.** The viewer's hard-coded list stopped at Phase 8. It now comes from the server catalogue.
+3. **Stale role versions after saving role defaults.** Saving defaults increments `roles.version`, but the cached role list wasn't refreshed, so an immediate rename would hit a spurious 409. The whole roles cache is now invalidated.
+4. **Stale invalid-preset example in a Phase 12 test.** `DashboardApiIT.invalidPeriodsAreRefused` used `LAST_YEAR` as an unknown preset, which M-3 made valid. It now uses `NEXT_YEAR`, which still yields 400 because it is not a `ReportPeriod.Preset` value.
+5. **Lint.** Field-set constants were moved out of `CompanySettings.tsx` into `lib/companyFields.ts`, so component files only export components (fast-refresh warnings).
+
+### Security review (static, 2026-10-27)
+- Every new endpoint has `@PreAuthorize`, plus service checks for actions that need more than one permission (tiers and protection need Manage settings; permissions and role defaults need Super Admin).
+- **Escalation is prevented.**
+  - Nobody can unlock themselves, reset their own password through the admin endpoint, change their own permissions or preview a change to them.
+  - Admins manage User accounts only, and a Super Admin's permissions are fixed.
+  - Role defaults are validated against what the role may hold and never change existing accounts.
+  - The last-active-Super-Admin rule is unchanged.
+- **Password reset** applies the policy and stores only a hash. The audit entry records no password, and `toString()` hides it. `sessionService.revokeAll` increments the session version, so existing access tokens fail on the next request, not only refresh tokens.
+- **Audit log.** Search never matches recorded values, and LIKE wildcards are escaped. B2C product keys are hidden without `VIEW_INTERNAL_B2C`, while estimate and invoice audit snapshots are partner-safe by design. PAN, bank and GSTIN are stored masked. Responses and export are `no-store`, export is capped at 10,000 rows, and V20 makes the table append-only.
+- **Schema.** Decimal scales match the columns: percentages `numeric(6,3)`, tier minimum `numeric(14,2)`, which equals the 999,999,999,999.99 bound.
+
+### Files
+- **Server:**
+  - `modules/settings` (controller, DTOs, mapper, `SettingService`, `AdministrationInfoService`, `PartnerTierRepository`);
+  - `modules/users` (controller, `UserService`, `ResetPasswordRequest`, `UserVersionRequest`, `UserResponse`);
+  - `modules/auth` (`PermissionService`, `PermissionPreviewResponse`, `UserPermissionsResponse`, `UserRepository`);
+  - `modules/roles` (controller, `RolePermissionService`, DTOs);
+  - `modules/audit` (controller, `AuditActions`, `AuditCatalog`, `AuditLogQueryService`);
+  - `reports/service/ReportPeriod`, `sequences/service/DocumentNumberService` (MAX made public);
+  - `V20__audit_append_only.sql`.
+- **Server tests:**
+  - New: `integration/settings/SettingsAdministrationIT`, `integration/security/{UserAdministrationIT, AuditViewerIT}`, `unit/security/AuditCatalogTest`.
+  - Updated: `ReportPeriodTest`, `MigrationAndSeedIT` (V20), `DashboardApiIT` (`NEXT_YEAR`).
+- **Client:**
+  - `modules/settings/{pages/SettingsPage, pages/RolePermissionsPage, components/(CompanySettings, PartnerTierSettings, AdministrationCards, RoleManagement), lib/companyFields, hooks/useSettings, services, types}`;
+  - `modules/users/{pages/(UsersPage, UserPermissionsPage), components/(PermissionMatrix, ResetPasswordDialog, UserActivityDialog), services, types}`;
+  - `modules/audit/{pages/AuditLogsPage, services/auditService, types}`;
+  - `modules/dashboard/{hooks/usePeriod, types, components/AnalyticsTabs}`;
+  - `components/charts/Charts.tsx`, `styles/globals.css`, `lib/queryKeys`, `app/router` (`/roles/:id/permissions`);
+  - `package.json` and lock (`zod` 4.6.7).
+- **Client tests:** new `Settings.test.tsx` (12), `Roles.test.tsx` (5) and `AuditLogs.test.tsx` (5); `UserManagement.test.tsx` updated (12).
+
+### Verification (2026-10-28)
+All other development servers were stopped first, and each step ran on its own.
+
+**Backend.** Full `mvn -o -B verify` on a fresh throwaway `partner_erp_p13_test` (dropped afterwards): **104 unit + 226 integration tests, 0 failures, 0 errors, BUILD SUCCESS** (5 min 35 s).
+- Includes `DashboardApiIT` 10, `SettingsAdministrationIT` 7, `UserAdministrationIT` 6, `AuditViewerIT` 4, `MigrationAndSeedIT` 8, `ReportPeriodTest` 8, `AuditCatalogTest` 1.
+- An earlier attempt (2026-10-27) was stopped by the host for low memory and exposed defect 4.
+
+**Frontend.**
+- `npm test -- --maxWorkers=4`: **28 files, 248 tests passed.** The first run had 3 timeouts in two older files (Leads 2, Dashboard 1); both files passed alone (24/24) and the whole suite passed on the re-run.
+- `npm run lint`: 0 errors, 4 existing fast-refresh warnings (`providers.tsx`, `router.tsx`, `AuthContext.tsx`, `ThemeContext.tsx`); none from Phase 13 files.
+- `npm run build`: OK.
+
+**API checks** against the running server: 57/57 passed. Accounts: Super Admin, a test Admin granted user management, Settings write and audit read by a Super Admin, and a new read-only User.
+- **User role:** 403 on every settings, users, roles and audit endpoint, including the export and the actor lookup.
+- **Escalation, with an Admin that holds Manage users:** each of these is refused with `403 FORBIDDEN_OPERATION`.
+  - Unlocking or resetting itself.
+  - Resetting, unlocking or deactivating a Super Admin or another Admin.
+  - Promoting a User to Admin or Super Admin.
+- **Admin, other refusals:**
+  - Changing its own permissions (403).
+  - Being given Role Management (`400`, "cannot be granted to the ADMIN role").
+  - Editing tiers or lead protection without Manage settings (403).
+  - Exporting the audit log without Export (403).
+- **Super Admin:**
+  - previewing its own permission change → `SELF_PERMISSION_CHANGE`;
+  - editing the Super Admin role defaults → `SUPER_ADMIN_PERMISSIONS_FIXED`;
+  - deactivating itself → refused.
+  - The last-active-Super-Admin rule was not exercised by hand (42 active Super Admins in the test database); it is covered by `UserAdministrationIT`.
+- **Lockout:** locks after the configured failures (`423 ACCOUNT_LOCKED`). The `locked=true` filter lists the account. Unlock works and is idempotent, and a stale version gives 409.
+- **Password reset:**
+  - a weak temporary password is refused;
+  - after a reset the old access token gets **401 on the next request**, and the next sign-in must change the password;
+  - neither the activity view nor the audit log contains the password.
+- **Audit:**
+  - search works by action and actor and never matches recorded values;
+  - `%` and `_` are literal, and `q` over 100 characters gives 400;
+  - list and export are `no-store`;
+  - the CSV export works and is itself audited;
+  - there is no full PAN or bank number in the latest 200 entries or in the export.
+- **Database:** V20 refuses `UPDATE`, `DELETE` and `TRUNCATE` on `audit_logs`, each in a rolled-back transaction.
+
+**Browser checks** on 8091 / 5181 / `partner_erp_test`:
+- **Settings:** all nine tabs render with content as Super Admin.
+- **Tiers:**
+  - A minimum below the previous tier is refused in the form.
+  - The confirm dialog explains forward-only. Preferred went 10% → 10.5% and back to 10%: both changes are audited with the changed field only.
+  - Checksums of every `partner_payouts` and `payout_lines` commission snapshot (8 lines) and of all 24 partners' `tier_id` were **identical** before and after. Only the tier row changed.
+- **Users:**
+  - The "Locked out" filter lists the locked account.
+  - Unlock dialog → the account leaves the list.
+  - Reset-password dialog: a weak password is refused inline; a valid one shows a toast and forces a change at sign-in.
+  - The Activity dialog lists events, with IP addresses for the Super Admin.
+- **Permissions:**
+  - granting Leads without a scope is refused;
+  - the preview shows "Gains Leads: Read" and the module is then marked "Differs from role";
+  - "Reset to role defaults" previews "Loses Leads: Read" and the account then matches its role.
+- **Role defaults:**
+  - Super Admin changed the User defaults: the dialog shows the 2 existing accounts are unaffected, and the change is audited `ROLE_PERMISSIONS_CHANGED`.
+  - Both existing User accounts kept their permissions.
+  - Editing the role straight afterwards had no spurious 409 (defect 3 verified). The defaults and the description were restored.
+- **Audit:**
+  - choosing a module narrows the action list;
+  - search finds `ROLE_PERMISSIONS`;
+  - Export CSV from the page is recorded as `AUDIT_LOG_EXPORTED`.
+- **Admin view:**
+  - no Export button and no tier Edit;
+  - document defaults are editable;
+  - Reset and Deactivate appear only on User rows;
+  - no Role Management in the navigation.
+- **User view:**
+  - the navigation shows Dashboard and Products only;
+  - `/settings`, `/users`, `/roles`, `/roles/:id/permissions` and `/audit-logs` show "You don't have access to this page";
+  - the dashboard shows only product alerts.
+- **Phase 12 follow-ups:**
+  - M-1: the palette reads clearly on the Finance charts in light and dark.
+  - M-3: `THIS_YEAR` covers 01 Jan 2026 to today, and `LAST_YEAR` covers 01 Jan to 31 Dec 2025.
+  - M-5: "Collected to invoiced (indicative)" on the Finance tab.
+- **Layout:**
+  - 390 px, dark: all nine Settings tabs, Users, user permissions, role defaults and Audit logs have no page-level horizontal scroll. The tab bar and wide tables scroll inside their own containers.
+  - There were no console errors.
+
+**Test data left in `partner_erp_test`** (test accounts only):
+- two `p13-user-*` User accounts and one `p13-admin-*` Admin with the grants above;
+- Preferred tier at version 2 and User role defaults at version 4, both with their original values;
+- the audit entries for all of the above.
+
+The existing fixture accounts' permissions were not changed.
+
+### Observations (not fixed; for your review)
+- **Users table at 1440 px.** With the Phase 13 actions (Activity, Unlock, Reset password, Deactivate), a User row is wider than the card, so the last actions need a sideways scroll inside the table. Nothing is unreachable, and the page itself doesn't scroll.
+- **Audit masking is over-cautious.** The audit masker shows `PASSWORD_RESET`'s `mustChangePassword` flag as `[REDACTED]`, because it masks any key containing "password". No secret is exposed; the boolean is just hidden.
+
+### Known limitations
+Branding (P13-PD1), email or self-service password reset (P13-PD2), the real SLA targets (P13-PD3), pushing role defaults to existing accounts (P13-PD4), and clawback and payout days (L-3, L-4) are not implemented. Scoped analytics stay restricted (M-2). Finance items L-1 to L-8 are unchanged.
+- **Development database.** `partner_erp` applies V16–V20 on its next restart with this build.
+
+### Next phase
+Phase 14, end-to-end testing and QA, after your approval. Not started.

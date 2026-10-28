@@ -9,6 +9,8 @@ export const PERIOD_PRESETS: { value: PeriodPreset; label: string }[] = [
   { value: "LAST_MONTH", label: "Last month" },
   { value: "THIS_QUARTER", label: "This quarter" },
   { value: "THIS_FY", label: "This financial year" },
+  { value: "THIS_YEAR", label: "This calendar year" },
+  { value: "LAST_YEAR", label: "Last calendar year (Jan–Dec)" },
   { value: "CUSTOM", label: "Custom range" },
 ];
 

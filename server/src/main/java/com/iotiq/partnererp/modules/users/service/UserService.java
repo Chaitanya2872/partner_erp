@@ -3,8 +3,11 @@ package com.iotiq.partnererp.modules.users.service;
 import com.iotiq.partnererp.common.exception.BusinessException;
 import com.iotiq.partnererp.common.exception.ResourceNotFoundException;
 import com.iotiq.partnererp.common.exception.ValidationException;
+import com.iotiq.partnererp.modules.audit.dto.AuditLogResponse;
 import com.iotiq.partnererp.modules.audit.service.AuditActions;
+import com.iotiq.partnererp.modules.audit.service.AuditLogQueryService;
 import com.iotiq.partnererp.modules.audit.service.AuditService;
+import com.iotiq.partnererp.modules.auth.dto.PermissionPreviewResponse;
 import com.iotiq.partnererp.modules.auth.dto.UpdateUserPermissionsRequest;
 import com.iotiq.partnererp.modules.auth.dto.UserPermissionsResponse;
 import com.iotiq.partnererp.modules.auth.entity.Role;
@@ -17,9 +20,11 @@ import com.iotiq.partnererp.modules.auth.service.PasswordPolicy;
 import com.iotiq.partnererp.modules.auth.service.PermissionService;
 import com.iotiq.partnererp.modules.auth.service.SessionService;
 import com.iotiq.partnererp.modules.users.dto.CreateUserRequest;
+import com.iotiq.partnererp.modules.users.dto.ResetPasswordRequest;
 import com.iotiq.partnererp.modules.users.dto.UpdateUserRequest;
 import com.iotiq.partnererp.modules.users.dto.UpdateUserStatusRequest;
 import com.iotiq.partnererp.modules.users.dto.UserResponse;
+import com.iotiq.partnererp.modules.users.dto.UserVersionRequest;
 import com.iotiq.partnererp.security.AuthenticatedUser;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
@@ -31,6 +36,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -41,8 +48,9 @@ import java.util.UUID;
  * User account management.
  *
  * <p>Rules: a non-Super-Admin may only create and manage USER accounts and may not change roles; nobody
- * changes their own role or status; a role change resets the account's permissions to the new role's
- * template; the last active Super Admin cannot be deactivated or demoted.
+ * changes their own role or status, unlocks themselves or resets their own password (they use change password); a
+ * role change resets the account's permissions to the new role's template; the last active Super Admin cannot be
+ * deactivated or demoted. Responses never carry password hashes or tokens.
  */
 @Service
 public class UserService {
@@ -54,10 +62,13 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
     private final AuditService auditService;
+    private final AuditLogQueryService auditLogQueryService;
+    private final Clock clock;
 
     public UserService(UserRepository userRepository, RoleRepository roleRepository,
                        PermissionService permissionService, SessionService sessionService,
-                       PasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy, AuditService auditService) {
+                       PasswordEncoder passwordEncoder, PasswordPolicy passwordPolicy, AuditService auditService,
+                       AuditLogQueryService auditLogQueryService, Clock clock) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.permissionService = permissionService;
@@ -65,10 +76,13 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
         this.auditService = auditService;
+        this.auditLogQueryService = auditLogQueryService;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
-    public Page<UserResponse> search(String query, UUID roleId, UserStatus status, Pageable pageable) {
+    public Page<UserResponse> search(String query, UUID roleId, UserStatus status, Boolean locked, Pageable pageable) {
+        Instant now = Instant.now(clock);
         Specification<User> spec = (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (query != null && !query.isBlank()) {
@@ -83,12 +97,18 @@ public class UserService {
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
             }
+            // A lockout is temporary: it is in force while locked_until is in the future (status stays ACTIVE).
+            if (Boolean.TRUE.equals(locked)) {
+                predicates.add(cb.greaterThan(root.get("lockedUntil"), now));
+            } else if (Boolean.FALSE.equals(locked)) {
+                predicates.add(cb.or(cb.isNull(root.get("lockedUntil")), cb.lessThanOrEqualTo(root.get("lockedUntil"), now)));
+            }
             if (cq != null && Long.class != cq.getResultType()) {
                 root.fetch("role");
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return userRepository.findAll(spec, pageable).map(UserResponse::of);
+        return userRepository.findAll(spec, pageable).map(u -> UserResponse.of(u, now));
     }
 
     @Transactional(readOnly = true)
@@ -201,6 +221,69 @@ public class UserService {
         return UserResponse.of(user);
     }
 
+    /** Clears a temporary sign-in lockout (MANAGE_USERS). Unlocking an account that isn't locked changes nothing. */
+    @Transactional
+    public UserResponse unlock(UUID id, UserVersionRequest request, AuthenticatedUser actor) {
+        User user = userRepository.findForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
+        checkVersion(user, request.version());
+        if (actor.id().equals(user.getId())) {
+            throw forbidden("You cannot unlock your own account.");
+        }
+        assertCanManage(actor, user);
+        Instant now = Instant.now(clock);
+        Instant lockedUntil = user.getLockedUntil();
+        if (lockedUntil == null || !lockedUntil.isAfter(now)) {
+            return UserResponse.of(user, now);
+        }
+        user.setLockedUntil(null);
+        user.setFailedLoginCount(0);
+        userRepository.saveAndFlush(user);
+        auditService.record(AuditActions.ACCOUNT_UNLOCKED, AuditActions.ENTITY_USER, user.getId(),
+                AuditService.values("lockedUntil", lockedUntil), AuditService.values("lockedUntil", null));
+        return UserResponse.of(user, now);
+    }
+
+    /**
+     * Sets a temporary password that must be changed at the next sign-in (MANAGE_USERS), clears any lockout and revokes
+     * every session. Not for one's own account (use change password). Nothing about the password is audited.
+     */
+    @Transactional
+    public UserResponse resetPassword(UUID id, ResetPasswordRequest request, AuthenticatedUser actor) {
+        User user = userRepository.findForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
+        checkVersion(user, request.version());
+        if (actor.id().equals(user.getId())) {
+            throw forbidden("Use Change password for your own account.");
+        }
+        assertCanManage(actor, user);
+        passwordPolicy.validate("temporaryPassword", request.temporaryPassword(), user.getEmail());
+        Instant now = Instant.now(clock);
+        user.setPasswordHash(passwordEncoder.encode(request.temporaryPassword()));
+        user.setPasswordChangedAt(now);
+        user.setMustChangePassword(true);
+        user.setLockedUntil(null);
+        user.setFailedLoginCount(0);
+        sessionService.revokeAll(user);
+        userRepository.saveAndFlush(user);
+        auditService.record(AuditActions.PASSWORD_RESET, AuditActions.ENTITY_USER, user.getId(), null,
+                AuditService.values("mustChangePassword", true, "sessionsRevoked", true));
+        return UserResponse.of(user, now);
+    }
+
+    /**
+     * The account's own history (USER_MANAGEMENT:READ): sign-ins, lockouts, password changes and resets, and changes to
+     * its role, status and permissions. What the user did elsewhere is in the audit log (AUDIT_LOGS:READ). IP addresses
+     * are shown only to audit readers.
+     */
+    @Transactional(readOnly = true)
+    public Page<AuditLogResponse> activity(UUID id, Pageable pageable, AuthenticatedUser actor) {
+        load(id);
+        boolean auditReader = actor.permissions().canRead("AUDIT_LOGS");
+        return auditLogQueryService.search(AuditLogQueryService.Filter.entity(AuditActions.ENTITY_USER, id), pageable, false)
+                .map(e -> auditReader ? e : new AuditLogResponse(e.id(), e.createdAt(), e.userId(), e.actorName(),
+                        e.actorEmail(), e.action(), e.entityType(), e.entityId(), e.oldValues(), e.newValues(), null,
+                        e.requestId()));
+    }
+
     @Transactional(readOnly = true)
     public UserPermissionsResponse permissions(UUID id, AuthenticatedUser actor) {
         return permissionService.view(load(id), actor);
@@ -210,6 +293,12 @@ public class UserService {
     public UserPermissionsResponse replacePermissions(UUID id, UpdateUserPermissionsRequest request,
                                                       AuthenticatedUser actor) {
         return permissionService.replace(id, request, actor);
+    }
+
+    @Transactional(readOnly = true)
+    public PermissionPreviewResponse previewPermissions(UUID id, UpdateUserPermissionsRequest request,
+                                                        AuthenticatedUser actor) {
+        return permissionService.preview(id, request, actor);
     }
 
     private User load(UUID id) {

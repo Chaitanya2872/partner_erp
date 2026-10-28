@@ -1,74 +1,28 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Eye, FilterX } from "lucide-react";
-import { apiPage } from "@/services/api";
+import { Download, Eye, FilterX } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebounce } from "@/hooks/useDebounce";
 import { DataTable, type ColumnDef } from "@/components/tables/DataTable";
 import { EmptyState } from "@/components/feedback/States";
-import { PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
+import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
 import { DescriptionList, DetailRow } from "@/components/data/DataDisplay";
 import { DateInput } from "@/components/forms/inputs";
+import { SearchInput } from "@/components/forms/SearchInput";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { formatDateTime, humanizeCode, shortId } from "@/utils/format";
+import { saveTextFile } from "@/utils/download";
+import { errorMessage } from "@/lib/errors";
 import { queryKeys } from "@/lib/queryKeys";
-import { userService } from "@/modules/users/services/userService";
+import { auditService } from "../services/auditService";
+import type { AuditActor, AuditLog } from "../types/audit.types";
 
-interface AuditLog {
-  id: string;
-  createdAt: string;
-  userId: string | null;
-  actorName: string | null;
-  actorEmail: string | null;
-  action: string;
-  entityType: string;
-  entityId: string | null;
-  oldValues: unknown;
-  newValues: unknown;
-  ipAddress: string | null;
-  requestId: string | null;
-}
-
-/** Actions the server records (AuditAction). */
-const ACTIONS = [
-  "LOGIN_SUCCEEDED",
-  "LOGIN_FAILED",
-  "ACCOUNT_LOCKED",
-  "LOGOUT",
-  "REFRESH_TOKEN_REUSED",
-  "PASSWORD_CHANGED",
-  "SUPER_ADMIN_BOOTSTRAPPED",
-  "USER_CREATED",
-  "USER_UPDATED",
-  "USER_ROLE_CHANGED",
-  "USER_STATUS_CHANGED",
-  "PERMISSIONS_CHANGED",
-  "ROLE_UPDATED",
-  "PARTNER_CREATED",
-  "PARTNER_UPDATED",
-  "PARTNER_STATUS_CHANGED",
-  "PARTNER_TIER_REVIEWED",
-  "LEAD_CREATED",
-  "LEAD_UPDATED",
-  "LEAD_STAGE_CHANGED",
-  "LEAD_ACKNOWLEDGED",
-  "LEAD_DELETED",
-  "PRODUCT_CREATED",
-  "PRODUCT_UPDATED",
-  "PRODUCT_STATUS_CHANGED",
-  "PRODUCT_DELETED",
-  "PRODUCT_IMPORTED",
-  "PRODUCT_IMPORT_COMPLETED",
-  "ESTIMATE_CREATED",
-  "ESTIMATE_UPDATED",
-  "ESTIMATE_STATUS_CHANGED",
-  "ESTIMATE_DELETED",
-];
-
-const SECURITY_ACTIONS = new Set(["LOGIN_FAILED", "ACCOUNT_LOCKED", "REFRESH_TOKEN_REUSED"]);
+const SECURITY_ACTIONS = new Set(["LOGIN_FAILED", "ACCOUNT_LOCKED", "REFRESH_TOKEN_REUSED", "PASSWORD_RESET", "ACCOUNT_UNLOCKED"]);
 
 /** Local calendar day boundaries as instants for the API's from/to filters. */
 function dayStart(date: string): string | undefined {
@@ -78,49 +32,80 @@ function dayEnd(date: string): string | undefined {
   return date ? new Date(`${date}T23:59:59.999`).toISOString() : undefined;
 }
 
-/** Read-only audit trail (AUDIT_LOGS:READ). Secrets are redacted by the server before they are stored. */
+/**
+ * Read-only audit trail (Audit logs read). The module and action lists come from the server, the search covers the
+ * action, target, acting user and request id (never the recorded values), and the CSV export needs Audit logs export
+ * and is itself recorded. Secrets are redacted before they are stored and B2C pricing is hidden by the server.
+ */
 export function AuditLogsPage() {
-  const { canRead } = useAuth();
+  const { canPerform } = useAuth();
+  const [module, setModule] = useState("");
   const [action, setAction] = useState("");
-  const [entityType, setEntityType] = useState("");
   const [userId, setUserId] = useState("");
+  const [actor, setActor] = useState<AuditActor | null>(null);
+  const [actorQuery, setActorQuery] = useState("");
+  const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(50);
   const [selected, setSelected] = useState<AuditLog | null>(null);
-  const canPickActor = canRead("USER_MANAGEMENT");
+  const [exporting, setExporting] = useState(false);
+  const q = useDebounce(search.trim());
+  const actorQ = useDebounce(actorQuery.trim());
+  const canExport = canPerform("AUDIT_LOGS", "EXPORT");
 
-  const filters = { action, entityType, userId, from: dayStart(from), to: dayEnd(to), page, size };
+  const criteria = { module, action, userId, q, from: dayStart(from), to: dayEnd(to) };
+  const filters = { ...criteria, page, size };
   const logs = useQuery({
     queryKey: queryKeys.auditLogs.list(filters),
-    queryFn: ({ signal }) => apiPage<AuditLog>("/audit-logs", filters, signal),
+    queryFn: ({ signal }) => auditService.list(filters, signal),
+    placeholderData: keepPreviousData,
+  });
+  const catalog = useQuery({ queryKey: queryKeys.auditLogs.catalog, queryFn: ({ signal }) => auditService.catalog(signal), staleTime: Infinity });
+  const actors = useQuery({
+    queryKey: queryKeys.auditLogs.actors(actorQ),
+    queryFn: ({ signal }) => auditService.actors(actorQ, signal),
     placeholderData: keepPreviousData,
   });
 
-  const actors = useQuery({
-    queryKey: queryKeys.users.list({ picker: true }),
-    queryFn: ({ signal }) => userService.list({ page: 0, size: 200, sort: "fullName,asc" }, signal),
-    enabled: canPickActor,
-    staleTime: 5 * 60_000,
-  });
-  const actorOptions = useMemo(
-    () => (actors.data?.content ?? []).map((u) => ({ value: u.id, label: u.fullName, description: u.email })),
-    [actors.data],
-  );
+  const actions = useMemo(() => {
+    const modules = catalog.data ?? [];
+    const list = module ? (modules.find((m) => m.code === module)?.actions ?? []) : modules.flatMap((m) => m.actions);
+    return [...new Set(list)].sort((a, b) => humanizeCode(a).localeCompare(humanizeCode(b)));
+  }, [catalog.data, module]);
+  const actorOptions = useMemo(() => {
+    const found = actors.data ?? [];
+    const all = actor && !found.some((a) => a.id === actor.id) ? [actor, ...found] : found;
+    return all.map((a) => ({ value: a.id, label: a.fullName, description: a.email }));
+  }, [actors.data, actor]);
 
   const set = (setter: (value: string) => void) => (value: string) => {
     setter(value);
     setPage(0);
   };
-  const filtered = !!(action || entityType || userId || from || to);
+  const filtered = !!(module || action || userId || q || from || to);
   const clear = () => {
+    setModule("");
     setAction("");
-    setEntityType("");
     setUserId("");
+    setActor(null);
+    setSearch("");
     setFrom("");
     setTo("");
     setPage(0);
+  };
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const { text, filename } = await auditService.exportCsv(criteria);
+      saveTextFile(text, filename);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const columns: ColumnDef<AuditLog>[] = [
@@ -163,7 +148,19 @@ export function AuditLogsPage() {
 
   return (
     <PageContainer>
-      <PageHeader title="Audit logs" description="Security and administration events, newest first. Passwords and tokens are never recorded." />
+      <PageHeader
+        title="Audit logs"
+        description="Security, administration and financial events, newest first. Passwords, tokens and full PAN or bank numbers are never recorded."
+        actions={
+          canExport ? (
+            <PageActions>
+              <Button onClick={exportCsv} loading={exporting} loadingText="Exporting…" disabled={!logs.data || logs.data.meta.totalElements === 0}>
+                <Download aria-hidden="true" /> Export CSV
+              </Button>
+            </PageActions>
+          ) : undefined
+        }
+      />
       <DataTable
         caption="Audit logs"
         itemLabel="events"
@@ -200,36 +197,54 @@ export function AuditLogsPage() {
         )}
         toolbar={
           <Toolbar label="Audit log filters" className="sm:items-end">
+            <SearchInput
+              placeholder="Search action, user or request id"
+              aria-label="Search audit logs"
+              value={search}
+              maxLength={100}
+              onValueChange={set(setSearch)}
+            />
+            <Select
+              aria-label="Filter by module"
+              value={module}
+              wrapperClassName="sm:w-40"
+              onChange={(e) => {
+                setModule(e.target.value);
+                setAction("");
+                setPage(0);
+              }}
+            >
+              <option value="">All modules</option>
+              {(catalog.data ?? []).map((m) => (
+                <option key={m.code} value={m.code}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
             <Select aria-label="Filter by action" value={action} wrapperClassName="sm:w-52" onChange={(e) => set(setAction)(e.target.value)}>
               <option value="">All actions</option>
-              {ACTIONS.map((a) => (
+              {actions.map((a) => (
                 <option key={a} value={a}>
                   {humanizeCode(a)}
                 </option>
               ))}
             </Select>
-            <Select aria-label="Filter by target" value={entityType} wrapperClassName="sm:w-36" onChange={(e) => set(setEntityType)(e.target.value)}>
-              <option value="">All targets</option>
-              <option value="USER">Users</option>
-              <option value="ROLE">Roles</option>
-              <option value="PARTNER">Partners</option>
-              <option value="LEAD">Leads</option>
-              <option value="PRODUCT">Products</option>
-              <option value="ESTIMATE">Estimates</option>
-            </Select>
-            {canPickActor ? (
-              <SearchableSelect
-                aria-label="Filter by acting user"
-                options={actorOptions}
-                value={userId}
-                onChange={set(setUserId)}
-                clearLabel="All users"
-                placeholder="All users"
-                searchPlaceholder="Search users"
-                loading={actors.isPending}
-                className="sm:w-52"
-              />
-            ) : null}
+            <SearchableSelect
+              aria-label="Filter by acting user"
+              options={actorOptions}
+              value={userId}
+              onChange={(value) => {
+                setUserId(value);
+                setActor(actorOptionsSource(actors.data, actor, value));
+                setPage(0);
+              }}
+              onQueryChange={setActorQuery}
+              clearLabel="All users"
+              placeholder="All users"
+              searchPlaceholder="Search users"
+              loading={actors.isPending}
+              className="sm:w-52"
+            />
             <div className="flex items-center gap-2">
               <DateInput id="audit-from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" aria-label="From date" />
               <span className="text-muted-foreground" aria-hidden="true">
@@ -272,6 +287,12 @@ export function AuditLogsPage() {
       </Dialog>
     </PageContainer>
   );
+}
+
+/** The chosen actor, kept so its label stays visible after the search text changes. */
+function actorOptionsSource(found: AuditActor[] | undefined, current: AuditActor | null, id: string): AuditActor | null {
+  if (!id) return null;
+  return (found ?? []).find((a) => a.id === id) ?? (current?.id === id ? current : null);
 }
 
 function JsonBlock({ title, value }: { title: string; value: unknown }) {

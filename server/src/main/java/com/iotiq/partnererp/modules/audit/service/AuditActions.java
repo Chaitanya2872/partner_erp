@@ -99,6 +99,25 @@ public final class AuditActions {
     public static final String ENTITY_SETTINGS = "SETTINGS";
     /** Supplier GST registration (state, GSTIN, legal name, address). */
     public static final String GST_REGISTRATION_UPDATED = "GST_REGISTRATION_UPDATED";
+    /** Contact details, default terms, document defaults and SLA targets (Phase 13); changed fields only. */
+    public static final String COMPANY_SETTINGS_UPDATED = "COMPANY_SETTINGS_UPDATED";
+    /** Lead protection days (Phase 13, MANAGE_SETTINGS). */
+    public static final String COMMERCIAL_SETTINGS_UPDATED = "COMMERCIAL_SETTINGS_UPDATED";
+
+    public static final String ENTITY_PARTNER_TIER = "PARTNER_TIER";
+    /** A tier's name, fee %, threshold or payout days changed (Phase 13); stored fee snapshots are not touched. */
+    public static final String PARTNER_TIER_UPDATED = "PARTNER_TIER_UPDATED";
+
+    /** A temporary sign-in lockout cleared by an administrator (Phase 13). */
+    public static final String ACCOUNT_UNLOCKED = "ACCOUNT_UNLOCKED";
+    /** An administrator set a temporary password; the user must change it at sign-in. No password is recorded. */
+    public static final String PASSWORD_RESET = "PASSWORD_RESET";
+    /** A role's default permissions (template for new accounts and role changes) changed (Phase 13). */
+    public static final String ROLE_PERMISSIONS_CHANGED = "ROLE_PERMISSIONS_CHANGED";
+
+    public static final String ENTITY_AUDIT_LOG = "AUDIT_LOG";
+    /** The audit trail was exported: the filters used and the row count, never the rows. */
+    public static final String AUDIT_LOG_EXPORTED = "AUDIT_LOG_EXPORTED";
 
     private AuditActions() {
     }

@@ -347,7 +347,7 @@ class DashboardApiIT extends ApiIntegrationTest {
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/dashboard/overview").param("from", "2010-01-01").with(bearer(sa)))
                 .andExpect(status().isBadRequest());
-        mvc.perform(get("/api/v1/dashboard/overview").param("preset", "LAST_YEAR").with(bearer(sa)))
+        mvc.perform(get("/api/v1/dashboard/overview").param("preset", "NEXT_YEAR").with(bearer(sa)))
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/dashboard/overview").param("preset", "THIS_FY").with(bearer(sa)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.period.preset").value("THIS_FY"))

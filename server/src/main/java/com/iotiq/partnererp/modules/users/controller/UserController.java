@@ -4,13 +4,17 @@ import com.iotiq.partnererp.common.constants.AppConstants;
 import com.iotiq.partnererp.common.response.ApiResponse;
 import com.iotiq.partnererp.common.response.PageResponse;
 import com.iotiq.partnererp.common.web.Pageables;
+import com.iotiq.partnererp.modules.audit.dto.AuditLogResponse;
+import com.iotiq.partnererp.modules.auth.dto.PermissionPreviewResponse;
 import com.iotiq.partnererp.modules.auth.dto.UpdateUserPermissionsRequest;
 import com.iotiq.partnererp.modules.auth.dto.UserPermissionsResponse;
 import com.iotiq.partnererp.modules.auth.entity.UserStatus;
 import com.iotiq.partnererp.modules.users.dto.CreateUserRequest;
+import com.iotiq.partnererp.modules.users.dto.ResetPasswordRequest;
 import com.iotiq.partnererp.modules.users.dto.UpdateUserRequest;
 import com.iotiq.partnererp.modules.users.dto.UpdateUserStatusRequest;
 import com.iotiq.partnererp.modules.users.dto.UserResponse;
+import com.iotiq.partnererp.modules.users.dto.UserVersionRequest;
 import com.iotiq.partnererp.modules.users.service.UserService;
 import com.iotiq.partnererp.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,16 +51,17 @@ public class UserController {
         this.userService = userService;
     }
 
-    @Operation(summary = "List users (search by name or email, filter by role and status)")
+    @Operation(summary = "List users (search by name or email, filter by role, status and lockout)")
     @GetMapping
     @PreAuthorize("hasAuthority('USER_MANAGEMENT:READ')")
     public ApiResponse<List<UserResponse>> list(@RequestParam(required = false) String q,
                                                 @RequestParam(required = false) UUID roleId,
                                                 @RequestParam(required = false) UserStatus status,
+                                                @RequestParam(required = false) Boolean locked,
                                                 @RequestParam(defaultValue = "0") int page,
                                                 @RequestParam(defaultValue = "20") int size,
                                                 @RequestParam(required = false) String sort) {
-        return PageResponse.of(userService.search(q, roleId, status,
+        return PageResponse.of(userService.search(q, roleId, status, locked,
                 Pageables.of(page, size, sort, SORTABLE, Sort.by("fullName")))).toApiResponse();
     }
 
@@ -90,11 +95,45 @@ public class UserController {
         return ApiResponse.ok(userService.updateStatus(id, request, SecurityUtils.requireCurrentUser()));
     }
 
+    @Operation(summary = "Clear a temporary sign-in lockout")
+    @PostMapping("/{id}/unlock")
+    @PreAuthorize("hasAuthority('USER_MANAGEMENT:MANAGE_USERS')")
+    public ApiResponse<UserResponse> unlock(@PathVariable UUID id, @Valid @RequestBody UserVersionRequest request) {
+        return ApiResponse.ok(userService.unlock(id, request, SecurityUtils.requireCurrentUser()));
+    }
+
+    @Operation(summary = "Set a temporary password (must be changed at sign-in; every session is revoked)")
+    @PostMapping("/{id}/password-reset")
+    @PreAuthorize("hasAuthority('USER_MANAGEMENT:MANAGE_USERS')")
+    public ApiResponse<UserResponse> resetPassword(@PathVariable UUID id,
+                                                   @Valid @RequestBody ResetPasswordRequest request) {
+        return ApiResponse.ok(userService.resetPassword(id, request, SecurityUtils.requireCurrentUser()));
+    }
+
+    @Operation(summary = "The account's history: sign-ins, lockouts, password, role, status and permission changes")
+    @GetMapping("/{id}/activity")
+    @PreAuthorize("hasAuthority('USER_MANAGEMENT:READ')")
+    public ApiResponse<List<AuditLogResponse>> activity(@PathVariable UUID id,
+                                                        @RequestParam(defaultValue = "0") int page,
+                                                        @RequestParam(defaultValue = "20") int size) {
+        return PageResponse.of(userService.activity(id,
+                Pageables.of(page, size, null, Set.of(), Sort.by(Sort.Direction.DESC, "createdAt")),
+                SecurityUtils.requireCurrentUser())).toApiResponse();
+    }
+
     @Operation(summary = "A user's module and action permissions")
     @GetMapping("/{id}/permissions")
     @PreAuthorize("hasAuthority('USER_MANAGEMENT:READ')")
     public ApiResponse<UserPermissionsResponse> permissions(@PathVariable UUID id) {
         return ApiResponse.ok(userService.permissions(id, SecurityUtils.requireCurrentUser()));
+    }
+
+    @Operation(summary = "Validate proposed permissions and show what would change, without saving (Super Admin only)")
+    @PostMapping("/{id}/permissions/preview")
+    @PreAuthorize("hasAuthority('USER_MANAGEMENT:MANAGE_PERMISSIONS')")
+    public ApiResponse<PermissionPreviewResponse> previewPermissions(@PathVariable UUID id,
+                                                                     @Valid @RequestBody UpdateUserPermissionsRequest request) {
+        return ApiResponse.ok(userService.previewPermissions(id, request, SecurityUtils.requireCurrentUser()));
     }
 
     @Operation(summary = "Replace a user's module and action permissions (Super Admin only)")

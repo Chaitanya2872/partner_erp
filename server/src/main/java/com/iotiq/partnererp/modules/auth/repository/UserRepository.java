@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,4 +40,9 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
 
     @Query("select u.role.id, count(u) from User u group by u.role.id")
     List<Object[]> countByRole();
+
+    /** Accounts under a temporary sign-in lockout at {@code now}. */
+    long countByLockedUntilAfter(Instant now);
+
+    long countByMustChangePasswordTrueAndStatus(UserStatus status);
 }

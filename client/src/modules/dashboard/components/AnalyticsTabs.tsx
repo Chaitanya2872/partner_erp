@@ -454,7 +454,7 @@ export function FinanceTab(props: TabProps) {
               <Kpi label="Collected" loading={loading} value={col ? money(col.collected) : undefined} hint={col ? `${formatNumber(col.receipts)} receipts · ${money(col.gstCollected)} GST` : undefined} />
             ) : null}
             {loading || (f?.collectionEfficiency !== null && f?.collectionEfficiency !== undefined) ? (
-              <Kpi label="Collection efficiency" loading={loading} value={f?.collectionEfficiency != null ? pct(f.collectionEfficiency) : undefined} hint="Collected ÷ invoiced (gross) in the period" />
+              <Kpi label="Collected to invoiced (indicative)" loading={loading} value={f?.collectionEfficiency != null ? pct(f.collectionEfficiency) : undefined} hint="Collected ÷ invoiced (gross) in the same period; receipts may relate to earlier invoices. Not an approved KPI." />
             ) : null}
             {loading || inv ? (
               <Kpi label="Overdue" loading={loading} value={inv ? money(inv.overdue) : undefined} hint={inv ? `${formatNumber(inv.overdueCount)} of ${formatNumber(inv.outstandingCount)} outstanding invoices` : undefined} />

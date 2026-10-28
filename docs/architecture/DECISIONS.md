@@ -628,3 +628,95 @@ Every report has:
 | M-5 | Collection efficiency | Collected ÷ invoiced in the same period (cash vs billing), not a cohort measure. |
 | M-6 | Legacy refunds (§K O-3) | Kept in collections as negative entries; there is no credit-note model yet. |
 | M-7 | Pending Phase 11 Finance items L-1 to L-8 | Unchanged. While no TDS configuration is confirmed (L-1), the TDS alert stays on, and TDS figures show what was recorded. |
+
+## N. Phase 13 decisions (as built, 2026-10-27)
+
+Phase 13 consolidates Settings and Administration. It reuses the Phase 3 user, role and permission model, the Phase 9 GST registration and the Phase 11 TDS configuration unchanged. It adds APIs and screens only where an existing column, rule or decision already defined the behaviour. Approved decisions in §A–§M are unchanged. No role was added, no migration grants a permission, and V1–V19 are unchanged. Verification is recorded in IMPLEMENTATION_PROGRESS: the full regression and browser checks passed on 2026-10-28.
+
+### Gap analysis (review before implementation)
+
+| Requirement | Existing (phase) | Gap | Phase 13 action |
+|---|---|---|---|
+| Company profile: legal name, address, state, GSTIN | `/settings/gst-registration` (P9). The GSTIN is masked in the audit log, and issued invoices copy the supplier details. | None | Reused unchanged on the Company tab. |
+| Company profile: phone, email, default terms | `company_settings.phone/email/terms` (V3), read by documents | No API or UI | `GET/PUT /settings/company` (Settings write), validated and audited. |
+| Display name, logo, branding | Nothing in the source, SRS or decisions, and no column | No approved storage, format or rendering rule | **Not built**; pending as P13-PD1. The registered legal name stays the printed name. |
+| Document defaults: estimate validity, invoice due days, default GST %, SLA targets | Columns in V3. Validity, due days and GST are read when a document is created; the SLA targets are read live. | No API or UI | Same company endpoint, with validated ranges. Documents keep their stored dates. |
+| Lead protection days, clawback days | Protection is applied at acknowledgement (P6-05). Clawback days are unused (C11-2, L-3). | No API | Protection: `PUT /settings/commercial` (Settings write + Manage settings). Clawback: shown read-only as "not applied" (L-3). |
+| Legacy `company_settings.tds_*` | Unused since C11-5 | Could mislead | Not exposed. |
+| Partner tiers (four, fixed) | Entity and seed (V3), used by the partner, lead, estimate and tier-review services | No API or UI | `GET /settings/tiers` and `PUT /settings/tiers` (Settings write + Manage settings): all four together, versioned, audited per tier. No snapshot is recalculated. |
+| Users: list, search, filter, create, edit, activate/deactivate, role assignment, overrides, scopes | `/users` (P3), with the last-Super-Admin, self and Admin→User-only rules | The "Locked" filter matched nothing: a lockout sets `locked_until`, never status LOCKED. | A `locked` filter and flag based on `locked_until`. |
+| Unlock, password reset, activity | Lockout exists (`LoginAttemptService`), but the only unlock was reactivation. There was no reset, and history was only in the audit viewer. | Missing | `POST /users/{id}/unlock`, `POST /users/{id}/password-reset` and `GET /users/{id}/activity`. |
+| Roles: list, display name, description | `/roles` (P3) | No permission matrix or preview | `GET/PUT /roles/{id}/permissions` (role defaults; Super Admin only). |
+| Permissions: role and user level, dependencies, effective preview, history | Per-user matrix (P3) with dependency validation; `PERMISSIONS_CHANGED` records before and after | No preview, and no visible link between a user's matrix and the role defaults | `POST /users/{id}/permissions/preview`. The UI marks differences from the role default and offers "Reset to role defaults". |
+| GST (CGST/SGST/UTGST, IGST) | P9 tax engine and decisions | Not visible from Settings | Tax & GST tab: default GST %, and a read-only statement of the supported and blocked scenarios. |
+| TDS | `/settings/tds` (P11): draft, confirmation by another user, versions | Already on the Settings page | Reused on the TDS tab. The confirmed or unconfirmed state stays prominent. |
+| Numbering | `DocumentNumberService`: a row-locked upsert per prefix and year, unique constraints, invoices numbered at issue | No visibility | `GET /settings/numbering`, read-only. Formats are not editable. |
+| Approval controls | Enforced in services, DB constraints and triggers (P5–P11) | No consolidated view | `GET /settings/controls`, a read-only list kept next to the code. Nothing is configurable. |
+| Audit viewer | `/audit-logs` (P3): entity, action, user and date filters; B2C product keys hidden | The action list stopped at Phase 8. There was no module filter, search or export, and the log was not append-only in the database. | Catalogue endpoint, module filter, search over metadata only, an audited CSV export (`AUDIT_LOGS:EXPORT`), and the V20 append-only trigger. |
+| Security administration | Policy in `app.security.*`; lock state on users | Not visible | `GET /settings/security`: password policy, lockout and session lifetimes (read-only), plus the locked-account count. |
+
+### Administration permissions (P13-02)
+
+| Area | Read | Change |
+|---|---|---|
+| Company profile, document defaults, GST default, SLA targets | `SETTINGS:READ` | `SETTINGS:WRITE` |
+| Lead protection days, partner tiers | `SETTINGS:READ` (tiers also with `PARTNERS:READ`) | `SETTINGS:WRITE` **and** `SETTINGS:MANAGE_SETTINGS` (P3-06: "commercial policy") |
+| GST registration | Unchanged (P9) | Unchanged (P9) |
+| TDS configuration | Unchanged (P11): draft by Settings write + Manage settings; confirmation by Payouts approve, by another user | Unchanged |
+| Numbering, approval controls | `SETTINGS:READ` | Not changeable |
+| Security policy | `SETTINGS:READ` or `USER_MANAGEMENT:READ` | Not changeable |
+| Users: list, detail, activity | `USER_MANAGEMENT:READ` | Create/edit: `USER_MANAGEMENT:WRITE`. Status, unlock, password reset: `USER_MANAGEMENT:MANAGE_USERS`. |
+| User permissions, preview | `USER_MANAGEMENT:READ` | `USER_MANAGEMENT:MANAGE_PERMISSIONS` (Super Admin only) |
+| Role defaults | `ROLE_MANAGEMENT:READ` | `ROLE_MANAGEMENT:WRITE`, Super Admin only (the module is Super-Admin-only, V12) |
+| Audit log | `AUDIT_LOGS:READ` | Export: `AUDIT_LOGS:EXPORT`. Nothing is editable. |
+
+Every rule is enforced by the server (`@PreAuthorize` plus service checks). The screens hide what the server would refuse, using the same permissions and the `canEdit` / `canManageCommercial` / `editable` flags the server returns.
+
+### Decisions as built
+
+| ID | Topic | Decision |
+|---|---|---|
+| P13-01 | Settings hub | `/settings` has nine tabs, with the open tab kept in the URL (`?section=`): Company, Documents, Tax & GST, TDS, Tiers & commission, Preferences, Approvals, Security, Users & access. Users, Roles and Audit logs stay as their own pages and are linked from Users & access. Only what an existing rule or decision defines is editable. |
+| P13-02 | Permissions | As in the table above. No new permission, action or role. |
+| P13-03 | Company settings | One versioned record (`company_settings.version`). A save sends the whole record with the version the user saw, and a stale version returns 409. Validation: phone has 6–15 digits (`+ - ( )` and spaces allowed); email has a valid format and is stored lowercase; terms ≤ 5,000 characters (= estimate notes); estimate validity 1–365 days; invoice due days 0–365; default GST 0–100 with ≤ 3 decimals; acknowledgement 1–720 hours; estimate SLA 1–365 days; lead protection 1–730 days. An unchanged save is a no-op and writes no audit entry. |
+| P13-04 | No retroactive change | Changing a default never touches stored records. Each of these keeps its own copy: estimate `valid_until`, invoice `due_date`, document notes, lead `protection_until` and `locked_fee_percent`, document `fee_percent`, payout line `commission_percent`, product and line GST rates, and the issued invoice's supplier details. Only the SLA targets are read live, by design (they drive badges and alerts, not money). |
+| P13-05 | Partner tiers | The four tiers are fixed: none can be added or removed. A save carries all four with their versions, under a row lock on every tier (`PartnerTierRepository.lockAll`). Rules: name 2–60 characters and unique; fee 0–100 % with ≤ 3 decimals; minimum paid revenue ≥ 0 with ≤ 2 decimals, the first tier at 0 and each tier above the one below; payout days 1–365. Each changed tier writes `PARTNER_TIER_UPDATED` with its level and the changed fields only. A new fee % applies to leads acknowledged after the change and to new documents without a locked rate. Thresholds feed the next tier review (P5); a partner never changes tier automatically. Payout days are stored but do not set payout dates (L-4). Seeded values (Registered 8 % / ₹0 / 15, Preferred 10 % / ₹10 L / 12, Elite 12 % / ₹30 L / 10, Strategic 15 % / ₹1 Cr / 7) are unchanged. |
+| P13-06 | Clawback and legacy TDS columns | `clawback_days` is shown read-only and labelled "not applied". Reversals after payment are always carried forward (C11-2, pending L-3). The unused `company_settings.tds_*` columns (C11-5) are not exposed. |
+| P13-07 | GST | No new behaviour. The Tax & GST tab shows the P9 treatment (CGST+SGST, or CGST+UTGST, for the same state or UT; IGST otherwise; per-line HALF_UP rounding) and lists the blocked scenarios: exports and SEZ, reverse charge, composition scheme, cess, e-invoicing, and credit and debit notes. |
+| P13-08 | TDS | The P11 card is reused unchanged on its own tab: no statutory value is preset, confirmation is by a second user with Payouts approve, and L-1 to L-8 are unchanged. |
+| P13-09 | Numbering | Read-only: series, format `PREFIX-YYYY-NNNNNN`, when the number is allocated, this year's last value and the 999,999 capacity. Formats, prefixes and counters cannot be edited, so a number is never reused or changed. |
+| P13-10 | Approval controls | Read-only list of the controls enforced by services, constraints and triggers. Examples: the payout maker-checker (L-8) and TDS confirmation by a second user. It also covers receipt reversal with a reason, fee overrides (Partners approve plus a reason), Super-Admin-only permission changes and the append-only audit log. Nothing is configurable, so no setting can bypass a control. |
+| P13-11 | Locked accounts | "Locked" means a temporary lockout in force (`locked_until` in the future), shown as `locked` with the end time. An expired lockout is never reported. Status LOCKED remains unused. `POST /users/{id}/unlock` (Manage users) clears the lock and failed-attempt counter. It is idempotent, refused on one's own account, and limited by the existing Admin→User-only rule; it writes `ACCOUNT_UNLOCKED`. |
+| P13-12 | Password reset | Administrator-set, since there is no email delivery. Manage users sets a temporary password that meets the password policy. The user must change it at the next sign-in, the lock is cleared, and **every session is revoked**. Not allowed on one's own account (use Change password) and limited by the same Admin→User-only rule. `PASSWORD_RESET` records `{mustChangePassword, sessionsRevoked}`, never the password. `ResetPasswordRequest.toString()` hides it. |
+| P13-13 | Account activity | `GET /users/{id}/activity`: the audit entries whose target is the user (sign-ins, failures, lockouts, password, role, status, permission changes), newest first. The IP address is returned only to a viewer with `AUDIT_LOGS:READ`. |
+| P13-14 | Permission preview | `POST /users/{id}/permissions/preview` runs the same validation and guards as saving (Super Admin only, not on oneself, not on a Super Admin). It returns the authorities gained and lost, scope changes, the effective set and the differences from the role default, and stores nothing. The screen always previews and asks for confirmation before saving, and lists sensitive grants separately. |
+| P13-15 | Role defaults | `role_permission_templates` hold module permissions only. Special actions are always granted per user. `PUT /roles/{id}/permissions` is Super Admin only, refuses the Super Admin role (`SUPER_ADMIN_PERMISSIONS_FIXED`), validates like a user matrix for that role, and is versioned on the role. It writes `ROLE_PERMISSIONS_CHANGED`. Defaults apply to new accounts and to accounts moved to the role; **existing accounts are never changed** (no silent grant). A user screen shows its differences from the defaults and can load them with "Reset to role defaults", which saves only after preview and confirmation. |
+| P13-16 | Audit viewer | Modules and actions come from `AuditCatalog`, so newly recorded actions are filterable. Filters: date range (`from` before `to`), user (`/audit-logs/actors`, at most 20 matches), module, action and search. Search (≤ 100 characters) matches action, target type, actor name or email, request id, or a full target id; it **never searches recorded values**, so masked or hidden fields can't be probed. Responses carry `Cache-Control: no-store`. |
+| P13-17 | Audit export | `GET /audit-logs/export` needs `AUDIT_LOGS:EXPORT`. It applies the same filters, returns at most 10,000 rows (`422 AUDIT_EXPORT_TOO_LARGE`), shows times in IST, and uses a BOM and the `ProductCsv` formula guard, with `no-store`. Values are exported as recorded: secrets were never stored, and PAN, bank account and GSTIN are stored masked. B2C product keys (`b2cName`, `aliases`, `b2cPrice`, `costPrice`) are removed without `PRODUCTS:VIEW_INTERNAL_B2C`, as in the list. Each export writes `AUDIT_LOG_EXPORTED` with the filters and row count. |
+| P13-18 | Append-only audit log | V20 adds the `audit_logs_guard()` trigger. UPDATE, DELETE and TRUNCATE are refused, except the single UPDATE that the users foreign key needs (`user_id` set to NULL when a user row is deleted, all other columns unchanged). It also adds `ix_audit_action_created` for the module and action filters. |
+| P13-19 | Security policy | Read-only: password length and rules, lockout threshold and duration, access and refresh token lifetimes, refresh rotation, sign-out rules, the number of locked accounts and pending password changes. The values come from `app.security.*` in deployment configuration. **Token lifetimes and lockout values are not configurable from the application.** |
+| P13-20 | Phase 12 follow-ups | M-1: chart tokens re-stepped (below). M-3: `THIS_YEAR` (1 January to today) and `LAST_YEAR` (previous 1 January – 31 December) presets added. M-5: the "Collection efficiency" tile is renamed "Collected to invoiced (indicative)" and says it is not an approved KPI; the formula is unchanged. M-2, M-4 and M-6: unchanged (below). |
+| P13-21 | Chart palette (M-1) | The `--chart-1…5` tokens are replaced by a palette that passes the lightness, chroma, colour-vision (adjacent ΔE ≥ 8) and normal-vision (ΔE ≥ 15) checks on the app's chart surfaces. Light: `#2a78d6`, `#eb6834`, `#1baf7a`, `#eda100`, `#e87ba4`. Dark: `#3987e5`, `#d95926`, `#199e70`, `#c98500`, `#d55181`. In light mode three tokens are below 3:1 against the surface. The required relief already exists: legends with labels and values, dashed second series, and the Table view on every chart. Brand tokens are unchanged. P12-08's note that the tokens were not changed is superseded for the palette only. |
+| P13-22 | Zod advisory | GHSA-mrhx-c7xc-m3w5 (CVE-2023-54404, high, CVSS 7.5): unbounded array validation can exhaust memory before 4.6.6. Here zod runs only in the browser for form validation, and the one array schema (invoice lines) is capped, so exposure was low. It was upgraded anyway to `zod@4.6.7`, pinned exactly; `@hookform/resolvers` 5.9.1 accepts it, and `npm audit` reports 0 vulnerabilities. |
+
+### Phase 12 follow-ups
+
+| # | Outcome |
+|---|---|
+| M-1 | Done (P13-21). |
+| M-2 | **Still blocked**, and kept fail-closed. SELF/TEAM analytics need record ownership and teams, which do not exist (D-30): a scoped user would see empty figures presented as complete. Scoped modules stay listed as restricted. Unblocking it needs the ownership and team model first. |
+| M-3 | Done (P13-20). |
+| M-4 | Unchanged: invoiced, collected and outstanding stay separate figures. No accrual view was added. |
+| M-5 | Wording only (P13-20). It is not presented as an official KPI until Finance approves a definition. |
+| M-6 | Unchanged: no credit-note model. Legacy refunds stay negative entries. |
+
+### Needs a decision (not implemented)
+
+| # | Question | Current behaviour |
+|---|---|---|
+| P13-PD1 | Display name, logo and document branding: storage, file type and size limits, and placement on documents | Not built. Documents print the registered legal name and contact details. |
+| P13-PD2 | Password reset by email or a self-service link | Administrator-set temporary password only (P13-12). Needs an email service and a token design. |
+| P13-PD3 | Real SLA targets from Annexure B | The seeded placeholders are editable, and the screen marks them as placeholders. |
+| P13-PD4 | Whether role-default changes should optionally be pushed to existing accounts | Never pushed. Existing accounts change only one at a time, after preview. |
+| P13-PD5 | Clawback window (L-3) and payout business days (L-4) | Shown, not applied, until Finance decides. |
+| L-1 – L-8 | Phase 11 Finance items | Unchanged. |

@@ -30,6 +30,10 @@ interface PermissionMatrixProps {
   onChange: (draft: PermissionDraft) => void;
   /** Module codes highlighted because their scope still has to be chosen. */
   invalidScopes?: string[];
+  /** Hides the special-actions column (role defaults hold modules only). */
+  hideActions?: boolean;
+  /** Module codes marked as differing from the role default. */
+  overrides?: string[];
 }
 
 /**
@@ -37,13 +41,13 @@ interface PermissionMatrixProps {
  * turns Read on, Delete turns Write on, clearing Read clears the row. Modules or actions the role may never hold
  * are disabled with the reason shown; the server enforces the same rules.
  */
-export function PermissionMatrix({ catalog, draft, roleCode, readOnly, onChange, invalidScopes = [] }: PermissionMatrixProps) {
+export function PermissionMatrix({ catalog, draft, roleCode, readOnly, onChange, invalidScopes = [], hideActions = false, overrides = [] }: PermissionMatrixProps) {
   const defs = new Map(catalog.map((m) => [m.code, m]));
   const groups = MATRIX_GROUP_ORDER.map((group) => ({
     group,
     rows: draft.modules.filter((row) => defs.has(row.moduleCode) && groupOf(row.moduleCode) === group),
   })).filter((g) => g.rows.length > 0);
-  const colCount = FLAGS.length + 3;
+  const colCount = FLAGS.length + (hideActions ? 2 : 3);
 
   return (
     <div role="region" aria-label="Permission matrix, scrolls horizontally" tabIndex={0} className="relative overflow-x-auto rounded-lg border border-border bg-surface shadow-xs focus-visible:outline-2 focus-visible:outline-ring">
@@ -61,9 +65,11 @@ export function PermissionMatrix({ catalog, draft, roleCode, readOnly, onChange,
             <th scope="col" className="w-32 px-2 py-2.5 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               Scope
             </th>
-            <th scope="col" className="px-3 py-2.5 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Special actions
-            </th>
+            {hideActions ? null : (
+              <th scope="col" className="px-3 py-2.5 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Special actions
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -87,7 +93,12 @@ export function PermissionMatrix({ catalog, draft, roleCode, readOnly, onChange,
                 return (
                   <tr key={row.moduleCode} className={cn("border-b border-border last:border-b-0", !allowed && "text-muted-foreground")}>
                     <th scope="row" className="sticky left-0 z-10 bg-surface px-4 py-2.5 text-left font-normal">
-                      <div className="font-medium text-foreground">{label}</div>
+                      <div className="font-medium text-foreground">
+                        {label}
+                        {overrides.includes(row.moduleCode) ? (
+                          <span className="ml-1.5 rounded-sm bg-warning-bg px-1 py-0.5 text-2xs font-medium text-warning">Differs from role</span>
+                        ) : null}
+                      </div>
                       {!allowed ? (
                         <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                           <Lock className="size-3" aria-hidden="true" />
@@ -138,37 +149,39 @@ export function PermissionMatrix({ catalog, draft, roleCode, readOnly, onChange,
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5">
-                      {moduleActions.length === 0 ? (
-                        <span className="text-muted-foreground" aria-hidden="true">
-                          —
-                        </span>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          {moduleActions.map((action) => {
-                            const disabled = readOnly || !allowed || action.superAdminOnly;
-                            return (
-                              <label
-                                key={action.code}
-                                className={cn("inline-flex items-center gap-2 text-sm", disabled ? "cursor-not-allowed" : "cursor-pointer")}
-                                title={action.description ?? undefined}
-                              >
-                                <Checkbox
-                                  aria-label={action.displayName}
-                                  checked={draft.actions.includes(action.code)}
-                                  disabled={disabled}
-                                  onCheckedChange={(checked) => onChange(setAction(draft, catalog, action.code, checked === true))}
-                                />
-                                <span className={cn(disabled && "text-muted-foreground")}>
-                                  {action.displayName}
-                                  {action.superAdminOnly ? <span className="text-xs"> (Super Admin only)</span> : null}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </td>
+                    {hideActions ? null : (
+                      <td className="px-3 py-2.5">
+                        {moduleActions.length === 0 ? (
+                          <span className="text-muted-foreground" aria-hidden="true">
+                            —
+                          </span>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            {moduleActions.map((action) => {
+                              const disabled = readOnly || !allowed || action.superAdminOnly;
+                              return (
+                                <label
+                                  key={action.code}
+                                  className={cn("inline-flex items-center gap-2 text-sm", disabled ? "cursor-not-allowed" : "cursor-pointer")}
+                                  title={action.description ?? undefined}
+                                >
+                                  <Checkbox
+                                    aria-label={action.displayName}
+                                    checked={draft.actions.includes(action.code)}
+                                    disabled={disabled}
+                                    onCheckedChange={(checked) => onChange(setAction(draft, catalog, action.code, checked === true))}
+                                  />
+                                  <span className={cn(disabled && "text-muted-foreground")}>
+                                    {action.displayName}
+                                    {action.superAdminOnly ? <span className="text-xs"> (Super Admin only)</span> : null}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

@@ -7,6 +7,7 @@ import com.iotiq.partnererp.common.response.ApiResponse.FieldError;
 import com.iotiq.partnererp.modules.audit.service.AuditActions;
 import com.iotiq.partnererp.modules.audit.service.AuditService;
 import com.iotiq.partnererp.modules.auth.dto.ModulePermissionDto;
+import com.iotiq.partnererp.modules.auth.dto.PermissionPreviewResponse;
 import com.iotiq.partnererp.modules.auth.dto.RoleRef;
 import com.iotiq.partnererp.modules.auth.dto.UpdateUserPermissionsRequest;
 import com.iotiq.partnererp.modules.auth.dto.UserPermissionsResponse;
@@ -14,6 +15,7 @@ import com.iotiq.partnererp.modules.auth.entity.AppModule;
 import com.iotiq.partnererp.modules.auth.entity.DataScope;
 import com.iotiq.partnererp.modules.auth.entity.ModuleCode;
 import com.iotiq.partnererp.modules.auth.entity.Permission;
+import com.iotiq.partnererp.modules.auth.entity.Role;
 import com.iotiq.partnererp.modules.auth.entity.RoleCode;
 import com.iotiq.partnererp.modules.auth.entity.RolePermissionTemplate;
 import com.iotiq.partnererp.modules.auth.entity.User;
@@ -35,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -154,8 +157,10 @@ public class PermissionService {
                 .toList();
         boolean superAdmin = target.getRole().isSuperAdmin();
         boolean editable = !superAdmin && actor.isSuperAdmin() && !actor.id().equals(target.getId());
+        List<String> overrides = superAdmin ? List.of()
+                : differences(templateRows(target.getRole()), rows.stream().filter(ModulePermissionDto::read).toList(), actions);
         return new UserPermissionsResponse(target.getId(), RoleRef.of(target.getRole()), superAdmin, editable, rows,
-                actions);
+                actions, overrides);
     }
 
     /** Replaces a user's permissions (Super Admin only). */
@@ -190,15 +195,61 @@ public class PermissionService {
     }
 
     /**
+     * Validates a proposed matrix exactly as {@link #replace} would and reports what would change, without saving
+     * (Super Admin only, never for oneself or a Super Admin).
+     */
+    @Transactional(readOnly = true)
+    public PermissionPreviewResponse preview(UUID userId, UpdateUserPermissionsRequest request, AuthenticatedUser actor) {
+        if (!actor.isSuperAdmin()) {
+            throw new AccessDeniedException("Only a Super Admin can change permissions");
+        }
+        User target = userRepository.findWithRoleById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (target.getId().equals(actor.id())) {
+            throw new BusinessException("SELF_PERMISSION_CHANGE", "You cannot change your own permissions.",
+                    HttpStatus.FORBIDDEN);
+        }
+        if (target.getRole().isSuperAdmin()) {
+            throw new BusinessException("SUPER_ADMIN_PERMISSIONS_FIXED",
+                    "A Super Admin always has full access; their permissions cannot be edited.");
+        }
+        RoleCode role = target.getRole().roleCode()
+                .orElseThrow(() -> new BusinessException("ROLE_RETIRED", "The user's role is retired."));
+        Validated validated = validate(request, role);
+        EffectivePermissions current = resolve(target);
+        EffectivePermissions proposed = effective(validated.modules(), validated.actions());
+        Set<String> before = current.authorities();
+        Set<String> after = proposed.authorities();
+        List<String> granted = after.stream().filter(a -> !before.contains(a)).sorted().toList();
+        List<String> revoked = before.stream().filter(a -> !after.contains(a)).sorted().toList();
+        List<PermissionPreviewResponse.ScopeChange> scopes = new ArrayList<>();
+        proposed.modules().forEach((code, access) -> {
+            ModuleAccess old = current.modules().get(code);
+            if (old != null && old.scope() != access.scope()) {
+                scopes.add(new PermissionPreviewResponse.ScopeChange(code, old.scope(), access.scope()));
+            }
+        });
+        List<String> differsFromRole = differences(templateRows(target.getRole()), validated.modules(), validated.actions());
+        return new PermissionPreviewResponse(target.getId(), !granted.isEmpty() || !revoked.isEmpty() || !scopes.isEmpty(),
+                granted, revoked, scopes, List.copyOf(after), differsFromRole);
+    }
+
+    /**
      * Resets a user's permissions to their role's template (new accounts and role changes). Super Admins
      * get no rows because their access is implicit.
      */
     @Transactional
     public void applyRoleTemplate(User user, UUID actorId) {
-        RoleCode role = user.getRole().roleCode().orElse(null);
+        replaceRows(user, templateRows(user.getRole()), List.of(), actorId);
+    }
+
+    /** The role's default matrix (template) as grantable rows; empty for Super Admin, whose access is implicit. */
+    @Transactional(readOnly = true)
+    public List<ModulePermissionDto> templateRows(Role roleEntity) {
+        RoleCode role = roleEntity.roleCode().orElse(null);
         List<ModulePermissionDto> rows = new ArrayList<>();
         if (role != null && role != RoleCode.SUPER_ADMIN) {
-            for (RolePermissionTemplate t : templateRepository.findByIdRoleId(user.getRole().getId())) {
+            for (RolePermissionTemplate t : templateRepository.findByIdRoleId(roleEntity.getId())) {
                 catalog.module(t.getModule().getCode()).filter(def -> grantable(role, def)).ifPresent(def ->
                         rows.add(new ModulePermissionDto(def.code(), true, t.isCanWrite() && def.supportsWrite(),
                                 t.isCanDelete() && t.isCanWrite() && def.supportsDelete(),
@@ -206,7 +257,73 @@ public class PermissionService {
                                 def.supportsScope() ? t.getDataScope() : DataScope.ALL)));
             }
         }
-        replaceRows(user, rows, List.of(), actorId);
+        rows.sort(Comparator.comparingInt(r -> catalog.module(r.moduleCode()).map(ModuleDef::sortOrder).orElse((short) 0)));
+        return rows;
+    }
+
+    /**
+     * Validates a role's default matrix with the same rules as a user's (dependencies, supported flags, what the role
+     * may hold). Role defaults carry no action grants: actions are always granted per user.
+     */
+    public List<ModulePermissionDto> validateTemplate(List<ModulePermissionDto> modules, RoleCode role) {
+        return validate(new UpdateUserPermissionsRequest(modules, List.of()), role).modules();
+    }
+
+    /** One row per catalogue module (read=false for no access), for showing a matrix. */
+    public List<ModulePermissionDto> fullMatrix(List<ModulePermissionDto> granted) {
+        Map<String, ModulePermissionDto> byCode = new LinkedHashMap<>();
+        granted.forEach(r -> byCode.put(r.moduleCode(), r));
+        return catalog.modules().stream().map(def -> {
+            ModulePermissionDto r = byCode.get(def.code());
+            return r != null ? new ModulePermissionDto(def.code(), true, r.write(), r.delete(), r.export(), r.approve(),
+                    def.supportsScope() ? r.dataScope() : null)
+                    : new ModulePermissionDto(def.code(), false, false, false, false, false, null);
+        }).toList();
+    }
+
+    /** Modules (and actions) where a user's matrix differs from the role default. */
+    public List<String> differences(List<ModulePermissionDto> template, List<ModulePermissionDto> modules,
+                                    List<String> actions) {
+        Map<String, ModulePermissionDto> t = new LinkedHashMap<>();
+        template.forEach(r -> t.put(r.moduleCode(), r));
+        Map<String, ModulePermissionDto> u = new LinkedHashMap<>();
+        modules.forEach(r -> u.put(r.moduleCode(), r));
+        List<String> out = new ArrayList<>();
+        for (ModuleDef def : catalog.modules()) {
+            ModulePermissionDto a = t.get(def.code());
+            ModulePermissionDto b = u.get(def.code());
+            if (a == null && b == null) {
+                continue;
+            }
+            if (a == null || b == null || a.write() != b.write() || a.delete() != b.delete() || a.export() != b.export()
+                    || a.approve() != b.approve() || scopeOf(a) != scopeOf(b)) {
+                out.add(def.code());
+            }
+        }
+        actions.stream().sorted().forEach(code -> catalog.moduleAction(code)
+                .ifPresent(a -> out.add(EffectivePermissions.authority(a.moduleCode(), a.code()))));
+        return out;
+    }
+
+    private static DataScope scopeOf(ModulePermissionDto r) {
+        return r.dataScope() == null ? DataScope.ALL : r.dataScope();
+    }
+
+    /** Effective permissions of validated rows, computed as {@link #resolve} would after saving them. */
+    private EffectivePermissions effective(List<ModulePermissionDto> rows, List<String> actionCodes) {
+        Map<String, ModuleAccess> modules = new LinkedHashMap<>();
+        for (ModulePermissionDto r : rows) {
+            ModuleDef def = catalog.module(r.moduleCode()).orElseThrow();
+            modules.put(def.code(), new ModuleAccess(r.write() && def.supportsWrite(),
+                    r.delete() && r.write() && def.supportsDelete(), r.export() && def.supportsExport(),
+                    r.approve() && def.supportsApprove(), def.supportsScope() ? scopeOf(r) : DataScope.ALL));
+        }
+        Set<String> actions = new LinkedHashSet<>();
+        for (String code : actionCodes) {
+            catalog.moduleAction(code).filter(a -> modules.containsKey(a.moduleCode()))
+                    .ifPresent(a -> actions.add(EffectivePermissions.authority(a.moduleCode(), a.code())));
+        }
+        return new EffectivePermissions(false, sortByCatalog(modules), actions);
     }
 
     /** Permissions as stored for the audit trail: module -> flags, plus granted actions. */

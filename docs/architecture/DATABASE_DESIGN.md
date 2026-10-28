@@ -276,3 +276,28 @@ Concurrency: generation and recalculation lock the partner row (`SELECT … FOR 
 - Dashboard figures are computed per request by `DashboardQueries`.
 - Reports are computed per request by the SQL in `ReportCatalog`, with `COUNT(*)` and `SUM` over the same filtered subquery for totals, and `LIMIT/OFFSET` for the page.
 - Invoice balances reuse the `v_invoice_balance` rule: Σ ledger amounts, with reversals negative.
+
+## 14. Phase 13 migration: V20 (as built 2026-10-27)
+
+`V20__audit_append_only.sql` is forward-only and leaves V1–V19 unchanged. It adds no tables, columns, data or permissions.
+
+| Object | Definition | Purpose |
+|---|---|---|
+| `audit_logs_guard()` | PL/pgSQL trigger function. It allows only an UPDATE that sets `user_id` from a value to NULL with every other column unchanged; anything else raises `check_violation` ("The audit log is append-only…"). | Makes the audit trail append-only in the database, not just in the application (DECISIONS.md §N P13-18). The one allowed update is the `ON DELETE SET NULL` that the `user_id` foreign key performs if a user row is ever deleted (accounts are deactivated, not deleted). |
+| `trg_audit_logs_guard` | `BEFORE UPDATE OR DELETE ON audit_logs FOR EACH ROW` | Refuses edits and deletions. |
+| `trg_audit_logs_no_truncate` | `BEFORE TRUNCATE ON audit_logs FOR EACH STATEMENT` | Refuses `TRUNCATE`. |
+| `ix_audit_action_created` | `audit_logs (action, created_at DESC)` | The viewer's module filter (`action IN (…)`) and action filter, newest first. |
+
+**No schema change for the Phase 13 settings.** They use existing columns:
+- `company_settings` (V3) — phone, email, terms, document defaults, SLA targets, lead protection, `version`;
+- `partner_tiers` (V3) — `commission_percent`, `minimum_revenue`, `payout_business_days`, `version`;
+- `users.failed_login_count` / `must_change_password` (V2) and `users.locked_until` (V12);
+- `role_permission_templates` (V12), with `roles.version` incremented on a template change;
+- `document_sequences` (V8, V15), read-only.
+
+`company_settings.clawback_days` and the legacy `tds_*` columns are unchanged and unused (C11-2, C11-5).
+
+**Database environments.**
+- The full regression ran on a throwaway `partner_erp_p13_test` database on 2026-10-28 and passed; the database was dropped afterwards. (An earlier run on 2026-10-27 was stopped by the host for low memory.)
+- `partner_erp_test` is at V20 and was used for browser verification. V20 was confirmed there: `UPDATE`, `DELETE` and `TRUNCATE` on `audit_logs` are refused.
+- The development database `partner_erp` applies V16–V20 when its server restarts with this build.

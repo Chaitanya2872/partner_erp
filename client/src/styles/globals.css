@@ -54,11 +54,12 @@
   --sidebar-active-foreground: #11271c;
   --sidebar-border: rgb(255 255 255 / 0.08);
 
-  --chart-1: #11271c;
-  --chart-2: #c39c67;
-  --chart-3: #2f5f8a;
-  --chart-4: #2f7a4d;
-  --chart-5: #a8680f;
+  /* Categorical chart palette: passes the lightness, chroma, colour-vision and separation checks on --surface in both themes (Phase 13, M-1). */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
   --chart-grid: #ddd5c0;
 
   color-scheme: light;
@@ -111,11 +112,11 @@
   --sidebar-active-foreground: #11271c;
   --sidebar-border: rgb(255 255 255 / 0.06);
 
-  --chart-1: #d9b887;
-  --chart-2: #7fb0dc;
-  --chart-3: #6cc08a;
-  --chart-4: #e0a54d;
-  --chart-5: #e8836f;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
   --chart-grid: #27412f;
 
   color-scheme: dark;
