@@ -95,12 +95,24 @@ public class Estimate extends SalesDocument {
     @Column(name = "deleted_by")
     private UUID deletedBy;
 
+    /** Why the estimate was archived; set together with {@code deletedAt}. */
+    @Column(name = "delete_reason", length = 500)
+    private String deleteReason;
+
     public Instant getDeletedAt() {
         return deletedAt;
     }
 
     public void setDeletedAt(Instant deletedAt) {
         this.deletedAt = deletedAt;
+    }
+
+    public String getDeleteReason() {
+        return deleteReason;
+    }
+
+    public void setDeleteReason(String deleteReason) {
+        this.deleteReason = deleteReason;
     }
 
     public UUID getDeletedBy() {

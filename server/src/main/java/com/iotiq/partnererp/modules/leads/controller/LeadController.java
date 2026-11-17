@@ -4,7 +4,10 @@ import com.iotiq.partnererp.common.constants.AppConstants;
 import com.iotiq.partnererp.common.enums.LeadStage;
 import com.iotiq.partnererp.common.response.ApiResponse;
 import com.iotiq.partnererp.common.response.PageResponse;
+import com.iotiq.partnererp.common.web.ArchiveRequest;
 import com.iotiq.partnererp.common.web.Pageables;
+import com.iotiq.partnererp.modules.leads.dto.LeadArchiveDetail;
+import com.iotiq.partnererp.modules.leads.dto.LeadArchiveEntry;
 import com.iotiq.partnererp.modules.leads.dto.LeadHistoryEntry;
 import com.iotiq.partnererp.modules.leads.dto.LeadMeta;
 import com.iotiq.partnererp.modules.leads.dto.LeadRequest;
@@ -44,6 +47,7 @@ import java.util.UUID;
 @RequestMapping(AppConstants.API_V1 + "/leads")
 public class LeadController {
 
+    private static final Set<String> ARCHIVE_SORTABLE = Set.of("deletedAt", "createdAt", "clientName");
     private static final Set<String> SORTABLE = Set.of("createdAt", "clientName", "city", "budget", "expectedClose");
 
     private final LeadService leadService;
@@ -67,6 +71,24 @@ public class LeadController {
         return PageResponse.of(leadService.search(filters,
                 Pageables.of(page, size, sort, SORTABLE, Sort.by(Sort.Direction.DESC, "createdAt")),
                 SecurityUtils.requireCurrentUser())).toApiResponse();
+    }
+
+    @Operation(summary = "The archive: archived leads with who, when and why; newest archived first")
+    @GetMapping("/archive")
+    @PreAuthorize("hasAuthority('LEADS:READ')")
+    public ApiResponse<List<LeadArchiveEntry>> archive(@RequestParam(required = false) String q,
+                                                       @RequestParam(defaultValue = "0") int page,
+                                                       @RequestParam(defaultValue = "20") int size,
+                                                       @RequestParam(required = false) String sort) {
+        return PageResponse.of(leadService.archive(q, Pageables.of(page, size, sort, ARCHIVE_SORTABLE,
+                Sort.by(Sort.Direction.DESC, "deletedAt")), SecurityUtils.requireCurrentUser())).toApiResponse();
+    }
+
+    @Operation(summary = "One archived lead (read-only) with the archive reason, who and when")
+    @GetMapping("/archive/{id}")
+    @PreAuthorize("hasAuthority('LEADS:READ')")
+    public ApiResponse<LeadArchiveDetail> archived(@PathVariable UUID id) {
+        return ApiResponse.ok(leadService.archived(id, SecurityUtils.requireCurrentUser()));
     }
 
     @Operation(summary = "Stages, project types, referring partners and SLA settings for forms and filters")
@@ -119,11 +141,18 @@ public class LeadController {
         return ApiResponse.ok(leadService.acknowledge(id, SecurityUtils.requireCurrentUser()));
     }
 
-    @Operation(summary = "Delete a lead (soft; 409 while estimates, invoices or payments point at it)")
+    @Operation(summary = "Archive a lead with a reason (soft; 409 while estimates, invoices or payments point at it)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('LEADS:DELETE')")
-    public void delete(@PathVariable UUID id) {
-        leadService.delete(id, SecurityUtils.requireCurrentUser());
+    public void delete(@PathVariable UUID id, @RequestBody(required = false) ArchiveRequest request) {
+        leadService.delete(id, request, SecurityUtils.requireCurrentUser());
+    }
+
+    @Operation(summary = "Restore an archived lead (needs LEADS:APPROVE or LEADS:DELETE)")
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAnyAuthority('LEADS:APPROVE', 'LEADS:DELETE')")
+    public ApiResponse<LeadResponse> restore(@PathVariable UUID id) {
+        return ApiResponse.ok(leadService.restore(id, SecurityUtils.requireCurrentUser()));
     }
 }

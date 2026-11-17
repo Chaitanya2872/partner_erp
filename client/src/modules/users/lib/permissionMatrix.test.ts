@@ -51,7 +51,7 @@ describe("permission matrix dependencies", () => {
   });
 
   it("mirrors the server's role ceilings", () => {
-    expect(grantable("ADMIN", def("ROLE_MANAGEMENT"))).toBe(false);
+    expect(grantable("ADMIN", def("ROLE_MANAGEMENT"))).toBe(true);
     expect(grantable("USER", def("USER_MANAGEMENT"))).toBe(false);
     expect(grantable("ADMIN", def("USER_MANAGEMENT"))).toBe(true);
   });

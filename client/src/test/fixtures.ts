@@ -15,7 +15,7 @@ const defs: [string, string, Flags[], boolean?][] = [
   ["REPORTS", "Reports", ["E"]],
   ["SETTINGS", "Settings", ["W"]],
   ["USER_MANAGEMENT", "User Management", ["W"]],
-  ["ROLE_MANAGEMENT", "Role Management", ["W"], true],
+  ["ROLE_MANAGEMENT", "Role Management", ["W"]],
   ["AUDIT_LOGS", "Audit Logs", ["E"]],
 ];
 
@@ -27,7 +27,7 @@ const actions: Record<string, { code: string; displayName: string; superAdminOnl
   SETTINGS: [{ code: "MANAGE_SETTINGS", displayName: "Manage settings" }],
   USER_MANAGEMENT: [
     { code: "MANAGE_USERS", displayName: "Activate / deactivate users" },
-    { code: "MANAGE_PERMISSIONS", displayName: "Manage permissions", superAdminOnly: true },
+    { code: "MANAGE_PERMISSIONS", displayName: "Manage permissions" },
   ],
 };
 
@@ -77,6 +77,7 @@ export function makeMe(role: "SUPER_ADMIN" | "ADMIN" | "USER", overrides: Partia
     );
     actions = catalog.flatMap((m) => m.actions.map((a) => `${m.code}:${a.code}`));
   } else if (role === "ADMIN") {
+    // A deliberately limited Admin (permissions are per account; V23 only changes the defaults of new Admins).
     modules = [
       row("DASHBOARD"),
       row("PARTNERS", { write: true, dataScope: "ALL" }),

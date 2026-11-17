@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Minus, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Info, Minus, XCircle, type LucideIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Alert } from "@/components/ui/Alert";
 import { cn } from "@/lib/cn";
 
 /*
@@ -27,30 +26,35 @@ interface MetricCardProps {
 export function MetricCard({ label, value, icon: Icon, hint, trend, loading, unavailable, href }: MetricCardProps) {
   const body = (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
-        {Icon ? <Icon className="size-4 text-accent-ink" aria-hidden="true" /> : null}
+      <div className="flex items-start justify-between gap-3">
+        <span className="pt-1 text-xs font-medium leading-snug text-muted-foreground">{label}</span>
+        {Icon ? (
+          <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-accent-ink transition-colors duration-150 group-hover/metric:bg-accent group-hover/metric:text-accent-foreground">
+            <Icon className="size-4" aria-hidden="true" />
+          </span>
+        ) : null}
       </div>
-      <div className="mt-2 min-h-8">
+      <div className="mt-3 min-h-9">
         {loading ? (
-          <Skeleton className="h-7 w-24" />
+          <Skeleton className="h-8 w-28" />
         ) : unavailable ? (
           <span className="text-sm text-muted-foreground">{unavailable}</span>
         ) : (
-          <span className="font-mono text-2xl font-medium tabular">{value}</span>
+          <span className="block truncate font-mono text-2xl font-medium tracking-tight tabular">{value}</span>
         )}
       </div>
+      {/* Footer is pinned to the bottom so trend and hint line up across a row of cards of different heights. */}
       {trend || hint ? (
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {trend}
-          {hint}
+        <div className="mt-auto space-y-1 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+          {trend ? <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">{trend}</div> : null}
+          {hint ? <div className="leading-snug">{hint}</div> : null}
         </div>
       ) : null}
     </>
   );
-  const className = "block rounded-lg border border-border bg-surface p-4 shadow-xs";
+  const className = "group/metric flex h-full min-w-0 flex-col gap-0 rounded-xl border border-border bg-surface p-4";
   return href ? (
-    <Link to={href} className={cn(className, "transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-ring")}>
+    <Link to={href} className={cn(className, "transition-[border-color,transform] duration-150 hover:-translate-y-px hover:border-accent-ink/60 focus-visible:outline-2 focus-visible:outline-ring")}>
       {body}
     </Link>
   ) : (
@@ -64,13 +68,20 @@ export function TrendIndicator({ change, label = "vs previous period", positiveI
   const good = direction === "flat" ? null : (direction === "up") === positiveIsGood;
   const Icon = direction === "up" ? ArrowUpRight : direction === "down" ? ArrowDownRight : Minus;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 font-medium", good === null ? "text-muted-foreground" : good ? "text-success" : "text-danger")}>
-      <Icon className="size-3.5" aria-hidden="true" />
-      <span>
-        <span className="sr-only">{direction === "up" ? "Up" : direction === "down" ? "Down" : "No change"} </span>
-        {Math.abs(change).toFixed(1)}%
+    <span className="inline-flex flex-wrap items-center gap-x-1.5">
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold",
+          good === null ? "bg-secondary text-muted-foreground" : good ? "bg-success-bg text-success" : "bg-danger-bg text-danger",
+        )}
+      >
+        <Icon className="size-3" aria-hidden="true" />
+        <span>
+          <span className="sr-only">{direction === "up" ? "Up" : direction === "down" ? "Down" : "No change"} </span>
+          {Math.abs(change) > 999 ? ">999" : Math.abs(change).toFixed(1)}%
+        </span>
       </span>
-      <span className="font-normal text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground">{label}</span>
     </span>
   );
 }
@@ -166,22 +177,41 @@ export function ActivityList({ items, empty = "Nothing to show yet." }: { items:
   );
 }
 
-/** Attention item (overdue invoice, expiring estimate) for the Phase 12 alert feed. */
+const ALERT_TONES = {
+  danger: { bar: "before:bg-danger-solid", icon: "text-danger", Icon: XCircle },
+  warning: { bar: "before:bg-warning", icon: "text-warning", Icon: AlertTriangle },
+  info: { bar: "before:bg-info", icon: "text-info", Icon: Info },
+} as const;
+
+/**
+ * Attention item (overdue invoice, expiring estimate). A calm neutral card: the severity shows as a left accent and
+ * icon, and the text stays in normal ink so a page of alerts never shouts over the figures below it.
+ */
 export function AlertCard({ tone, title, children, href }: { tone: "warning" | "danger" | "info"; title: string; children?: ReactNode; href?: string }) {
+  const { bar, icon, Icon } = ALERT_TONES[tone];
   return (
-    <Alert
-      tone={tone}
-      title={title}
-      action={
-        href ? (
-          <Link to={href} className="inline-flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline">
-            Open <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Link>
-        ) : undefined
-      }
+    <div
+      className={cn(
+        "relative flex gap-3 overflow-hidden rounded-lg border border-border bg-surface py-3.5 pl-5 pr-4 before:absolute before:inset-y-0 before:left-0 before:w-1",
+        bar,
+      )}
     >
-      {children}
-    </Alert>
+      <Icon className={cn("mt-0.5 size-4 shrink-0", icon)} aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold leading-snug">{title}</h3>
+          {href ? (
+            <Link
+              to={href}
+              className="-my-0.5 inline-flex shrink-0 items-center gap-1 rounded-sm py-0.5 text-sm font-medium text-accent-ink underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              Review <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+          ) : null}
+        </div>
+        <div className="mt-1 space-y-1 text-sm text-muted-foreground [&_a]:text-foreground [&_li>span.font-medium]:text-foreground">{children}</div>
+      </div>
+    </div>
   );
 }
 

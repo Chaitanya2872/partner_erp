@@ -2,6 +2,8 @@ package com.iotiq.partnererp.modules.invoices.service;
 
 import com.iotiq.partnererp.common.constants.AppConstants;
 import com.iotiq.partnererp.common.enums.InvoiceStatus;
+import com.iotiq.partnererp.common.persistence.LineKind;
+import com.iotiq.partnererp.common.util.AmountInWords;
 import com.iotiq.partnererp.modules.estimates.dto.TotalsResponse;
 import com.iotiq.partnererp.modules.estimates.service.EstimateDocumentRenderer;
 import com.iotiq.partnererp.modules.invoices.dto.InternalInvoiceDocument;
@@ -31,7 +33,7 @@ public final class InvoiceDocumentRenderer {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
     private static final String CSS = EstimateDocumentRenderer.CSS + """
-            .warn{border:2px solid #9b1c1c;color:#9b1c1c;padding:6px 10px;margin-bottom:12px;font-weight:700}
+            .warn{border:2px solid #9b1c1c;color:#9b1c1c;padding:6px 10px;margin:0 20px 12px;font-weight:700}
             .pos{margin-bottom:12px}
             td.s,th.s{font-size:11.5px}
             """;
@@ -43,8 +45,15 @@ public final class InvoiceDocumentRenderer {
     public static String partner(InvoiceResponse i, CompanySettings company) {
         boolean inter = i.tax().taxType() == TaxType.INTER;
         String stateTax = i.tax().stateTaxLabel() == null ? "SGST" : i.tax().stateTaxLabel();
-        StringBuilder rows = new StringBuilder();
+        StringBuilder product = new StringBuilder();
+        StringBuilder install = new StringBuilder();
+        BigDecimal installTotal = BigDecimal.ZERO;
         for (InvoiceResponse.Line l : i.lines()) {
+            boolean installation = l.kind() == LineKind.INSTALLATION;
+            if (installation) {
+                installTotal = installTotal.add(l.lineTotal());
+            }
+            StringBuilder rows = installation ? install : product;
             rows.append("<tr><td>").append(l.lineNo()).append("</td><td>").append(esc(l.description()))
                     .append("</td><td>").append(esc(l.hsn())).append("</td><td class=\"n\">").append(num(l.quantity()))
                     .append(' ').append(esc(l.unit())).append("</td><td class=\"n\">").append(inr(l.unitPrice()))
@@ -79,18 +88,29 @@ public final class InvoiceDocumentRenderer {
                 + parties(i) + "<div class=\"pos\"><span class=\"lab\">Place of supply</span> " + pos
                 + (i.tax().taxTypeLabel() == null ? "" : " · " + esc(i.tax().taxTypeLabel()))
                 + " · <span class=\"lab\">Tax payable on reverse charge</span> No</div>"
-                + "<table><thead>" + head + "</thead><tbody>" + rows + "</tbody></table>"
-                + totals(i.totals(), i.discountPercent(), inter, stateTax)
-                + (i.notes() == null ? "" : "<div class=\"note\">" + esc(i.notes()) + "</div>") + "</div>";
+                + sections("<thead>" + head + "</thead>", product, install, inter ? 8 : 9, installTotal,
+                "Installation total (incl. GST)")
+                + "<div class=\"tot\"><div><div class=\"words\"><b>Amount in words:</b> "
+                + esc(AmountInWords.rupees(i.totals().grandTotal())) + "</div></div>"
+                + totals(i.totals(), i.discountPercent(), inter, stateTax) + "</div>"
+                + EstimateDocumentRenderer.notesAndTerms(i.notes(), company)
+                + EstimateDocumentRenderer.closing(company, "Authorised signatory") + "</div>";
         return page(i.invoiceNumber() == null ? "Draft invoice" : i.invoiceNumber(), body);
     }
 
     /** Internal B2C copy of an issued invoice: B2C names and rates, the partner copy name per line, the uplift. */
     public static String internal(InvoiceResponse i, InternalInvoiceDocument twin, CompanySettings company) {
-        StringBuilder rows = new StringBuilder();
+        StringBuilder product = new StringBuilder();
+        StringBuilder install = new StringBuilder();
+        BigDecimal installTotal = BigDecimal.ZERO;
         for (InternalInvoiceDocument.Line l : twin.lines()) {
+            boolean installation = l.kind() == LineKind.INSTALLATION;
+            if (installation) {
+                installTotal = installTotal.add(l.amount());
+            }
+            StringBuilder rows = installation ? install : product;
             rows.append("<tr><td>").append(l.lineNo()).append("</td><td>").append(esc(l.b2cName()));
-            if (l.partnerName() != null) {
+            if (!installation && l.partnerName() != null) {
                 rows.append("<div class=\"sub\">Partner copy name: ").append(esc(l.partnerName())).append("</div>");
             }
             if (l.b2cPriceMissing()) {
@@ -115,10 +135,26 @@ public final class InvoiceDocumentRenderer {
         String body = "<div class=\"doc int\">" + stamp
                 + header(i.supplier(), company, "INVOICE (INTERNAL B2C COPY)", twin.internalNumber(),
                 twin.documentDate(), i.dueDate(), i.invoiceNumber())
-                + parties(i) + "<table><thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th>"
+                + parties(i) + sections("<thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th>"
                 + "<th class=\"n\">Qty</th><th class=\"n\">Rate</th><th class=\"n\">GST</th><th class=\"n\">Amount</th>"
-                + "</tr></thead><tbody>" + rows + "</tbody></table>" + totals + "</div>";
+                + "</tr></thead>", product, install, 6, installTotal, "Installation subtotal") + totals + "</div>";
         return page(twin.internalNumber(), body);
+    }
+
+    /** Product lines first; then, if there are any, the "Installation" section with its own subtotal. */
+    private static String sections(String head, StringBuilder product, StringBuilder install, int labelSpan,
+                                   BigDecimal installTotal, String installLabel) {
+        StringBuilder out = new StringBuilder();
+        if (product.length() > 0 || install.length() == 0) {
+            out.append("<table>").append(head).append("<tbody>").append(product).append("</tbody></table>");
+        }
+        if (install.length() > 0) {
+            out.append("<h3 class=\"inst\">Installation</h3><table>").append(head).append("<tbody>").append(install)
+                    .append("<tr><td colspan=\"").append(labelSpan).append("\" class=\"n\"><b>").append(installLabel)
+                    .append("</b></td><td class=\"n\"><b>").append(inr(installTotal))
+                    .append("</b></td></tr></tbody></table>");
+        }
+        return out.toString();
     }
 
     private static String page(String title, String body) {

@@ -3,6 +3,8 @@ package com.iotiq.partnererp.modules.invoices.dto;
 import com.iotiq.partnererp.common.enums.InvoiceStatus;
 import com.iotiq.partnererp.modules.estimates.dto.TotalsResponse;
 
+import com.iotiq.partnererp.common.persistence.LineKind;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -20,7 +22,7 @@ public record InternalInvoiceDocument(UUID invoiceId, String internalNumber, Str
                                       TotalsResponse b2cTotals, TotalsResponse partnerTotals, BigDecimal uplift,
                                       boolean b2cIncomplete, int missingB2cPrices, Instant updatedAt) {
 
-    public record Line(int lineNo, String b2cName, String partnerName, String hsn, String unit, BigDecimal quantity,
+    public record Line(int lineNo, LineKind kind, String b2cName, String partnerName, String hsn, String unit, BigDecimal quantity,
                        BigDecimal rate, BigDecimal gstPercent, BigDecimal amount, boolean b2cPriceMissing) {
     }
 }

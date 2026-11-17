@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArchiveDialog } from "@/components/feedback/ArchiveDialog";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Textarea } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Controls";
 import { errorMessage } from "@/lib/errors";
+import { ApiRequestError } from "@/services/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatPercent } from "@/utils/format";
 import { leadService } from "../services/leadService";
@@ -14,18 +16,19 @@ type LeadRef = Pick<LeadSummary, "id" | "clientName" | "partner" | "stage" | "st
 
 interface LeadActionsOptions {
   meta: LeadMeta | undefined;
-  /** Called after a successful delete (the detail page leaves for the list). */
+  /** Called after a successful archive (the detail page leaves for the list). */
   onDeleted?: () => void;
 }
 
 /**
- * Stage change, acknowledge and delete for a lead, with their confirmations. Pages call the `request…` functions and
+ * Stage change, acknowledge and archive (soft delete, with a reason) for a lead, with their confirmations. Pages call the `request…` functions and
  * render `dialogs`. Open stages change at once; reopening a Won or Lost lead asks first and takes a reason (D-04).
  */
 export function useLeadActions({ meta, onDeleted }: LeadActionsOptions) {
   const queryClient = useQueryClient();
   const [ackTarget, setAckTarget] = useState<LeadRef | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LeadRef | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
   const [reopen, setReopen] = useState<{ lead: LeadRef; stage: LeadStage } | null>(null);
   const [reason, setReason] = useState("");
 
@@ -61,14 +64,19 @@ export function useLeadActions({ meta, onDeleted }: LeadActionsOptions) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (lead: LeadRef) => leadService.remove(lead.id),
+    mutationFn: ({ lead, why }: { lead: LeadRef; why: string }) => leadService.remove(lead.id, why),
     onSuccess: async () => {
-      toast.success("Lead deleted.");
+      toast.success("Lead archived. You can restore it from the Archive.");
       setDeleteTarget(null);
       onDeleted?.();
       await refresh();
     },
     onError: (error) => {
+      const field = error instanceof ApiRequestError ? error.fieldErrors.find((f) => f.field === "reason") : undefined;
+      if (field) {
+        setReasonError(field.message);
+        return;
+      }
       toast.error(errorMessage(error));
       setDeleteTarget(null);
     },
@@ -92,7 +100,7 @@ export function useLeadActions({ meta, onDeleted }: LeadActionsOptions) {
       <ConfirmDialog
         open={!!ackTarget}
         title="Acknowledge registration?"
-        confirmLabel="Acknowledge"
+        confirmLabel="Acknowledge lead"
         busy={ackMutation.isPending}
         onCancel={() => setAckTarget(null)}
         onConfirm={() => ackTarget && ackMutation.mutate(ackTarget)}
@@ -115,7 +123,7 @@ export function useLeadActions({ meta, onDeleted }: LeadActionsOptions) {
       <ConfirmDialog
         open={!!reopen}
         title="Reopen lead?"
-        confirmLabel="Reopen"
+        confirmLabel="Reopen lead"
         busy={stageMutation.isPending}
         onCancel={() => setReopen(null)}
         onConfirm={() => reopen && stageMutation.mutate({ lead: reopen.lead, stage: reopen.stage, why: reason.trim() })}
@@ -134,29 +142,35 @@ export function useLeadActions({ meta, onDeleted }: LeadActionsOptions) {
         ) : null}
       </ConfirmDialog>
 
-      <ConfirmDialog
+      <ArchiveDialog
         open={!!deleteTarget}
-        title="Delete lead?"
-        confirmLabel="Delete"
-        danger
+        title="Archive lead?"
+        confirmLabel="Archive lead"
         busy={deleteMutation.isPending}
+        serverError={reasonError}
         onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
+        onConfirm={(why) => {
+          setReasonError(null);
+          if (deleteTarget) deleteMutation.mutate({ lead: deleteTarget, why });
+        }}
       >
         {deleteTarget ? (
           <p>
-            “{deleteTarget.clientName}” ({deleteTarget.partner.name}) is removed from lists and stops protecting its phone number. A lead with
-            estimates, invoices or payments can&apos;t be deleted; mark it Lost instead.
+            “{deleteTarget.clientName}” ({deleteTarget.partner.name}) leaves the lead lists and stops protecting its phone number. A lead with
+            estimates, invoices or payments can&apos;t be archived; mark it Lost instead.
           </p>
         ) : null}
-      </ConfirmDialog>
+      </ArchiveDialog>
     </>
   );
 
   return {
     requestStage,
     requestAcknowledge: (lead: LeadRef) => setAckTarget(lead),
-    requestDelete: (lead: LeadRef) => setDeleteTarget(lead),
+    requestDelete: (lead: LeadRef) => {
+      setReasonError(null);
+      setDeleteTarget(lead);
+    },
     /** The lead whose stage is being saved, so its select can show it is busy. */
     stagePendingId: stageMutation.isPending ? stageMutation.variables?.lead.id : undefined,
     dialogs,

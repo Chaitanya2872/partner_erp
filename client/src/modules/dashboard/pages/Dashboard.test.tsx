@@ -104,7 +104,7 @@ describe("executive dashboard", () => {
 
   it("lists backend alerts with record links and how many more there are", async () => {
     signIn(makeMe("SUPER_ADMIN"));
-    renderApp("/dashboard");
+    renderApp("/dashboard?view=attention");
     const list = await screen.findByRole("list", { name: "Alerts" });
     expect(within(list).getByText("Overdue invoices · 6")).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "INV-2026-000001" })).toHaveAttribute("href", "/invoices/i1");
@@ -115,7 +115,7 @@ describe("executive dashboard", () => {
   it("says when nothing needs attention", async () => {
     vi.mocked(dashboardService.alerts).mockResolvedValue({ ...alerts, groups: [] });
     signIn(makeMe("SUPER_ADMIN"));
-    renderApp("/dashboard");
+    renderApp("/dashboard?view=attention");
     expect(await screen.findByText("Nothing needs attention right now.")).toBeInTheDocument();
   });
 
@@ -188,6 +188,7 @@ describe("dashboard permissions", () => {
     expect(screen.queryByRole("link", { name: /^Collected \(ex-GST\)/ })).not.toBeInTheDocument();
     expect(screen.getByText(/Needs Leads read access with the All records scope/)).toBeInTheDocument();
     // Alert records are not links when the module can't be opened.
+    await userEvent.click(screen.getByRole("tab", { name: /Needs attention/ }));
     const list = await screen.findByRole("list", { name: "Alerts" });
     expect(within(list).queryByRole("link")).not.toBeInTheDocument();
   });
@@ -196,7 +197,7 @@ describe("dashboard permissions", () => {
     signIn(makeMe("USER", { modules: [row("DASHBOARD")] }));
     renderApp("/dashboard");
     expect(await screen.findByRole("heading", { name: /Welcome, Test/ })).toBeInTheDocument();
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Dashboard sections" })).not.toBeInTheDocument();
     expect(dashboardService.overview).not.toHaveBeenCalled();
   });
 });

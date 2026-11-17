@@ -9,16 +9,19 @@ import { EmptyState } from "@/components/feedback/States";
 import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
 import { SearchInput } from "@/components/forms/SearchInput";
 import { Button } from "@/components/ui/Button";
+import { SegmentedList, SegmentedTrigger, Tabs, TabsContent } from "@/components/ui/Tabs";
 import { Select } from "@/components/ui/Input";
 import { queryKeys } from "@/lib/queryKeys";
 import { leadService } from "../services/leadService";
 import { useLeadMeta } from "../hooks/useLeads";
 import { useLeadActions } from "../components/LeadDialogs";
 import { LeadTable } from "../components/LeadTable";
+import { LeadArchive } from "../components/LeadArchive";
 import type { LeadStage } from "../types/lead.types";
 
 export function LeadsPage() {
   const { canWrite } = useAuth();
+  const [view, setView] = useState<"active" | "archive">("active");
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState<LeadStage | "">("");
   const [partnerId, setPartnerId] = useState("");
@@ -47,6 +50,7 @@ export function LeadsPage() {
       setPage(0);
     };
   const filtered = !!q || !!stage || !!partnerId || !!conflict || !!slaBreach;
+  const clearFilters = () => { setSearch(""); setStage(""); setPartnerId(""); setSlaBreach(""); setConflict(""); setPage(0); };
   const noPartners = meta.data?.partners.length === 0;
 
   const newLead = canEdit ? (
@@ -71,6 +75,12 @@ export function LeadsPage() {
         actions={newLead ? <PageActions>{newLead}</PageActions> : undefined}
       />
 
+      <Tabs value={view} onValueChange={(next) => setView(next as "active" | "archive")} className="space-y-4">
+        <SegmentedList aria-label="Leads view">
+          <SegmentedTrigger value="active">Active leads</SegmentedTrigger>
+          <SegmentedTrigger value="archive">Archive</SegmentedTrigger>
+        </SegmentedList>
+        <TabsContent value="active" className="pt-0">
       <LeadTable
         caption="Leads"
         rows={leads.data?.content}
@@ -86,8 +96,8 @@ export function LeadsPage() {
         onPageChange={setPage}
         onPageSizeChange={set(setSize)}
         empty={
-          <EmptyState title={filtered ? "No leads match" : "No leads yet"} action={!filtered ? newLead : undefined}>
-            {filtered ? "Try other filters." : "Register the first lead a partner refers to start its protection and SLA clocks."}
+          <EmptyState title={filtered ? "No leads match" : "No leads yet"} onClearFilters={filtered ? clearFilters : undefined} action={!filtered ? newLead : undefined}>
+            {filtered ? undefined : "Register the first lead a partner refers to start its protection and SLA clocks."}
           </EmptyState>
         }
         toolbar={
@@ -122,6 +132,11 @@ export function LeadsPage() {
           </Toolbar>
         }
       />
+        </TabsContent>
+        <TabsContent value="archive" className="pt-0">
+          <LeadArchive />
+        </TabsContent>
+      </Tabs>
 
       {actions.dialogs}
     </PageContainer>

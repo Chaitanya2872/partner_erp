@@ -223,7 +223,7 @@ describe("partner details", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: "Inactive" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/never deleted/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate partner" }));
     expect(partnerService.setStatus).toHaveBeenCalledWith("p1", "INACTIVE", 4);
   });
 

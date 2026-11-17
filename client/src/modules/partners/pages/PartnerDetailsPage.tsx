@@ -280,7 +280,7 @@ export function PartnerDetailsPage() {
       <ConfirmDialog
         open={!!statusTarget}
         title={statusTarget === "INACTIVE" ? "Deactivate partner?" : `Change status to ${statusTarget ? statusLabel(statusTarget) : ""}?`}
-        confirmLabel={statusTarget === "INACTIVE" ? "Deactivate" : "Change status"}
+        confirmLabel={statusTarget === "INACTIVE" ? "Deactivate partner" : "Change status"}
         danger={statusTarget === "INACTIVE"}
         busy={statusMutation.isPending}
         onCancel={() => setStatusTarget(null)}

@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/feedback/States";
 import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
 import { MetricCard, SummaryPanel } from "@/components/dashboard/Dashboard";
 import { SearchInput } from "@/components/forms/SearchInput";
-import { DateInput } from "@/components/forms/inputs";
+import { FilterDate } from "@/components/forms/inputs";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { errorMessage } from "@/lib/errors";
@@ -70,6 +70,7 @@ export function PaymentsPage() {
       setPage(0);
     };
   const filtered = !!q || !!method || !!type || !!state || !!from || !!to;
+  const clearFilters = () => { setSearch(""); setMethod(""); setType(""); setState(""); setFrom(""); setTo(""); setPage(0); };
 
   const exportCsv = async () => {
     setExporting(true);
@@ -218,8 +219,8 @@ export function PaymentsPage() {
         pageSizeOptions={[20, 50, 100]}
         onPageSizeChange={set(setSize)}
         empty={
-          <EmptyState title={filtered ? "No payments match" : "No payments yet"} action={!filtered ? recordButton : undefined}>
-            {filtered ? "Try other filters." : "Record money received against an issued invoice."}
+          <EmptyState title={filtered ? "No payments match" : "No payments yet"} onClearFilters={filtered ? clearFilters : undefined} action={!filtered ? recordButton : undefined}>
+            {filtered ? undefined : "Record money received against an issued invoice."}
           </EmptyState>
         }
         toolbar={
@@ -249,8 +250,8 @@ export function PaymentsPage() {
                 </option>
               ))}
             </Select>
-            <DateInput aria-label="Payment date from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" />
-            <DateInput aria-label="Payment date to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" />
+            <FilterDate label="From" aria-label="Payment date from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" />
+            <FilterDate label="To" aria-label="Payment date to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" />
           </Toolbar>
         }
       />

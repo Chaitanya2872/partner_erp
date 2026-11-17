@@ -9,7 +9,7 @@
 
 import type { Money } from "@/modules/partners/types/partner.types";
 import type { PartnerRef } from "@/modules/leads/types/lead.types";
-import type { BillTo, EstimateLeadRef, Totals } from "@/modules/estimates/types/estimate.types";
+import type { BillTo, EstimateLeadRef, LineKind, Totals } from "@/modules/estimates/types/estimate.types";
 
 export type InvoiceStatus = "DRAFT" | "ISSUED" | "CANCELLED";
 /** Derived from recorded payments and the due date (BR-V6); null for drafts. */
@@ -75,6 +75,7 @@ export interface EstimateComparison {
 export interface InvoiceLine {
   id: string | null;
   lineNo: number;
+  kind: LineKind;
   productId: string | null;
   sku: string | null;
   productActive: boolean;
@@ -190,10 +191,18 @@ export interface InvoiceMeta {
 
 export interface InvoiceLineInput {
   id?: string;
-  productId: string;
+  kind: LineKind;
+  /** Omitted for installation lines. */
+  productId?: string;
+  /** Installation lines only (required, at most 300 characters). */
+  description?: string;
+  /** Installation lines only; the server defaults it to "job". */
+  unit?: string;
   quantity: string;
-  unitPrice: string;
-  gstPercent: string;
+  /** Installation lines only: product lines always take the product sheet's rate. */
+  unitPrice?: string;
+  /** Installation lines only: product lines always take the product sheet's GST. */
+  gstPercent?: string;
 }
 
 /**
@@ -238,6 +247,7 @@ export interface InvoicePreview {
 
 export interface InternalInvoiceLine {
   lineNo: number;
+  kind: LineKind;
   b2cName: string;
   partnerName: string;
   hsn: string | null;

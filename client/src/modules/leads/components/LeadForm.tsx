@@ -23,6 +23,7 @@ const schema = z.object({
   city: optional(150),
   partnerId: z.string().min(1, "Choose the referring partner."),
   projectType: z.string().min(1, "Choose a project type."),
+  projectTypeOther: optional(100),
   units: z.string().refine((v) => v === "" || /^\d{1,9}$/.test(v), "Enter a whole number of units."),
   budget: decimalString({ required: false, max: "999999999999.99", label: "Budget" }),
   stage: z.string(),
@@ -31,18 +32,23 @@ const schema = z.object({
   expectedClose: z.string(),
   source: optional(200),
   notes: optional(2000),
+}).superRefine((v, ctx) => {
+  // "Other" has no meaning without a description (mirrors LeadService.normalize).
+  if (v.projectType === "OTHER" && v.projectTypeOther === "") {
+    ctx.addIssue({ code: "custom", path: ["projectTypeOther"], message: "Say what kind of project it is." });
+  }
 });
 
 type FormValues = z.input<typeof schema>;
 type ParsedValues = z.output<typeof schema>;
 
 const FIELDS = [
-  "clientName", "clientPhone", "clientEmail", "city", "partnerId", "projectType", "units", "budget", "stage", "stageReason", "presalesOwner",
+  "clientName", "clientPhone", "clientEmail", "city", "partnerId", "projectType", "projectTypeOther", "units", "budget", "stage", "stageReason", "presalesOwner",
   "expectedClose", "source", "notes",
 ] as const;
 
 const LABELS: Record<string, string> = {
-  clientName: "Client name", clientPhone: "Phone", clientEmail: "Email", city: "City", partnerId: "Referring partner", projectType: "Project type",
+  clientName: "Client name", clientPhone: "Phone", clientEmail: "Email", city: "City", partnerId: "Referring partner", projectType: "Project type", projectTypeOther: "Project type details",
   units: "Units", budget: "Budget", stage: "Stage", stageReason: "Reason for the stage change", presalesOwner: "Presales owner",
   expectedClose: "Expected close", source: "Source", notes: "Notes",
 };
@@ -79,6 +85,7 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
       city: lead?.city ?? "",
       partnerId: lead?.partner.id ?? (meta.partners.some((p) => p.id === defaultPartnerId) ? defaultPartnerId : ""),
       projectType: lead?.projectType ?? "VILLA",
+      projectTypeOther: lead?.projectTypeOther ?? "",
       units: lead?.units === null || lead?.units === undefined ? "" : String(lead.units),
       budget: lead?.budget === null || lead?.budget === undefined ? "" : String(lead.budget),
       stage: lead?.stage ?? "NEW",
@@ -90,7 +97,7 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
     },
   });
 
-  const [partnerId, stage] = useWatch({ control, name: ["partnerId", "stage"] });
+  const [partnerId, stage, projectType] = useWatch({ control, name: ["partnerId", "stage", "projectType"] });
   const partner = meta.partners.find((p) => p.id === partnerId);
   const stageChanged = editing && stage !== lead.stage;
   const reopening = editing && isClosed(lead.stage) && stageChanged;
@@ -104,6 +111,7 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
       city: v.city,
       partnerId: v.partnerId,
       projectType: v.projectType as ProjectType,
+      projectTypeOther: v.projectType === "OTHER" ? v.projectTypeOther : "",
       units: v.units === "" ? null : Number(v.units),
       budget: v.budget === "" ? null : v.budget,
       stage: v.stage as LeadStage,
@@ -191,6 +199,11 @@ export function LeadForm({ meta, lead, defaultPartnerId, canApprove, onSubmit, o
               ))}
             </Select>
           </FormField>
+          {projectType === "OTHER" ? (
+            <FormField label="What kind of project?" error={errors.projectTypeOther?.message} required hint="For example: warehouse, clinic, hotel.">
+              <Input maxLength={100} {...register("projectTypeOther")} />
+            </FormField>
+          ) : null}
           {/* The Controller wraps the field so FormField can label the input itself. */}
           <Controller
             control={control}

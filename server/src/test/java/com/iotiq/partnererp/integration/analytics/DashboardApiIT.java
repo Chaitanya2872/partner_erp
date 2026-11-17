@@ -196,7 +196,7 @@ class DashboardApiIT extends ApiIntegrationTest {
         fx.lead(p, LocalDateTime.of(2004, 7, 1, 0, 0), "NEW", null);
         // Deleted leads never count.
         UUID deleted = fx.lead(p, june.plusDays(3), "WON", null);
-        jdbc.update("update leads set deleted_at = now() where id = ?", deleted);
+        jdbc.update("update leads set deleted_at = now(), delete_reason = 'Removed by the test' where id = ?", deleted);
         fx.estimate(p, l1, LocalDate.of(2004, 6, 3), "SENT", "1180.00");
 
         String body = content(get("/api/v1/dashboard/sales").param("from", "2004-06-01").param("to", "2004-06-30"), sa);
@@ -237,7 +237,7 @@ class DashboardApiIT extends ApiIntegrationTest {
         fx.invoiceFrom(invoiced, p, july.plusDays(4));
         fx.estimate(p, null, july.plusDays(5), "ACCEPTED", "3000.00");
         UUID deleted = fx.estimate(p, null, july.plusDays(6), "SENT", "500.00");
-        jdbc.update("update estimates set deleted_at = now() where id = ?", deleted);
+        jdbc.update("update estimates set deleted_at = now(), delete_reason = 'Removed by the test' where id = ?", deleted);
 
         String body = overview(sa, "2005-07-01", "2005-07-31");
         assertThat((Integer) JsonPath.read(body, "$.data.estimates.total")).isEqualTo(4);

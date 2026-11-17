@@ -235,6 +235,44 @@ class EstimateApiIT extends ApiIntegrationTest {
     // ------------------------------------------------------------------------------------------------ snapshots
 
     @Test
+    void productLinesAlwaysTakeRateAndGstFromTheProductSheet() throws Exception {
+        // Decision: a price or GST sent for a product line is ignored (not rejected); the sheet's values are saved.
+        Map<String, Object> tampered = line(productA, 2);
+        tampered.put("unitPrice", new BigDecimal("1.00"));
+        tampered.put("gstPercent", new BigDecimal("0"));
+        Map<String, Object> garbage = line(productB, 1);
+        garbage.put("unitPrice", "10.005");
+        String created = create(admin, estimate(leadId, "lines", List.of(tampered, garbage)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(1000.0))
+                .andExpect(jsonPath("$.data.lines[0].gstPercent").value(18.0))
+                .andExpect(jsonPath("$.data.lines[1].unitPrice").value(250.5))
+                .andExpect(jsonPath("$.data.lines[1].gstPercent").value(5.0))
+                .andReturn().getResponse().getContentAsString();
+        // 2 x 1000 x 1.18 + 250.50 x 1.05
+        assertThat(decimal(created, "$.data.totals.grandTotal")).isEqualByComparingTo("2623.03");
+
+        // Saved lines keep their copy on edit, even after the sheet changes and a different price is sent.
+        UUID id = id(created);
+        String lineId = JsonPath.read(created, "$.data.lines[0].id");
+        Map<String, Object> keep = line(productA, 3);
+        keep.put("id", lineId);
+        keep.put("unitPrice", new BigDecimal("5"));
+        keep.put("gstPercent", new BigDecimal("28"));
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
+                        body(estimate(leadId, "version", 0, "lines", List.of(keep)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(1000.0))
+                .andExpect(jsonPath("$.data.lines[0].gstPercent").value(18.0));
+        // The preview agrees with the save.
+        mvc.perform(withJson(post("/api/v1/estimates/preview").with(bearer(admin)),
+                        body(estimate(leadId, "lines", List.of(tampered)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(1000.0))
+                .andExpect(jsonPath("$.data.lines[0].gstPercent").value(18.0));
+    }
+
+    @Test
     void savedLinesKeepTheirSnapshotWhenProductsChangeAndNewLinesCopyTheCurrentProduct() throws Exception {
         String created = create(admin, estimate(leadId, "lines", List.of(line(productA, 1))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
@@ -296,8 +334,8 @@ class EstimateApiIT extends ApiIntegrationTest {
         UUID id = id(create(admin, estimate(leadId, "lines", List.of(line(productB, 1)))).andReturn());
         UUID unused = product("-U", "10", null, "B2C unused " + tag, 18);
 
-        mvc.perform(delete("/api/v1/estimates/{id}", id).with(bearer(admin))).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/estimates/{id}", id).with(bearer(admin))).andExpect(status().isForbidden());
+        mvc.perform(archive("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNotFound());
         assertThat(count("select count(*) from estimates where id = ? and deleted_at is not null", id)).isEqualTo(1);
         assertThat(count("select count(*) from audit_logs where action = 'ESTIMATE_DELETED' and entity_id = ?", id))
@@ -502,7 +540,8 @@ class EstimateApiIT extends ApiIntegrationTest {
             }
             long version = count("select version from estimates where id = ?", id);
             mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
-                            body(estimate(lead, "version", version, "lines", List.of(line(productA, 4))))))
+                            body(estimate(lead, "version", version, "revisionReason", "Client asked for a larger order",
+                                    "lines", List.of(line(productA, 4))))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.status").value(status))
                     .andExpect(jsonPath("$.data.lines[0].quantity").value(4.0));
@@ -510,13 +549,128 @@ class EstimateApiIT extends ApiIntegrationTest {
                     + "and entity_id = ? order by created_at desc limit 1", String.class, id)).contains("\"lines\"")
                     .doesNotContain("\"status\"");
 
-            mvc.perform(delete("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
+            mvc.perform(archive("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
             assertThat(jdbc.queryForObject("select status from estimates where id = ?", String.class, id))
                     .isEqualTo(status);
             assertThat(jdbc.queryForObject("select old_values::text from audit_logs where action = 'ESTIMATE_DELETED' "
                     + "and entity_id = ?", String.class, id)).contains("\"" + status + "\"");
             mvc.perform(get("/api/v1/estimates/{id}", id).with(bearer(admin))).andExpect(status().isNotFound());
         }
+    }
+
+    // ------------------------------------------------------------------------------------------------ installation
+
+    @Test
+    void installationLinesArePricedAndTotalledWithTheProductLinesAndKeepNoProduct() throws Exception {
+        // 1 x 1000 @ 18% + 2 x 500 @ 12% = 2000 taxable, 180 + 120 GST
+        String body = create(admin, estimate(leadId, "lines",
+                List.of(line(productA, 1), installation("Fit rails and commission " + tag, 2, "500", "12"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].kind").value("PRODUCT"))
+                .andExpect(jsonPath("$.data.lines[1].kind").value("INSTALLATION"))
+                .andExpect(jsonPath("$.data.lines[1].unit").value("job"))
+                .andExpect(jsonPath("$.data.lines[1].productActive").value(true))
+                .andExpect(jsonPath("$.data.lines[1].productId").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(decimal(body, "$.data.totals.taxableAmount")).isEqualByComparingTo("2000.00");
+        assertThat(decimal(body, "$.data.totals.gstAmount")).isEqualByComparingTo("300.00");
+        assertThat(decimal(body, "$.data.totals.grandTotal")).isEqualByComparingTo("2300.00");
+        UUID id = id(body);
+        assertThat(jdbc.queryForList("select kind from estimate_items where estimate_id = ? order by line_no",
+                String.class, id)).containsExactly("PRODUCT", "INSTALLATION");
+        // The twin carries it too, and its B2C price is never "missing".
+        Map<String, Object> twin = jdbc.queryForMap("select * from b2c_documents where estimate_id = ?", id);
+        assertThat(jdbc.queryForList("select kind from b2c_document_items where b2c_document_id = ? order by line_no",
+                String.class, twin.get("id"))).containsExactly("PRODUCT", "INSTALLATION");
+        assertThat((BigDecimal) twin.get("partner_taxable_amount")).isEqualByComparingTo("2000.00");
+
+        // The preview and the printable documents include the installation section.
+        mvc.perform(withJson(post("/api/v1/estimates/preview").with(bearer(admin)), body(estimate(leadId, "lines",
+                        List.of(line(productA, 1), installation("Fit rails " + tag, 2, "500", "12"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[1].kind").value("INSTALLATION"))
+                .andExpect(jsonPath("$.data.totals.grandTotal").value(2300.0));
+        String document = content(get("/api/v1/estimates/{id}/document", id), admin);
+        assertThat(document).contains("Installation", "Fit rails and commission " + tag);
+        assertPartnerSafe(document);
+
+        // A saved installation line is fully editable; the change shows in the history.
+        Map<String, Object> saved = installation("Fit rails, commission and train staff " + tag, 3, "500", "12");
+        saved.put("id", JsonPath.read(body, "$.data.lines[1].id"));
+        Map<String, Object> keptProduct = line(productA, 1);
+        keptProduct.put("id", JsonPath.read(body, "$.data.lines[0].id"));
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
+                        body(estimate(leadId, "version", 0, "lines", List.of(keptProduct, saved)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[1].quantity").value(3.0))
+                .andExpect(jsonPath("$.data.lines[1].description").value("Fit rails, commission and train staff " + tag))
+                .andExpect(jsonPath("$.data.totals.grandTotal").value(2860.0));
+        assertThat(jdbc.queryForObject("select new_values::text from audit_logs where action = 'ESTIMATE_UPDATED' "
+                + "and entity_id = ? order by created_at desc limit 1", String.class, id))
+                .contains("INSTALLATION", "train staff");
+    }
+
+    @Test
+    void installationLinesAreValidated() throws Exception {
+        create(admin, estimate(leadId, "lines", List.of(line(productA, 1), installation("  ", 1, "500", "18"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[1].description"));
+        create(admin, estimate(leadId, "lines", List.of(installation("Site visit", null, "500", "18"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].quantity"));
+        Map<String, Object> noRate = installation("Site visit", 1, "500", "18");
+        noRate.remove("unitPrice");
+        create(admin, estimate(leadId, "lines", List.of(noRate)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].unitPrice"));
+        Map<String, Object> withProduct = installation("Site visit", 1, "500", "18");
+        withProduct.put("productId", productA);
+        create(admin, estimate(leadId, "lines", List.of(withProduct)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].productId"));
+        Map<String, Object> unknown = installation("Site visit", 1, "500", "18");
+        unknown.put("kind", "TRAVEL");
+        create(admin, estimate(leadId, "lines", List.of(unknown)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].kind"));
+    }
+
+    // ------------------------------------------------------------------------------------------------ revision reason
+
+    @Test
+    void changingASentEstimateNeedsARevisionReasonThatIsKeptInItsHistory() throws Exception {
+        UUID draft = id(create(admin, estimate(leadId, "lines", List.of(line(productA, 1)))).andReturn());
+        // A draft needs no reason.
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", draft).with(bearer(admin)),
+                        body(estimate(leadId, "version", 0, "lines", List.of(line(productA, 2))))))
+                .andExpect(status().isOk());
+
+        UUID id = id(create(admin, estimate(leadId, "lines", List.of(line(productA, 1)))).andReturn());
+        mvc.perform(post("/api/v1/estimates/{id}/send", id).with(bearer(admin))).andExpect(status().isOk());
+        long version = count("select version from estimates where id = ?", id);
+
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
+                        body(estimate(leadId, "version", version, "lines", List.of(line(productA, 5))))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("revisionReason"));
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
+                        body(estimate(leadId, "version", version, "revisionReason", "too short",
+                                "lines", List.of(line(productA, 5))))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("revisionReason"));
+        assertThat(count("select version from estimates where id = ?", id)).isEqualTo(version);
+
+        String reason = "Client moved the opening date " + tag;
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
+                        body(estimate(leadId, "version", version, "revisionReason", reason,
+                                "lines", List.of(line(productA, 5))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SENT"));
+        assertThat(jdbc.queryForObject("select new_values::text from audit_logs where action = 'ESTIMATE_UPDATED' "
+                + "and entity_id = ? order by created_at desc limit 1", String.class, id))
+                .contains("\"revisionReason\"", reason);
+        String history = content(get("/api/v1/estimates/{id}/history", id), admin);
+        assertThat(history).contains("revisionReason", reason);
     }
 
     // ------------------------------------------------------------------------------------------------ tax type
@@ -551,7 +705,7 @@ class EstimateApiIT extends ApiIntegrationTest {
         mvc.perform(withJson(patch("/api/v1/leads/{id}/stage", lost).with(bearer(admin)),
                 body(Map.of("stage", "LOST", "version", 0)))).andExpect(status().isOk());
         UUID gone = lead("Deleted pick " + tag);
-        mvc.perform(delete("/api/v1/leads/{id}", gone).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/leads/{id}", gone).with(bearer(sa))).andExpect(status().isNoContent());
 
         TestUser writer = createUser(RoleCode.USER);
         grant(writer, List.of(module("ESTIMATES", true)), List.of());
@@ -625,10 +779,6 @@ class EstimateApiIT extends ApiIntegrationTest {
         create(admin, estimate(leadId, "estimateDate", "2026-10-20", "validUntil", "2026-10-19",
                 "lines", List.of(line(productA, 1))))
                 .andExpect(jsonPath("$.error.fieldErrors[0].field").value("validUntil"));
-        Map<String, Object> badRate = line(productA, 1);
-        badRate.put("unitPrice", "10.005");
-        create(admin, estimate(leadId, "lines", List.of(badRate)))
-                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].unitPrice"));
 
         setActive(productB, false);
         create(admin, estimate(leadId, "lines", List.of(line(productB, 1))))
@@ -646,6 +796,80 @@ class EstimateApiIT extends ApiIntegrationTest {
     }
 
     @Test
+    void archivingNeedsAReasonThenTheEstimateIsInTheArchiveReadOnlyAndRestorable() throws Exception {
+        UUID id = id(create(admin, estimate(leadId, "lines", List.of(line(productA, 1)))).andReturn());
+        mvc.perform(delete("/api/v1/estimates/{id}", id).with(bearer(sa)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("reason"));
+        mvc.perform(archive("/api/v1/estimates/{id}", "too short", id).with(bearer(sa)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("reason"));
+        mvc.perform(archive("/api/v1/estimates/{id}", "y".repeat(501), id).with(bearer(sa)))
+                .andExpect(status().isBadRequest());
+        assertThat(count("select count(*) from estimates where id = ? and deleted_at is null", id)).isEqualTo(1);
+
+        mvc.perform(archive("/api/v1/estimates/{id}", "  Client cancelled the project  ", id).with(bearer(sa)))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/estimates").param("q", tag).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.length()").value(0));
+        String list = mvc.perform(get("/api/v1/estimates/archive").param("q", tag).with(bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].estimate.id").value(id.toString()))
+                .andExpect(jsonPath("$.data[0].deleteReason").value("Client cancelled the project"))
+                .andExpect(jsonPath("$.data[0].deletedByName").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].deletedAt").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(list).doesNotContain(secretB2cName);
+        String detail = mvc.perform(get("/api/v1/estimates/archive/{id}", id).with(bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.estimate.lines.length()").value(1))
+                .andExpect(jsonPath("$.data.deleteReason").value("Client cancelled the project"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(detail).doesNotContain(secretB2cName);
+        mvc.perform(get("/api/v1/estimates/archive").param("q", "nothing-" + tag).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        // Read-only while archived: no edit, no status change, no live read, no invoice from it.
+        mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
+                        body(estimate(leadId, "version", 0, "lines", List.of(line(productA, 2))))))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/estimates/{id}/send", id).with(bearer(admin))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/estimates/{id}", id).with(bearer(admin))).andExpect(status().isNotFound());
+        mvc.perform(withJson(post("/api/v1/invoices/from-estimate").with(bearer(sa)), body(Map.of("estimateId", id))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("ESTIMATE_DELETED"));
+
+        assertThat(jdbc.queryForObject("select new_values::text from audit_logs where action = 'ESTIMATE_DELETED' "
+                + "and entity_id = ?", String.class, id)).contains("Client cancelled the project");
+
+        // Restore needs Estimates approve or delete.
+        mvc.perform(post("/api/v1/estimates/{id}/restore", id).with(bearer(admin))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/estimates/{id}/restore", id).with(bearer(sa)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(id.toString()));
+        mvc.perform(get("/api/v1/estimates/{id}", id).with(bearer(admin))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/estimates/archive").param("q", tag).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.length()").value(0));
+        assertThat(count("select count(*) from estimates where id = ? and deleted_at is null and delete_reason is null "
+                + "and deleted_by is null", id)).isEqualTo(1);
+        assertThat(count("select count(*) from audit_logs where action = 'ESTIMATE_RESTORED' and entity_id = ?", id)).isEqualTo(1);
+        mvc.perform(post("/api/v1/estimates/{id}/restore", id).with(bearer(sa))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void anEstimateCannotBeRestoredWhileItsLeadIsArchived() throws Exception {
+        UUID lead = lead("Archived lead " + tag);
+        UUID id = id(create(admin, estimate(lead, "lines", List.of(line(productA, 1)))).andReturn());
+        mvc.perform(archive("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/leads/{id}", lead).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/estimates/{id}/restore", id).with(bearer(sa)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("LEAD_ARCHIVED"));
+        mvc.perform(post("/api/v1/leads/{id}/restore", lead).with(bearer(sa))).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/estimates/{id}/restore", id).with(bearer(sa))).andExpect(status().isOk());
+    }
+
+    @Test
     void editsNeedTheCurrentVersionAndInvoicedEstimatesAreLocked() throws Exception {
         UUID id = id(create(admin, estimate(leadId, "lines", List.of(line(productA, 1)))).andReturn());
         mvc.perform(withJson(put("/api/v1/estimates/{id}", id).with(bearer(admin)),
@@ -658,7 +882,7 @@ class EstimateApiIT extends ApiIntegrationTest {
                         body(estimate(leadId, "version", 0, "lines", List.of(line(productA, 2))))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ESTIMATE_INVOICED"));
-        mvc.perform(delete("/api/v1/estimates/{id}", id).with(bearer(sa)))
+        mvc.perform(archive("/api/v1/estimates/{id}", id).with(bearer(sa)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ESTIMATE_INVOICED"));
     }
@@ -671,7 +895,7 @@ class EstimateApiIT extends ApiIntegrationTest {
         UUID deletedId = id(create(admin, estimate(leadId, "lines", List.of(line(productA, 3)))).andReturn());
         mvc.perform(post("/api/v1/estimates/{id}/send", expiredId).with(bearer(admin))).andExpect(status().isOk());
         jdbc.update("update estimates set valid_until = current_date - 1 where id = ?", expiredId);
-        mvc.perform(delete("/api/v1/estimates/{id}", deletedId).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/estimates/{id}", deletedId).with(bearer(sa))).andExpect(status().isNoContent());
 
         mvc.perform(get("/api/v1/estimates").param("q", tag).with(bearer(admin)))
                 .andExpect(jsonPath("$.data.length()").value(2))
@@ -696,9 +920,9 @@ class EstimateApiIT extends ApiIntegrationTest {
     void aLeadWhoseEstimatesWereDeletedCanBeDeletedAndScopeHidesEstimates() throws Exception {
         UUID lead = lead("Removable " + tag);
         UUID id = id(create(admin, estimate(lead, "lines", List.of(line(productA, 1)))).andReturn());
-        mvc.perform(delete("/api/v1/leads/{id}", lead).with(bearer(sa))).andExpect(status().isConflict());
-        mvc.perform(delete("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
-        mvc.perform(delete("/api/v1/leads/{id}", lead).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/leads/{id}", lead).with(bearer(sa))).andExpect(status().isConflict());
+        mvc.perform(archive("/api/v1/estimates/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/leads/{id}", lead).with(bearer(sa))).andExpect(status().isNoContent());
 
         UUID visible = id(create(admin, estimate(leadId, "lines", List.of(line(productA, 1)))).andReturn());
         TestUser scoped = createUser(RoleCode.ADMIN);
@@ -735,6 +959,16 @@ class EstimateApiIT extends ApiIntegrationTest {
         Map<String, Object> map = new HashMap<>();
         map.put("productId", productId);
         map.put("quantity", quantity);
+        return map;
+    }
+
+    private static Map<String, Object> installation(String description, Object quantity, String rate, String gst) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("kind", "INSTALLATION");
+        map.put("description", description);
+        map.put("quantity", quantity);
+        map.put("unitPrice", new BigDecimal(rate));
+        map.put("gstPercent", new BigDecimal(gst));
         return map;
     }
 

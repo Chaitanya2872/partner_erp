@@ -18,7 +18,7 @@ import { roleService, type Role } from "../services/roleService";
 import { useRoles } from "../hooks/useRoles";
 
 /**
- * Role Management. Only display names and descriptions are editable (Super Admin); the internal codes are fixed
+ * Role Management. Only display names and descriptions are editable (Role Management write access); the internal codes are fixed
  * and are what authorization uses, so renaming never changes anyone's access.
  */
 export function RoleManagement() {

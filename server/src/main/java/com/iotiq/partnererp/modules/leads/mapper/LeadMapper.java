@@ -28,7 +28,7 @@ public final class LeadMapper {
     public static LeadSummary toSummary(Lead l, SlaStatus sla, LocalDate today) {
         return new LeadSummary(l.getId(), l.getLeadNumber(), l.getClientName(), l.getClientPhone(),
                 l.getClientEmail(), l.getCity(), l.getProjectType(),
-                l.getProjectType().getLabel(), l.getUnits(), l.getBudget(), l.getStage(), l.getStage().getLabel(),
+                l.getProjectTypeDisplay(), l.getUnits(), l.getBudget(), l.getStage(), l.getStage().getLabel(),
                 partner(l), l.getAcknowledgedAt(), l.getLockedFeePercent(), l.getProtectionUntil(),
                 LeadSla.protectionActive(l.getProtectionUntil(), today), l.isConflict(), sla, l.getCreatedAt(),
                 l.getVersion());
@@ -38,7 +38,7 @@ public final class LeadMapper {
                                           String conflictPartnerName) {
         return new LeadResponse(l.getId(), l.getLeadNumber(), l.getClientName(), l.getClientPhone(),
                 l.getClientEmail(), l.getCity(), partner(l),
-                l.getProjectType(), l.getProjectType().getLabel(), l.getUnits(), l.getBudget(), l.getStage(),
+                l.getProjectType(), l.getProjectTypeDisplay(), l.getProjectTypeOther(), l.getUnits(), l.getBudget(), l.getStage(),
                 l.getStage().getLabel(), l.getPresalesOwner(), l.getExpectedClose(), l.getSource(), l.getNotes(),
                 l.getAcknowledgedAt(), acknowledgedByName, l.getLockedFeePercent(), l.getProtectionUntil(),
                 LeadSla.protectionActive(l.getProtectionUntil(), today), l.isConflict(), conflictPartnerName, sla,
@@ -54,6 +54,7 @@ public final class LeadMapper {
                 "city", l.getCity(),
                 "partnerId", l.getPartner().getId(),
                 "projectType", l.getProjectType(),
+                "projectTypeOther", l.getProjectTypeOther(),
                 "units", l.getUnits(),
                 "budget", l.getBudget(),
                 "stage", l.getStage(),

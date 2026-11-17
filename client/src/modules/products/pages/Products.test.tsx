@@ -168,7 +168,7 @@ describe("price sheet", () => {
     await userEvent.click(within(await rowOf("STI-2M")).getByRole("button", { name: "Deactivate STI-2M" }));
     const dialog = await screen.findByRole("dialog", { name: "Deactivate product?" });
     expect(within(dialog).getByText(/can't be added to new estimates or invoices/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate product" }));
     await waitFor(() => expect(productService.setActive).toHaveBeenCalledWith("p1", false, 3));
     expect(await screen.findByText("STI-2M deactivated.")).toBeInTheDocument();
 
@@ -186,7 +186,7 @@ describe("price sheet", () => {
     renderApp("/products");
 
     await userEvent.click(within(await rowOf("STI-2M")).getByRole("button", { name: "Delete STI-2M" }));
-    await userEvent.click(within(await screen.findByRole("dialog", { name: "Delete product?" })).getByRole("button", { name: "Delete" }));
+    await userEvent.click(within(await screen.findByRole("dialog", { name: "Delete product?" })).getByRole("button", { name: "Delete product" }));
     await waitFor(() => expect(productService.remove).toHaveBeenCalledWith("p1"));
     expect(await screen.findByText(/so it can't be deleted. Deactivate it instead./)).toBeInTheDocument();
   });

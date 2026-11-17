@@ -272,6 +272,57 @@ class InvoiceApiIT extends ApiIntegrationTest {
     // ------------------------------------------------------------------------------------------------ conversion
 
     @Test
+    void installationLinesSurviveConversionDraftEditsAndIssue() throws Exception {
+        UUID estimate = sentEstimate(leadId, 0, List.of(line(productA, 1),
+                installation("Install and commission " + tag, 2, "500", "12")));
+        String estimateTotal = jdbc.queryForObject("select grand_total::text from estimates where id = ?",
+                String.class, estimate);
+
+        String draft = convert(admin, estimate).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.lines[0].kind").value("PRODUCT"))
+                .andExpect(jsonPath("$.data.lines[1].kind").value("INSTALLATION"))
+                .andExpect(jsonPath("$.data.lines[1].description").value("Install and commission " + tag))
+                .andExpect(jsonPath("$.data.lines[1].unit").value("job"))
+                .andExpect(jsonPath("$.data.lines[1].productId").doesNotExist())
+                .andExpect(jsonPath("$.data.lines[1].taxableValue").value(1000.0))
+                .andReturn().getResponse().getContentAsString();
+        UUID id = id(draft);
+        String saved = update(admin, id, conversionBilling(0)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[1].kind").value("INSTALLATION"))
+                .andExpect(jsonPath("$.data.lines[1].taxAmount").value(120.0))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(decimal(saved, "$.data.totals.grandTotal")).isEqualByComparingTo(estimateTotal);
+        assertThat(decimal(saved, "$.data.totals.taxableAmount")).isEqualByComparingTo(
+                jdbc.queryForObject("select taxable_amount from estimates where id = ?", BigDecimal.class, estimate));
+        issue(admin, id, 1, estimateTotal).andExpect(status().isOk());
+        assertThat(jdbc.queryForList("select kind from invoice_items where invoice_id = ? order by line_no",
+                String.class, id)).containsExactly("PRODUCT", "INSTALLATION");
+        String printed = content(get("/api/v1/invoices/{id}/document", id), admin);
+        assertThat(printed).contains("Installation", "Install and commission " + tag);
+        // The issued lines are frozen.
+        assertThatThrownBy(() -> jdbc.update("update invoice_items set kind = 'PRODUCT' where invoice_id = ? "
+                + "and kind = 'INSTALLATION'", id)).hasMessageContaining("can't be changed");
+
+        // A direct invoice draft keeps and edits its installation lines.
+        String direct = create(admin, invoice(leadId, "lines", List.of(line(productA, 1),
+                installation("Wiring " + tag, 1, "800", "18")))).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[1].kind").value("INSTALLATION"))
+                .andReturn().getResponse().getContentAsString();
+        Map<String, Object> keptProduct = line(productA, 1);
+        keptProduct.put("id", JsonPath.read(direct, "$.data.lines[0].id"));
+        Map<String, Object> edited = installation("Wiring and testing " + tag, 2, "800", "18");
+        edited.put("id", JsonPath.read(direct, "$.data.lines[1].id"));
+        update(admin, id(direct), invoice(leadId, "version", 0, "lines", List.of(keptProduct, edited)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[1].description").value("Wiring and testing " + tag))
+                .andExpect(jsonPath("$.data.lines[1].taxableValue").value(1600.0));
+        Map<String, Object> noText = installation(" ", 1, "800", "18");
+        create(admin, invoice(leadId, "lines", List.of(noText))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].description"));
+    }
+
+    @Test
     void convertingAnEstimateCopiesItsAgreedValuesLocksItAndShowsTheTaxDifference() throws Exception {
         UUID estimate = sentEstimate(leadId, 7.5, List.of(line(productA, 2), line(productB, 3)));
         String estimateBefore = estimateSnapshot(estimate);
@@ -351,7 +402,7 @@ class InvoiceApiIT extends ApiIntegrationTest {
         convert(admin, draftEstimate).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ESTIMATE_NOT_CONVERTIBLE"));
         UUID deleted = sentEstimate(leadId, 0, List.of(line(productA, 1)));
-        mvc.perform(delete("/api/v1/estimates/{id}", deleted).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/estimates/{id}", deleted).with(bearer(sa))).andExpect(status().isNoContent());
         convert(admin, deleted).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("ESTIMATE_DELETED"));
         assertThat(count("select count(*) from invoices where estimate_id in (?, ?)", draftEstimate, deleted)).isZero();
     }
@@ -497,7 +548,7 @@ class InvoiceApiIT extends ApiIntegrationTest {
         registerSupplier("36", SUPPLIER_GSTIN);
 
         // Every line at 0% would need a bill of supply.
-        UUID exempt = id(create(sa, invoice(leadId, "lines", List.of(withGst(line(productB, 1), 0)))).andReturn());
+        UUID exempt = id(create(sa, invoice(leadId, "lines", List.of(installation("Exempt site work", 1, "800", "0")))).andReturn());
         issue(admin, exempt, 0, null).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("BILL_OF_SUPPLY_NOT_SUPPORTED"));
         assertThat(count("select count(*) from invoices where id in (?, ?) and status = 'DRAFT'", id, exempt)).isEqualTo(2);
@@ -517,13 +568,15 @@ class InvoiceApiIT extends ApiIntegrationTest {
     void cancellingNeedsInvoicesDeleteAReasonAndNoRecordedPayments() throws Exception {
         UUID id = issuedInvoice();
         long version = count("select version from invoices where id = ?", id);
-        cancel(admin, id, version, "Duplicate").andExpect(status().isForbidden());
+        cancel(admin, id, version, "Duplicate invoice").andExpect(status().isForbidden());
         cancel(sa, id, version, "  ").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("reason"));
+        cancel(sa, id, version, "Too short").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.fieldErrors[0].field").value("reason"));
 
         jdbc.update("insert into payments (invoice_id, partner_id, payment_date, amount, net_amount, payment_method) "
                 + "values (?, ?, current_date, 100, 84.75, 'UPI')", id, partnerId);
-        cancel(sa, id, version, "Duplicate").andExpect(status().isConflict())
+        cancel(sa, id, version, "Duplicate invoice").andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("INVOICE_HAS_PAYMENTS"));
         mvc.perform(get("/api/v1/invoices/{id}", id).with(bearer(admin)))
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
@@ -539,7 +592,7 @@ class InvoiceApiIT extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.paymentStatus").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.cancelReason").value("Raised against the wrong client"));
-        cancel(sa, other, otherVersion + 1, "Again").andExpect(status().isConflict())
+        cancel(sa, other, otherVersion + 1, "Cancelled again by mistake").andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("INVOICE_CANCELLED"));
         Map<String, Object> audit = jdbc.queryForMap("select user_id, new_values::text as nv from audit_logs "
                 + "where action = 'INVOICE_CANCELLED' and entity_id = ?", other);
@@ -552,7 +605,7 @@ class InvoiceApiIT extends ApiIntegrationTest {
 
         // Drafts are discarded, not cancelled.
         UUID draft = id(create(admin, invoice(leadId, "lines", List.of(line(productA, 1)))).andReturn());
-        cancel(sa, draft, 0, "x").andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("INVOICE_DRAFT"));
+        cancel(sa, draft, 0, "Draft cannot be cancelled").andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("INVOICE_DRAFT"));
     }
 
     @Test
@@ -628,13 +681,18 @@ class InvoiceApiIT extends ApiIntegrationTest {
 
         String created = content(post("/api/v1/invoices"), writer, invoice(leadId, "lines", List.of(line(productA, 1))));
         UUID id = id(created);
-        // A different GST rate is a tax change: it needs Invoices approve.
-        update(writer, id, invoice(leadId, "version", 0, "lines", List.of(withGst(line(productA, 1), 12))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("lines[0].gstPercent"));
+        // Product lines are priced by the product sheet: a different GST rate or price in the request is ignored,
+        // for writers and approvers alike. The line stays at the sheet's 18% and 1000.
+        Map<String, Object> tampered = withGst(line(productA, 1), 12);
+        tampered.put("unitPrice", new BigDecimal("1.00"));
+        update(writer, id, invoice(leadId, "version", 0, "lines", List.of(tampered, line(productB, 1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].gstPercent").value(18.0))
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(1000.0))
+                .andExpect(jsonPath("$.data.lines[1].gstPercent").value(5.0));
         Session approver = login(user(List.of(module("INVOICES", true, "approve", true)), List.of()));
-        update(approver, id, invoice(leadId, "version", 0, "lines", List.of(withGst(line(productA, 1), 12))))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.lines[0].gstPercent").value(12.0));
+        update(approver, id, invoice(leadId, "version", 1, "lines", List.of(withGst(line(productA, 1), 12))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.lines[0].gstPercent").value(18.0));
         // Fee overrides still need Partners approve (D-13).
         create(writer, invoice(leadId, "feePercent", 15, "lines", List.of(line(productA, 1))))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("FEE_OVERRIDE_NOT_PERMITTED"));
@@ -748,6 +806,16 @@ class InvoiceApiIT extends ApiIntegrationTest {
                 id, "TST-" + id.toString().substring(0, 12), partnerId, due.minusDays(15), due, new BigDecimal(total),
                 new BigDecimal(total));
         return id;
+    }
+
+    private static Map<String, Object> installation(String description, Object quantity, String rate, String gst) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("kind", "INSTALLATION");
+        map.put("description", description);
+        map.put("quantity", quantity);
+        map.put("unitPrice", new BigDecimal(rate));
+        map.put("gstPercent", new BigDecimal(gst));
+        return map;
     }
 
     private ResultActions create(Session session, Map<String, Object> request) throws Exception {

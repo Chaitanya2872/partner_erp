@@ -10,7 +10,7 @@ import { DataTable, type ColumnDef } from "@/components/tables/DataTable";
 import { EmptyState } from "@/components/feedback/States";
 import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
 import { SearchInput } from "@/components/forms/SearchInput";
-import { DateInput } from "@/components/forms/inputs";
+import { FilterDate } from "@/components/forms/inputs";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { errorMessage } from "@/lib/errors";
@@ -60,6 +60,7 @@ export function InvoicesPage() {
       setPage(0);
     };
   const filtered = !!q || !!status || !!payment || !!from || !!to;
+  const clearFilters = () => { setSearch(""); setStatus(""); setPayment(""); setFrom(""); setTo(""); setPage(0); };
 
   const exportCsv = async () => {
     setExporting(true);
@@ -177,8 +178,8 @@ export function InvoicesPage() {
         pageSizeOptions={[20, 50, 100]}
         onPageSizeChange={set(setSize)}
         empty={
-          <EmptyState title={filtered ? "No invoices match" : "No invoices yet"} action={!filtered ? newInvoice : undefined}>
-            {filtered ? "Try other filters." : "Convert a sent or accepted estimate, or create an invoice directly."}
+          <EmptyState title={filtered ? "No invoices match" : "No invoices yet"} onClearFilters={filtered ? clearFilters : undefined} action={!filtered ? newInvoice : undefined}>
+            {filtered ? undefined : "Convert a sent or accepted estimate, or create an invoice directly."}
           </EmptyState>
         }
         toolbar={
@@ -200,8 +201,8 @@ export function InvoicesPage() {
                 </option>
               ))}
             </Select>
-            <DateInput aria-label="Invoice date from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" />
-            <DateInput aria-label="Invoice date to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" />
+            <FilterDate label="From" aria-label="Invoice date from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" />
+            <FilterDate label="To" aria-label="Invoice date to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" />
           </Toolbar>
         }
       />

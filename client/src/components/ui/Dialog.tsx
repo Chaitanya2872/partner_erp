@@ -22,19 +22,20 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-overlay animate-in" />
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-overlay backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <RadixDialog.Content
           // Without a description there is nothing to reference (repeating the title made readers announce it twice).
           {...(description ? {} : { "aria-describedby": undefined })}
           className={cn(
             "fixed left-1/2 top-[max(1rem,6vh)] z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col",
-            "rounded-xl border border-border bg-surface text-foreground shadow-lg animate-in focus-visible:outline-none",
+            "rounded-xl border border-border bg-surface text-foreground shadow-lg focus-visible:outline-none",
+            "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
             wide ? "max-w-4xl" : "max-w-xl",
           )}
         >
           <header className="flex items-start justify-between gap-4 border-b border-border px-4 py-3.5 sm:px-5">
             <div className="min-w-0">
-              <RadixDialog.Title className="font-display text-lg font-semibold">{title}</RadixDialog.Title>
+              <RadixDialog.Title className="text-base font-semibold sm:text-lg">{title}</RadixDialog.Title>
               {description ? (
                 <RadixDialog.Description className="mt-0.5 text-sm text-muted-foreground">{description}</RadixDialog.Description>
               ) : null}
@@ -70,11 +71,12 @@ export function Sheet({ open, onOpenChange, title, children, side = "left", clas
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-overlay animate-in" />
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <RadixDialog.Content
           className={cn(
-            "fixed inset-y-0 z-50 flex w-[min(18rem,85vw)] flex-col shadow-lg animate-in focus-visible:outline-none",
-            side === "left" ? "left-0" : "right-0",
+            "fixed inset-y-0 z-50 flex w-[min(18rem,85vw)] flex-col shadow-lg focus-visible:outline-none",
+            "data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
+            side === "left" ? "left-0 [--sheet-from:-100%]" : "right-0 [--sheet-from:100%]",
             className,
           )}
         >

@@ -66,13 +66,12 @@ export function UsersPage() {
   const canEditUsers = canWrite("USER_MANAGEMENT");
   const canToggleStatus = canPerform("USER_MANAGEMENT", "MANAGE_USERS");
   const isSuperAdmin = !!me?.superAdmin;
-  const userRole = roles.data?.find((r) => r.code === "USER");
   const assignable = useMemo(
-    () => (isSuperAdmin ? (roles.data ?? []).map((r) => r.id) : userRole ? [userRole.id] : []),
-    [isSuperAdmin, roles.data, userRole],
+    () => (roles.data ?? []).filter((r) => isSuperAdmin || r.code !== "SUPER_ADMIN").map((r) => r.id),
+    [isSuperAdmin, roles.data],
   );
-  /** Non-Super-Admins manage accounts with the User role only (enforced by the server too). Uses the role code. */
-  const manageable = (target: User) => isSuperAdmin || target.role.code === "USER";
+  /** Only a Super Admin manages Super Admin accounts (enforced by the server too). Uses the role code. */
+  const manageable = (target: User) => isSuperAdmin || target.role.code !== "SUPER_ADMIN";
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
 
@@ -178,6 +177,7 @@ export function UsersPage() {
   ];
 
   const filtered = !!q || !!roleId || !!status;
+  const clearFilters = () => { setSearch(""); setRoleId(""); setStatus(""); setPage(0); };
 
   return (
     <PageContainer>
@@ -217,40 +217,40 @@ export function UsersPage() {
           setSize(next);
           setPage(0);
         }}
-        empty={<EmptyState title="No users found">{filtered ? "Try other filters." : null}</EmptyState>}
+        empty={<EmptyState title={filtered ? "No users match" : "No users found"} onClearFilters={filtered ? clearFilters : undefined} />}
         rowActions={(u) => (
           <>
-            <Button asChild size="sm" variant="ghost">
-              <Link to={`/users/${u.id}/permissions`}>
-                <ShieldCheck aria-hidden="true" /> Permissions
+            <Button asChild size="icon-sm" variant="ghost">
+              <Link to={`/users/${u.id}/permissions`} title="Permissions">
+                <ShieldCheck aria-hidden="true" /><span className="sr-only">Permissions</span>
               </Link>
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setActivityTarget(u)} aria-label={`Activity of ${u.fullName}`}>
-              <History aria-hidden="true" /> Activity
+            <Button size="icon-sm" variant="ghost" onClick={() => setActivityTarget(u)} title="Activity" aria-label={`Activity of ${u.fullName}`}>
+              <History aria-hidden="true" /><span className="sr-only">Activity</span>
             </Button>
             {canEditUsers && manageable(u) ? (
-              <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
-                <Pencil aria-hidden="true" /> Edit
+              <Button size="icon-sm" variant="outline" onClick={() => setEditing(u)} title="Edit">
+                <Pencil aria-hidden="true" /><span className="sr-only">Edit</span>
               </Button>
             ) : null}
             {canToggleStatus && manageable(u) && u.id !== me?.id && u.locked ? (
-              <Button size="sm" variant="outline" onClick={() => setUnlockTarget(u)}>
-                <LockOpen aria-hidden="true" /> Unlock
+              <Button size="icon-sm" variant="outline" onClick={() => setUnlockTarget(u)} title="Unlock">
+                <LockOpen aria-hidden="true" /><span className="sr-only">Unlock</span>
               </Button>
             ) : null}
             {canToggleStatus && manageable(u) && u.id !== me?.id && u.status === "ACTIVE" ? (
-              <Button size="sm" variant="outline" onClick={() => setResetTarget(u)}>
-                <KeyRound aria-hidden="true" /> Reset password
+              <Button size="icon-sm" variant="outline" onClick={() => setResetTarget(u)} title="Reset password">
+                <KeyRound aria-hidden="true" /><span className="sr-only">Reset password</span>
               </Button>
             ) : null}
             {canToggleStatus && manageable(u) && u.id !== me?.id ? (
               u.status === "ACTIVE" ? (
-                <Button size="sm" variant="destructive-outline" onClick={() => setStatusTarget(u)}>
-                  <UserX aria-hidden="true" /> Deactivate
+                <Button size="icon-sm" variant="destructive-outline" onClick={() => setStatusTarget(u)} title="Deactivate">
+                  <UserX aria-hidden="true" /><span className="sr-only">Deactivate</span>
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" onClick={() => setStatusTarget(u)}>
-                  <UserCheck aria-hidden="true" /> Activate
+                <Button size="icon-sm" variant="outline" onClick={() => setStatusTarget(u)} title="Activate">
+                  <UserCheck aria-hidden="true" /><span className="sr-only">Activate</span>
                 </Button>
               )
             ) : null}
@@ -306,7 +306,7 @@ export function UsersPage() {
         user={editing}
         roles={roles.data ?? []}
         assignableRoleIds={assignable}
-        canChangeRole={isSuperAdmin && editing?.id !== me?.id}
+        canChangeRole={editing?.id !== me?.id}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -317,7 +317,7 @@ export function UsersPage() {
       <ConfirmDialog
         open={!!statusTarget}
         title={statusTarget?.status === "ACTIVE" ? "Deactivate user?" : "Activate user?"}
-        confirmLabel={statusTarget?.status === "ACTIVE" ? "Deactivate" : "Activate"}
+        confirmLabel={statusTarget?.status === "ACTIVE" ? "Deactivate user" : "Activate user"}
         danger={statusTarget?.status === "ACTIVE"}
         busy={statusMutation.isPending}
         onCancel={() => setStatusTarget(null)}
@@ -337,7 +337,7 @@ export function UsersPage() {
       <ConfirmDialog
         open={!!unlockTarget}
         title="Unlock account?"
-        confirmLabel="Unlock"
+        confirmLabel="Unlock account"
         busy={unlockMutation.isPending}
         onCancel={() => setUnlockTarget(null)}
         onConfirm={() => unlockTarget && unlockMutation.mutate(unlockTarget)}

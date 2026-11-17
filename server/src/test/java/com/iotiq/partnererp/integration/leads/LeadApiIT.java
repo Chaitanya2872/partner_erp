@@ -119,6 +119,25 @@ class LeadApiIT extends ApiIntegrationTest {
     }
 
     @Test
+    void otherProjectTypeNeedsADescriptionAndOtherTypesDropIt() throws Exception {
+        mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)), body(lead(partnerA, "projectType", "OTHER"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[?(@.field == 'projectTypeOther')].message")
+                        .value("Say what kind of project it is."));
+        mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)),
+                        body(lead(partnerA, "projectType", "OTHER", "projectTypeOther", "  Cold   storage "))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.projectTypeOther").value("Cold storage"))
+                .andExpect(jsonPath("$.data.projectTypeLabel").value("Other: Cold storage"));
+        // A description sent with a normal type is discarded rather than stored.
+        mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)),
+                        body(lead(partnerA, "projectType", "VILLA", "projectTypeOther", "ignored"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.projectTypeOther").doesNotExist())
+                .andExpect(jsonPath("$.data.projectTypeLabel").value("Villa"));
+    }
+
+    @Test
     void validationNamesTheMissingFields() throws Exception {
         mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)),
                         body(Map.of("clientName", " ", "units", -1, "budget", -5, "clientPhone", "abc"))))
@@ -205,7 +224,7 @@ class LeadApiIT extends ApiIntegrationTest {
                 .andExpect(jsonPath("$.data.conflict").value(false));
 
         acknowledge(unacknowledged).andExpect(status().isOk());
-        mvc.perform(delete("/api/v1/leads/{id}", unacknowledged).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/leads/{id}", unacknowledged).with(bearer(sa))).andExpect(status().isNoContent());
         mvc.perform(withJson(post("/api/v1/leads").with(bearer(admin)), body(lead(partnerB, "clientPhone", "9000000002"))))
                 .andExpect(jsonPath("$.data.conflict").value(false));
 
@@ -350,14 +369,14 @@ class LeadApiIT extends ApiIntegrationTest {
     @Test
     void deleteIsSoftAndNeedsTheDeletePermission() throws Exception {
         UUID id = create(lead(partnerA, "clientName", "Gone " + tag));
-        mvc.perform(delete("/api/v1/leads/{id}", id).with(bearer(admin))).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/v1/leads/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
+        mvc.perform(archive("/api/v1/leads/{id}", id).with(bearer(admin))).andExpect(status().isForbidden());
+        mvc.perform(archive("/api/v1/leads/{id}", id).with(bearer(sa))).andExpect(status().isNoContent());
 
         mvc.perform(get("/api/v1/leads/{id}", id).with(bearer(admin))).andExpect(status().isNotFound());
-        mvc.perform(delete("/api/v1/leads/{id}", id).with(bearer(sa))).andExpect(status().isNotFound());
+        mvc.perform(archive("/api/v1/leads/{id}", id).with(bearer(sa))).andExpect(status().isNotFound());
         assertThat(JsonPath.<List<String>>read(search("q", tag), "$.data[*].id")).doesNotContain(id.toString());
         assertThat(count("select count(*) from leads where id = ? and deleted_at is not null", id)).isEqualTo(1);
-        assertThat(count("select count(*) from lead_stage_history where lead_id = ?", id)).isEqualTo(1);
+        assertThat(count("select count(*) from lead_stage_history where lead_id = ?", id)).isEqualTo(2);
         assertThat(count("select count(*) from audit_logs where action = 'LEAD_DELETED' and entity_id = ?", id)).isEqualTo(1);
         // Partner lead counts leave deleted leads out.
         mvc.perform(get("/api/v1/partners/{id}/performance", partnerA).with(bearer(sa)))
@@ -368,11 +387,101 @@ class LeadApiIT extends ApiIntegrationTest {
     void leadsWithDocumentsCannotBeDeleted() throws Exception {
         UUID id = create(lead(partnerA));
         estimate(id, LocalDate.now(AppConstants.BUSINESS_ZONE));
-        mvc.perform(delete("/api/v1/leads/{id}", id).with(bearer(sa)))
+        mvc.perform(archive("/api/v1/leads/{id}", id).with(bearer(sa)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("LEAD_HAS_DOCUMENTS"))
                 .andExpect(jsonPath("$.error.detail").value(org.hamcrest.Matchers.containsString("Mark it Lost instead")));
         assertThat(count("select count(*) from leads where id = ? and deleted_at is null", id)).isEqualTo(1);
+    }
+
+    @Test
+    void archivingNeedsAReasonOf10To500CharactersAndNothingIsArchivedWithout() throws Exception {
+        UUID id = create(lead(partnerA, "clientName", "Needs reason " + tag));
+        mvc.perform(delete("/api/v1/leads/{id}", id).with(bearer(sa)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.fieldErrors[0].field").value("reason"));
+        for (String bad : new String[]{"", "          ", "too short", "x".repeat(501)}) {
+            mvc.perform(archive("/api/v1/leads/{id}", bad, id).with(bearer(sa)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.fieldErrors[0].field").value("reason"));
+        }
+        assertThat(count("select count(*) from leads where id = ? and deleted_at is null", id)).isEqualTo(1);
+        mvc.perform(archive("/api/v1/leads/{id}", "x".repeat(500), id).with(bearer(sa))).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void anArchivedLeadLeavesTheListsShowsInTheArchiveIsReadOnlyAndCanBeRestored() throws Exception {
+        UUID id = create(lead(partnerA, "clientName", "Gone " + tag));
+        mvc.perform(archive("/api/v1/leads/{id}", "  Duplicate of another lead  ", id).with(bearer(sa)))
+                .andExpect(status().isNoContent());
+
+        assertThat(JsonPath.<List<String>>read(search("q", tag), "$.data[*].id")).doesNotContain(id.toString());
+        String archived = mvc.perform(get("/api/v1/leads/archive").param("q", tag).with(bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(id.toString()))
+                .andExpect(jsonPath("$.data[0].clientName").value("Gone " + tag))
+                .andExpect(jsonPath("$.data[0].deleteReason").value("Duplicate of another lead"))
+                .andExpect(jsonPath("$.data[0].deletedByName").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].deletedAt").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(archived).doesNotContain("\"deletedBy\"");
+        mvc.perform(get("/api/v1/leads/archive/{id}", id).with(bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lead.clientName").value("Gone " + tag))
+                .andExpect(jsonPath("$.data.deleteReason").value("Duplicate of another lead"))
+                .andExpect(jsonPath("$.data.deletedByName").isNotEmpty());
+        // Search in the archive works like the list; other text finds nothing.
+        mvc.perform(get("/api/v1/leads/archive").param("q", "nothing-" + tag).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.length()").value(0));
+        // Archive reads need Leads read.
+        Session blind = login(createUser(RoleCode.USER));
+        mvc.perform(get("/api/v1/leads/archive").with(bearer(blind))).andExpect(status().isForbidden());
+
+        // Read-only: no edits, stage changes, acknowledgement, or live reads.
+        mvc.perform(withJson(put("/api/v1/leads/{id}", id).with(bearer(sa)), body(lead(partnerA, "version", 0))))
+                .andExpect(status().isNotFound());
+        stage(sa, id, "PRESALES", null, 0).andExpect(status().isNotFound());
+        acknowledge(id).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/leads/{id}", id).with(bearer(sa))).andExpect(status().isNotFound());
+
+        // The reason is in the audit trail and the lead history.
+        assertThat(jdbc.queryForObject("select new_values::text from audit_logs where action = 'LEAD_DELETED' "
+                + "and entity_id = ?", String.class, id)).contains("Duplicate of another lead");
+        assertThat(jdbc.queryForObject("select reason from lead_stage_history where lead_id = ? and event = 'ARCHIVED'",
+                String.class, id)).isEqualTo("Duplicate of another lead");
+
+        // Restoring needs Leads approve or delete.
+        mvc.perform(post("/api/v1/leads/{id}/restore", id).with(bearer(admin))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/leads/{id}/restore", id).with(bearer(sa)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(id.toString()));
+        assertThat(JsonPath.<List<String>>read(search("q", tag), "$.data[*].id")).contains(id.toString());
+        mvc.perform(get("/api/v1/leads/archive").param("q", tag).with(bearer(admin)))
+                .andExpect(jsonPath("$.data.length()").value(0));
+        assertThat(count("select count(*) from leads where id = ? and deleted_at is null and delete_reason is null "
+                + "and deleted_by is null", id)).isEqualTo(1);
+        assertThat(count("select count(*) from audit_logs where action = 'LEAD_RESTORED' and entity_id = ?", id)).isEqualTo(1);
+        assertThat(count("select count(*) from lead_stage_history where lead_id = ? and event = 'RESTORED'", id)).isEqualTo(1);
+        mvc.perform(post("/api/v1/leads/{id}/restore", id).with(bearer(sa))).andExpect(status().isNotFound());
+        // Archive it again: a second reason, a second archive entry.
+        mvc.perform(archive("/api/v1/leads/{id}", "Archived a second time", id).with(bearer(sa)))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/leads/archive/{id}", id).with(bearer(sa)))
+                .andExpect(jsonPath("$.data.deleteReason").value("Archived a second time"));
+    }
+
+    @Test
+    void theDatabaseRefusesAnArchivedRowWithoutAReasonAndOldRowsWereBackfilled() throws Exception {
+        UUID id = create(lead(partnerA, "clientName", "Raw " + tag));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(
+                        "update leads set deleted_at = now() where id = ?", id))
+                .hasMessageContaining("ck_leads_delete_reason");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(
+                        "update leads set deleted_at = now(), delete_reason = '   ' where id = ?", id))
+                .hasMessageContaining("ck_leads_delete_reason");
+        assertThat(count("select count(*) from leads where deleted_at is not null and "
+                + "(delete_reason is null or btrim(delete_reason) = '')")).isZero();
     }
 
     // ------------------------------------------------------------------------------------------------ SLA (§4.1)
@@ -458,7 +567,7 @@ class LeadApiIT extends ApiIntegrationTest {
         grant(approver, List.of(Map.of("moduleCode", "LEADS", "read", true, "write", true, "approve", true)));
         Session approverSession = login(approver);
         mvc.perform(post("/api/v1/leads/{id}/acknowledge", id).with(bearer(approverSession))).andExpect(status().isOk());
-        mvc.perform(delete("/api/v1/leads/{id}", id).with(bearer(approverSession))).andExpect(status().isForbidden());
+        mvc.perform(archive("/api/v1/leads/{id}", id).with(bearer(approverSession))).andExpect(status().isForbidden());
     }
 
     @Test

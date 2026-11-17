@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Trash2 } from "lucide-react";
@@ -17,6 +17,7 @@ import { ApiRequestError } from "@/services/api";
 import { sanitizeDecimal } from "@/utils/decimal";
 import { formatCurrency, formatPercent } from "@/utils/format";
 import { ProductPicker } from "@/modules/estimates/components/EstimateForm";
+import { InstallationLines, type InstallationFormValues, type InstallationRow } from "@/modules/estimates/components/InstallationLines";
 import type { BillTo, ProductOption } from "@/modules/estimates/types/estimate.types";
 import { useInvoiceLeadOptions, useInvoicePreview } from "../hooks/useInvoices";
 import { EstimateComparisonNotice, InvoiceLinesTable, InvoiceTotalsCard, TaxTreatmentNotice } from "./InvoiceParts";
@@ -33,10 +34,13 @@ export interface InvoiceLeadChoice {
 /* Mirrors the server's checks for quick feedback; the server validates again and computes every amount. */
 const QUANTITY = /^\d{1,9}(\.\d{1,3})?$/;
 const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{3}$/;
-const lineSchema = z.object({
+const lineSchema = z
+  .object({
   key: z.string(),
   id: z.string().optional(),
-  productId: z.string().min(1),
+  /** Installation lines are free-text priced work with no product. */
+  kind: z.enum(["PRODUCT", "INSTALLATION"]),
+  productId: z.string(),
   sku: z.string(),
   description: z.string(),
   unit: z.string(),
@@ -49,7 +53,17 @@ const lineSchema = z.object({
     .refine((v) => !QUANTITY.test(v) || Number(v) > 0, "Quantity must be more than 0."),
   unitPrice: decimalString({ label: "Rate", max: "9999999999.99" }),
   gstPercent: decimalString({ label: "GST", scale: 3, max: "100" }),
-});
+  })
+  .superRefine((l, ctx) => {
+    if (l.kind === "INSTALLATION") {
+      const description = l.description.trim();
+      if (!description) ctx.addIssue({ code: "custom", path: ["description"], message: "Describe the installation work." });
+      else if (description.length > 300) ctx.addIssue({ code: "custom", path: ["description"], message: "Use at most 300 characters." });
+      if (l.unit.trim().length > 20) ctx.addIssue({ code: "custom", path: ["unit"], message: "Use at most 20 characters." });
+    } else if (!l.productId) {
+      ctx.addIssue({ code: "custom", path: ["productId"], message: "Choose a product." });
+    }
+  });
 
 const makeSchema = (maxLines: number, locked: boolean) =>
   z.object({
@@ -142,6 +156,7 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
         : (invoice?.lines.map((l) => ({
             key: l.id ?? nextKey(),
             id: l.id ?? undefined,
+            kind: l.kind ?? "PRODUCT",
             productId: l.productId ?? "",
             sku: l.sku ?? "",
             description: l.description,
@@ -182,13 +197,17 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
     placeOfSupplyBasis: (v.placeOfSupplyBasis || null) as PlaceOfSupplyBasis | null,
     lines: locked
       ? null
-      : (v.lines ?? []).map((l) => ({ id: l.id, productId: l.productId, quantity: l.quantity.trim(), unitPrice: l.unitPrice.trim(), gstPercent: l.gstPercent.trim() })),
+      : (v.lines ?? []).map((l) =>
+          l.kind === "INSTALLATION"
+            ? { id: l.id, kind: "INSTALLATION", description: l.description.trim(), unit: l.unit.trim() || "job", quantity: l.quantity.trim(), unitPrice: l.unitPrice.trim(), gstPercent: l.gstPercent.trim() }
+            : { id: l.id, kind: "PRODUCT", productId: l.productId, quantity: l.quantity.trim() },
+        ),
     version: invoice?.version,
   });
 
   // Live tax and totals: debounced, and only for input the server would accept.
   const linesValid = (values.lines ?? []).every(
-    (l) => QUANTITY.test(l.quantity.trim()) && Number(l.quantity) > 0 && /^\d+(\.\d{1,2})?$/.test(l.unitPrice.trim()) && /^\d+(\.\d{1,3})?$/.test(l.gstPercent.trim()) && Number(l.gstPercent) <= 100,
+    (l) => (l.kind === "INSTALLATION" ? l.description.trim() !== "" && l.description.trim().length <= 300 && l.unit.trim().length <= 20 : !!l.productId) && QUANTITY.test(l.quantity.trim()) && Number(l.quantity) > 0 && /^\d+(\.\d{1,2})?$/.test(l.unitPrice.trim()) && /^\d+(\.\d{1,3})?$/.test(l.gstPercent.trim()) && Number(l.gstPercent) <= 100,
   );
   const gstinOk = !values.billingGstin?.trim() || GSTIN.test(values.billingGstin.trim().toUpperCase());
   const previewable = gstinOk && (locked || (!!values.leadId && (values.lines?.length ?? 0) > 0 && linesValid));
@@ -217,9 +236,29 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
     }
   });
 
-  const addProduct = (p: ProductOption) => {
+  const isInstallation = (i: number) => (values.lines?.[i] ?? lines.fields[i])?.kind === "INSTALLATION";
+  const productCount = lines.fields.filter((_, i) => !isInstallation(i)).length;
+
+  /** Installation lines always sit after the product lines, so the form order is the document order. */
+  const addInstallation = () => {
     lines.append({
       key: nextKey(),
+      kind: "INSTALLATION",
+      productId: "",
+      sku: "",
+      description: "",
+      unit: "job",
+      sourceGst: "",
+      quantity: "1",
+      unitPrice: "",
+      gstPercent: String(meta.defaultGstPercent),
+    });
+  };
+
+  const addProduct = (p: ProductOption) => {
+    lines.insert(productCount, {
+      key: nextKey(),
+      kind: "PRODUCT",
       productId: p.id,
       sku: p.sku,
       description: p.name,
@@ -241,6 +280,23 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
   const lineErrors = Array.isArray(errors.lines) ? errors.lines : [];
   const lineErrorCount = lineErrors.filter(Boolean).length;
   const linesError = errors.lines?.message ?? errors.lines?.root?.message;
+
+  const installationRows: InstallationRow[] = lines.fields.flatMap((line, i) =>
+    isInstallation(i)
+      ? [
+          {
+            index: i,
+            fieldKey: line.fieldKey,
+            line: (values.lines?.[i] ?? line) as InstallationRow["line"],
+            errors: lineErrors[i] as InstallationRow["errors"],
+            amount: shown?.lines[i]?.amount,
+            tax: shown?.lines[i]?.taxAmount,
+            total: shown?.lines[i]?.lineTotal,
+          },
+        ]
+      : [],
+  );
+  const installationTotal = shown && installationRows.length > 0 ? installationRows.reduce((sum, r) => sum + Number(r.total ?? 0), 0).toFixed(2) : undefined;
 
   const [leadSearch, setLeadSearch] = useState("");
   const leadResults = useInvoiceLeadOptions(useDebounce(leadSearch.trim()), !locked);
@@ -379,7 +435,7 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
 
       <FormSection
         title="Items"
-        description={locked ? "Copied from the estimate." : meta.canApprove ? "Prices are copied from the product sheet and can be changed here." : "Prices are copied from the product sheet and can be changed here. Changing a GST rate needs Invoices approve."}
+        description={locked ? "Copied from the estimate." : "Rate and GST come from the product sheet and can't be changed here. Installation work below is priced by you."}
       >
         {locked ? (
           shown ? (
@@ -394,7 +450,7 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
                 {linesError}
               </p>
             ) : null}
-            {lines.fields.length > 0 ? (
+            {productCount > 0 ? (
               <div className="relative overflow-x-auto rounded-lg border border-border">
                 <table className="w-full min-w-[720px] text-sm">
                   <caption className="sr-only">Invoice items</caption>
@@ -410,7 +466,8 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.fields.map((line, i) => (
+                    {lines.fields.map((line, i) =>
+                      isInstallation(i) ? null : (
                       <LineRow
                         key={line.fieldKey}
                         index={i}
@@ -418,12 +475,12 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
                         tax={shown?.lines[i]?.taxAmount}
                         total={shown?.lines[i]?.lineTotal}
                         b2c={internal && shown?.internal ? shown.internal.lines[i] : undefined}
-                        canChangeGst={meta.canApprove}
                         errors={lineErrors[i]}
                         control={control}
                         onRemove={() => lines.remove(i)}
                       />
-                    ))}
+                      ),
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -434,6 +491,22 @@ export function InvoiceForm({ meta, invoice, internal, onSubmit, onCancel }: Inv
           </>
         )}
       </FormSection>
+
+      {locked ? null : (
+        <FormSection title="Installation" description="Installation work is priced separately from the products. It is optional, printed in its own section and included in the totals.">
+          <InstallationLines
+            control={control as unknown as Control<InstallationFormValues>}
+            rows={installationRows}
+            showTax
+            subtotal={installationTotal}
+            subtotalLabel="Installation total (incl. GST)"
+            gstLocked={(l) => !meta.canApprove && !!l.id && same(l.gstPercent, (l as LineValues).sourceGst)}
+            canAdd={lines.fields.length < meta.maxLines}
+            onAdd={addInstallation}
+            onRemove={(i) => lines.remove(i)}
+          />
+        </FormSection>
+      )}
 
       <FormSection title="Pricing" description="The server calculates each line's taxable value and GST, rounded per line to the paisa.">
         <div className="grid gap-6 lg:grid-cols-2">
@@ -526,17 +599,16 @@ interface LineRowProps {
   tax: string | number | undefined;
   total: string | number | undefined;
   b2c?: { b2cName: string | null; b2cPriceMissing: boolean };
-  canChangeGst: boolean;
   errors?: Partial<Record<keyof LineValues, { message?: string }>>;
   control: ReturnType<typeof useForm<FormValues>>["control"];
   onRemove: () => void;
 }
 
-function LineRow({ index, line, tax, total, b2c, canChangeGst, errors, control, onRemove }: LineRowProps) {
+function LineRow({ index, line, tax, total, b2c, errors, control, onRemove }: LineRowProps) {
   const name = `${line.sku} ${line.description}`.trim();
   const errorId = `line-${index}-error`;
-  const messages = [errors?.productId?.message, errors?.quantity?.message, errors?.unitPrice?.message, errors?.gstPercent?.message].filter(Boolean);
-  const cell = (field: "quantity" | "unitPrice" | "gstPercent", label: string, scale: number, readOnly = false) => (
+  const messages = [errors?.productId?.message, errors?.quantity?.message].filter(Boolean);
+  const cell = (field: "quantity", label: string, scale: number) => (
     <Controller
       control={control}
       name={`lines.${index}.${field}`}
@@ -546,7 +618,6 @@ function LineRow({ index, line, tax, total, b2c, canChangeGst, errors, control, 
           value={f.value}
           onChange={(e) => f.onChange(sanitizeDecimal(e.target.value, scale))}
           onBlur={f.onBlur}
-          readOnly={readOnly}
           inputMode="decimal"
           autoComplete="off"
           aria-label={`${label} for ${name}`}
@@ -557,8 +628,6 @@ function LineRow({ index, line, tax, total, b2c, canChangeGst, errors, control, 
       )}
     />
   );
-  // Without Invoices approve the rate stays as copied; the server refuses any change either way.
-  const gstLocked = !canChangeGst && same(line.gstPercent, line.sourceGst);
   return (
     <tr className="border-t border-border align-top">
       <td className="px-3 py-2">
@@ -577,8 +646,12 @@ function LineRow({ index, line, tax, total, b2c, canChangeGst, errors, control, 
         ) : null}
       </td>
       <td className="px-3 py-2">{cell("quantity", "Quantity", 3)}</td>
-      <td className="px-3 py-2">{cell("unitPrice", "Rate", 2)}</td>
-      <td className="px-3 py-2">{cell("gstPercent", "GST", 3, gstLocked)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap" title="From the product sheet">
+        {formatCurrency(line.unitPrice)}
+      </td>
+      <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap" title="From the product sheet">
+        {formatPercent(line.gstPercent)}
+      </td>
       <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap">{tax === undefined ? "—" : formatCurrency(tax)}</td>
       <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap">{total === undefined ? "—" : formatCurrency(total)}</td>
       <td className="px-3 py-2 text-right">
@@ -597,7 +670,7 @@ function applyInvoiceErrors(error: unknown, setError: ReturnType<typeof useForm<
   let focused = false;
   for (const fe of error.fieldErrors) {
     const name = fe.field.replace(/\[(\d+)\]/g, ".$1");
-    const known = (FIELDS as readonly string[]).includes(name) || /^lines\.\d+\.(productId|quantity|unitPrice|gstPercent)$/.test(name);
+    const known = (FIELDS as readonly string[]).includes(name) || /^lines\.\d+\.(productId|description|unit|quantity|unitPrice|gstPercent)$/.test(name);
     if (known) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic line paths
       setError(name as any, { type: "server", message: fe.message }, { shouldFocus: !focused && !name.endsWith("productId") });

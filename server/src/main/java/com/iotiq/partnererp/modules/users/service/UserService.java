@@ -11,7 +11,6 @@ import com.iotiq.partnererp.modules.auth.dto.PermissionPreviewResponse;
 import com.iotiq.partnererp.modules.auth.dto.UpdateUserPermissionsRequest;
 import com.iotiq.partnererp.modules.auth.dto.UserPermissionsResponse;
 import com.iotiq.partnererp.modules.auth.entity.Role;
-import com.iotiq.partnererp.modules.auth.entity.RoleCode;
 import com.iotiq.partnererp.modules.auth.entity.User;
 import com.iotiq.partnererp.modules.auth.entity.UserStatus;
 import com.iotiq.partnererp.modules.auth.repository.RoleRepository;
@@ -47,7 +46,7 @@ import java.util.UUID;
 /**
  * User account management.
  *
- * <p>Rules: a non-Super-Admin may only create and manage USER accounts and may not change roles; nobody
+ * <p>Rules: a non-Super-Admin (Admin) manages every account except Super Admin accounts and cannot create or promote to Super Admin; nobody
  * changes their own role or status, unlocks themselves or resets their own password (they use change password); a
  * role change resets the account's permissions to the new role's template; the last active Super Admin cannot be
  * deactivated or demoted. Responses never carry password hashes or tokens.
@@ -119,8 +118,8 @@ public class UserService {
     @Transactional
     public UserResponse create(CreateUserRequest request, AuthenticatedUser actor) {
         Role role = activeRole(request.roleId());
-        if (!actor.isSuperAdmin() && !RoleCode.USER.name().equals(role.getCode())) {
-            throw forbidden("You can only create accounts with the " + displayNameOf(RoleCode.USER) + " role.");
+        if (!actor.isSuperAdmin() && role.isSuperAdmin()) {
+            throw forbidden("Only a Super Admin can create a Super Admin account.");
         }
         String email = normaliseEmail(request.email());
         if (userRepository.existsByEmailIgnoreCase(email)) {
@@ -151,8 +150,8 @@ public class UserService {
         Role newRole = activeRole(request.roleId());
         boolean roleChanged = !newRole.getId().equals(user.getRole().getId());
         if (roleChanged) {
-            if (!actor.isSuperAdmin()) {
-                throw forbidden("Only a Super Admin can change roles.");
+            if (!actor.isSuperAdmin() && newRole.isSuperAdmin()) {
+                throw forbidden("Only a Super Admin can promote an account to Super Admin.");
             }
             if (actor.id().equals(user.getId())) {
                 throw forbidden("You cannot change your own role.");
@@ -310,10 +309,10 @@ public class UserService {
                 .orElseThrow(() -> ValidationException.of("roleId", "Select an active role."));
     }
 
-    /** Non-Super-Admins manage USER accounts only. */
+    /** Only a Super Admin manages Super Admin accounts. */
     private void assertCanManage(AuthenticatedUser actor, User target) {
-        if (!actor.isSuperAdmin() && !RoleCode.USER.name().equals(target.getRole().getCode())) {
-            throw forbidden("You can only manage accounts with the " + displayNameOf(RoleCode.USER) + " role.");
+        if (!actor.isSuperAdmin() && target.getRole().isSuperAdmin()) {
+            throw forbidden("Only a Super Admin can manage Super Admin accounts.");
         }
     }
 
@@ -330,10 +329,6 @@ public class UserService {
         if (version == null || version != user.getVersion()) {
             throw new ObjectOptimisticLockingFailureException(User.class, user.getId());
         }
-    }
-
-    private String displayNameOf(RoleCode code) {
-        return roleRepository.findByCode(code.name()).map(Role::getDisplayName).orElse(code.name());
     }
 
     private static String normaliseEmail(String email) {

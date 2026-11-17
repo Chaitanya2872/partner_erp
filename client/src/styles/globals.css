@@ -168,8 +168,9 @@
   --color-chart-5: var(--chart-5);
   --color-chart-grid: var(--chart-grid);
 
-  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --font-sans: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  /* One family for display and UI: hierarchy comes from size, weight and spacing, not a second typeface. */
+  --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 
   /* 11px overline / table-header size; the rest of the type scale is Tailwind's rem-based default. */
@@ -181,12 +182,24 @@
   --radius-lg: 8px;
   --radius-xl: 10px;
 
-  --shadow-xs: 0 1px 2px rgb(17 39 28 / 0.05);
-  --shadow-sm: 0 1px 3px rgb(17 39 28 / 0.08), 0 1px 2px rgb(17 39 28 / 0.04);
-  --shadow-md: 0 6px 16px rgb(17 39 28 / 0.1);
-  --shadow-lg: 0 20px 48px rgb(0 0 0 / 0.22);
+  --shadow-xs: 0 1px 1px rgb(17 39 28 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(17 39 28 / 0.06);
+  --shadow-md: 0 8px 24px -4px rgb(17 39 28 / 0.14), 0 2px 6px rgb(17 39 28 / 0.06);
+  --shadow-lg: 0 24px 56px -8px rgb(0 0 0 / 0.28);
 
-  --animate-in: fade-in 140ms ease-out;
+  /* Motion: micro 120-180ms, standard 180-250ms, layout 250-350ms. Opacity and transform only. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --animate-in: fade-in 160ms var(--ease-out-soft);
+  --animate-fade-in: fade-in 160ms var(--ease-out-soft);
+  --animate-fade-out: fade-out 140ms ease-in forwards;
+  --animate-pop-in: pop-in 180ms var(--ease-out-soft);
+  --animate-pop-out: pop-out 140ms ease-in forwards;
+  --animate-sheet-in: sheet-in 260ms var(--ease-out-soft);
+  --animate-sheet-out: sheet-out 200ms ease-in forwards;
+  --animate-page-in: page-in 220ms var(--ease-out-soft);
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 }
 
 @keyframes fade-in {
@@ -197,6 +210,59 @@
     opacity: 1;
   }
 }
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+/* Menus and tooltips grow from where they were opened (Radix sets --radix-*-transform-origin). */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateX(var(--sheet-from, -100%));
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translateX(var(--sheet-from, -100%));
+  }
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
 
 /* ---------- Base ---------- */
 @layer base {
@@ -205,7 +271,8 @@
   }
   body {
     @apply bg-background text-foreground font-sans text-sm antialiased;
-    line-height: 1.45;
+    font-feature-settings: "cv11", "ss01";
+    line-height: 1.5;
     min-height: 100dvh;
   }
   h1,
@@ -213,7 +280,7 @@
   h3,
   h4 {
     @apply font-display;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     text-wrap: balance;
   }
   button,

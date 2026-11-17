@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { CheckCircle2, Clock, Inbox, Loader2, RefreshCw, ShieldAlert, WifiOff, XCircle, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, Inbox, Loader2, RefreshCw, SearchX, ShieldAlert, WifiOff, XCircle, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { describeError } from "@/lib/errors";
 import { cn } from "@/lib/cn";
@@ -32,8 +32,37 @@ function StateFrame({ icon: Icon, iconClassName, title, description, action, cla
 }
 
 /** Nothing to show (no records, or no matches for the current filters). */
-export function EmptyState({ title, children, action, icon = Inbox }: { title: string; children?: ReactNode; action?: ReactNode; icon?: LucideIcon }) {
-  return <StateFrame icon={icon} iconClassName="text-muted-foreground" title={title} description={children} action={action} />;
+export function EmptyState({
+  title,
+  children,
+  action,
+  icon = Inbox,
+  onClearFilters,
+}: {
+  title: string;
+  children?: ReactNode;
+  action?: ReactNode;
+  icon?: LucideIcon;
+  /** For "no matches" states: adds a Clear filters button so the user is never stuck on an empty result. */
+  onClearFilters?: () => void;
+}) {
+  return (
+    <StateFrame
+      icon={onClearFilters ? SearchX : icon}
+      iconClassName="text-muted-foreground"
+      title={title}
+      description={children ?? (onClearFilters ? "Try a different search, or clear the filters." : undefined)}
+      action={
+        onClearFilters ? (
+          <Button size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        ) : (
+          action
+        )
+      }
+    />
+  );
 }
 
 /** A failed request, described without internal details; offers Retry when given. */

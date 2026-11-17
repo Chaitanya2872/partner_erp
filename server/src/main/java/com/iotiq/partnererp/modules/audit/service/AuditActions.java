@@ -38,7 +38,9 @@ public final class AuditActions {
     public static final String LEAD_UPDATED = "LEAD_UPDATED";
     public static final String LEAD_STAGE_CHANGED = "LEAD_STAGE_CHANGED";
     public static final String LEAD_ACKNOWLEDGED = "LEAD_ACKNOWLEDGED";
+    /** Archived with a reason (soft delete); the reason is in the new values. */
     public static final String LEAD_DELETED = "LEAD_DELETED";
+    public static final String LEAD_RESTORED = "LEAD_RESTORED";
 
     public static final String PRODUCT_CREATED = "PRODUCT_CREATED";
     public static final String PRODUCT_UPDATED = "PRODUCT_UPDATED";
@@ -53,7 +55,9 @@ public final class AuditActions {
     public static final String ESTIMATE_CREATED = "ESTIMATE_CREATED";
     public static final String ESTIMATE_UPDATED = "ESTIMATE_UPDATED";
     public static final String ESTIMATE_STATUS_CHANGED = "ESTIMATE_STATUS_CHANGED";
+    /** Archived with a reason (soft delete); the reason is in the new values. */
     public static final String ESTIMATE_DELETED = "ESTIMATE_DELETED";
+    public static final String ESTIMATE_RESTORED = "ESTIMATE_RESTORED";
 
     /** Invoice audit entries hold partner-safe values only, like estimates. */
     public static final String ENTITY_INVOICE = "INVOICE";

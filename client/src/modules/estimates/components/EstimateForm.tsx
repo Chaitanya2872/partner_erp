@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2 } from "lucide-react";
@@ -20,6 +20,7 @@ import { sanitizeDecimal } from "@/utils/decimal";
 import { businessToday, formatCurrency, formatPercent } from "@/utils/format";
 import { useEstimatePreview, useLeadOptions, useProductOptions } from "../hooks/useEstimates";
 import { EstimateTotals } from "./EstimateTotals";
+import { InstallationLines, type InstallationFormValues, type InstallationRow } from "./InstallationLines";
 import type { BillTo, Estimate, EstimateInput, EstimateMeta, ProductOption } from "../types/estimate.types";
 
 /** A lead the estimate can be for, from the restricted lead picker (or the estimate's own lead). */
@@ -32,10 +33,13 @@ export interface LeadChoice {
 
 /* Mirrors EstimateRules on the server for quick feedback; the server validates again and computes every total. */
 const QUANTITY = /^\d{1,9}(\.\d{1,3})?$/;
-const lineSchema = z.object({
+const lineSchema = z
+  .object({
   key: z.string(),
   id: z.string().optional(),
-  productId: z.string().min(1),
+  /** Installation lines are free-text priced work with no product. */
+  kind: z.enum(["PRODUCT", "INSTALLATION"]),
+  productId: z.string(),
   sku: z.string(),
   description: z.string(),
   unit: z.string(),
@@ -47,9 +51,22 @@ const lineSchema = z.object({
     .refine((v) => !QUANTITY.test(v) || Number(v) > 0, "Quantity must be more than 0."),
   unitPrice: decimalString({ label: "Rate", max: "9999999999.99" }),
   gstPercent: decimalString({ label: "GST", scale: 3, max: "100" }),
-});
+  })
+  .superRefine((l, ctx) => {
+    if (l.kind === "INSTALLATION") {
+      const description = l.description.trim();
+      if (!description) ctx.addIssue({ code: "custom", path: ["description"], message: "Describe the installation work." });
+      else if (description.length > 300) ctx.addIssue({ code: "custom", path: ["description"], message: "Use at most 300 characters." });
+      if (l.unit.trim().length > 20) ctx.addIssue({ code: "custom", path: ["unit"], message: "Use at most 20 characters." });
+    } else if (!l.productId) {
+      ctx.addIssue({ code: "custom", path: ["productId"], message: "Choose a product." });
+    }
+  });
 
-const makeSchema = (maxLines: number) =>
+const MIN_REVISION_REASON = 10;
+const REVISION_REASON_MESSAGE = "Say why this estimate is being revised (at least 10 characters).";
+
+const makeSchema = (maxLines: number, reasonRequired: boolean) =>
   z.object({
     leadId: z.string().min(1, "Choose the lead this estimate is for."),
     estimateDate: z.string().min(1, "Estimate date is required."),
@@ -61,20 +78,22 @@ const makeSchema = (maxLines: number) =>
     feePercent: decimalString({ required: false, label: "Fee", scale: 3, max: "100" }),
     feeOverrideReason: z.string().trim().max(500, "Use at most 500 characters."),
     notes: z.string().max(5000, "Use at most 5000 characters."),
+    revisionReason: z.string().trim().max(500, "Use at most 500 characters."),
     lines: z
       .array(lineSchema)
       .min(1, "Add at least one item.")
       .max(maxLines, `An estimate can have at most ${maxLines} items.`),
   })
-  .refine((v) => v.validUntil >= v.estimateDate, { path: ["validUntil"], message: "Valid until can't be before the estimate date." });
+  .refine((v) => v.validUntil >= v.estimateDate, { path: ["validUntil"], message: "Valid until can't be before the estimate date." })
+  .refine((v) => !reasonRequired || v.revisionReason.trim().length >= MIN_REVISION_REASON, { path: ["revisionReason"], message: REVISION_REASON_MESSAGE });
 
 type FormValues = z.input<ReturnType<typeof makeSchema>>;
 type LineValues = FormValues["lines"][number];
 
-const FIELDS = ["leadId", "estimateDate", "validUntil", "discountPercent", "igst", "billTo", "feePercent", "feeOverrideReason", "notes", "lines"] as const;
+const FIELDS = ["leadId", "estimateDate", "validUntil", "discountPercent", "igst", "billTo", "feePercent", "feeOverrideReason", "notes", "revisionReason", "lines"] as const;
 const LABELS: Record<string, string> = {
   leadId: "Lead", estimateDate: "Estimate date", validUntil: "Valid until", discountPercent: "Discount", igst: "Tax",
-  billTo: "Bill to", feePercent: "Fee rate", feeOverrideReason: "Reason for the fee", notes: "Notes and terms", lines: "Items",
+  billTo: "Bill to", feePercent: "Fee rate", feeOverrideReason: "Reason for the fee", notes: "Notes and terms", revisionReason: "Reason for revision", lines: "Items",
 };
 
 const addDays = (iso: string, days: number) => {
@@ -111,7 +130,7 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
   const [pendingSave, setPendingSave] = useState<EstimateInput | null>(null);
   const [saving, setSaving] = useState(false);
   const today = businessToday();
-  const schema = useMemo(() => makeSchema(meta.maxLines), [meta.maxLines]);
+  const schema = useMemo(() => makeSchema(meta.maxLines, warnOnSave), [meta.maxLines, warnOnSave]);
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
@@ -134,10 +153,12 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
       feePercent: estimate ? String(estimate.feePercent) : "",
       feeOverrideReason: "",
       notes: estimate ? (estimate.notes ?? "") : meta.terms,
+      revisionReason: "",
       lines:
         estimate?.lines.map((l) => ({
           key: l.id,
           id: l.id,
+          kind: l.kind ?? "PRODUCT",
           productId: l.productId ?? "",
           sku: l.sku ?? "",
           description: l.description,
@@ -178,13 +199,12 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
     feePercent: feeToSend(v.feePercent ?? ""),
     feeOverrideReason: v.feeOverrideReason?.trim() ? v.feeOverrideReason.trim() : null,
     notes: v.notes ?? "",
-    lines: (v.lines ?? []).map((l) => ({
-      id: l.id,
-      productId: l.productId,
-      quantity: l.quantity.trim(),
-      unitPrice: l.unitPrice.trim(),
-      gstPercent: l.gstPercent.trim(),
-    })),
+    lines: (v.lines ?? []).map((l) =>
+      l.kind === "INSTALLATION"
+        ? { id: l.id, kind: "INSTALLATION", description: l.description.trim(), unit: l.unit.trim() || "job", quantity: l.quantity.trim(), unitPrice: l.unitPrice.trim(), gstPercent: l.gstPercent.trim() }
+        : { id: l.id, kind: "PRODUCT", productId: l.productId, quantity: l.quantity.trim() },
+    ),
+    revisionReason: warnOnSave ? (v.revisionReason ?? "").trim() : "",
     version: estimate?.version,
   });
 
@@ -192,8 +212,8 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
   const previewable =
     !!values.leadId &&
     (values.lines?.length ?? 0) > 0 &&
-    values.lines.every((l) => QUANTITY.test(l.quantity.trim()) && Number(l.quantity) > 0 && /^\d+(\.\d{1,2})?$/.test(l.unitPrice.trim()) && /^\d+(\.\d{1,3})?$/.test(l.gstPercent.trim()) && Number(l.gstPercent) <= 100);
-  const previewKey = useDebounce(previewable ? JSON.stringify({ ...toInput(values), feeOverrideReason: null }) : null, 400);
+    values.lines.every((l) => (l.kind === "INSTALLATION" ? l.description.trim() !== "" && l.description.trim().length <= 300 && l.unit.trim().length <= 20 : !!l.productId) && QUANTITY.test(l.quantity.trim()) && Number(l.quantity) > 0 && /^\d+(\.\d{1,2})?$/.test(l.unitPrice.trim()) && /^\d+(\.\d{1,3})?$/.test(l.gstPercent.trim()) && Number(l.gstPercent) <= 100);
+  const previewKey = useDebounce(previewable ? JSON.stringify({ ...toInput(values), feeOverrideReason: null, revisionReason: "" }) : null, 400);
   const preview = useEstimatePreview(previewKey ? (JSON.parse(previewKey) as EstimateInput) : null, estimate?.id);
   const shown = previewable ? preview.data : undefined;
 
@@ -226,9 +246,28 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
     else await save(toInput(v));
   });
 
-  const addProduct = (p: ProductOption) => {
+  const isInstallation = (i: number) => (values.lines?.[i] ?? lines.fields[i])?.kind === "INSTALLATION";
+  const productCount = lines.fields.filter((_, i) => !isInstallation(i)).length;
+
+  /** Installation lines always sit after the product lines, so the form order is the document order. */
+  const addInstallation = () => {
     lines.append({
       key: nextKey(),
+      kind: "INSTALLATION",
+      productId: "",
+      sku: "",
+      description: "",
+      unit: "job",
+      quantity: "1",
+      unitPrice: "",
+      gstPercent: String(meta.defaultGstPercent),
+    });
+  };
+
+  const addProduct = (p: ProductOption) => {
+    lines.insert(productCount, {
+      key: nextKey(),
+      kind: "PRODUCT",
       productId: p.id,
       sku: p.sku,
       description: p.name,
@@ -262,12 +301,19 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
   const leadOptions: SelectOption[] = leadChoices.map((l) => ({ value: l.id, label: `${l.clientName} · ${l.leadNumber}`, description: l.partnerName }));
   const linesError = errors.lines?.message ?? errors.lines?.root?.message;
 
+  const installationRows: InstallationRow[] = lines.fields.flatMap((line, i) =>
+    isInstallation(i)
+      ? [{ index: i, fieldKey: line.fieldKey, line: (values.lines?.[i] ?? line) as InstallationRow["line"], errors: lineErrors[i] as InstallationRow["errors"], amount: shown?.lines[i]?.amount }]
+      : [],
+  );
+  const installationSubtotal = shown && installationRows.length > 0 ? installationRows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2) : undefined;
+
   return (
     <form onSubmit={submit} noValidate className="space-y-6" aria-label={editing ? `Edit ${estimate.estimateNumber}` : "New estimate"}>
       <UnsavedChangesGuard when={isDirty && !isSubmitting && !saving && !isSubmitSuccessful} />
       {warnOnSave ? (
         <Alert tone="warning" title={`This estimate is ${estimate.statusLabel.toLowerCase()}`}>
-          Saving changes keeps its status ({estimate.statusLabel.toLowerCase()}) and is recorded in its history. Make sure the client or partner gets the revised copy.
+          Saving changes keeps its status ({estimate.statusLabel.toLowerCase()}) and is recorded in its history together with your reason for the revision. Make sure the client or partner gets the revised copy.
         </Alert>
       ) : null}
       <FormError>{formError}</FormError>
@@ -333,13 +379,13 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
         </FormGrid>
       </FormSection>
 
-      <FormSection title="Items" description="Prices are copied from the product sheet when an item is added and can be changed here. Saved items keep their copy.">
+      <FormSection title="Items" description="Rate and GST come from the product sheet and can&apos;t be changed here; saved items keep their copy. Installation work below is priced by you.">
         {linesError ? (
           <p role="alert" className="text-sm text-danger">
             {linesError}
           </p>
         ) : null}
-        {lines.fields.length > 0 ? (
+        {productCount > 0 ? (
           <div className="relative overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[640px] text-sm">
               <caption className="sr-only">Estimate items</caption>
@@ -354,7 +400,8 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
                 </tr>
               </thead>
               <tbody>
-                {lines.fields.map((line, i) => (
+                {lines.fields.map((line, i) =>
+                  isInstallation(i) ? null : (
                   <LineRow
                     key={line.fieldKey}
                     index={i}
@@ -365,7 +412,8 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
                     control={control}
                     onRemove={() => lines.remove(i)}
                   />
-                ))}
+                  ),
+                )}
               </tbody>
             </table>
           </div>
@@ -373,6 +421,17 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
           <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">No items yet. Search the product sheet below to add one.</p>
         )}
         {lines.fields.length < meta.maxLines ? <ProductPicker onAdd={addProduct} internal={internal} /> : null}
+      </FormSection>
+
+      <FormSection title="Installation" description="Installation work is priced separately from the products. It is optional, printed in its own section and included in the totals.">
+        <InstallationLines
+          control={control as unknown as Control<InstallationFormValues>}
+          rows={installationRows}
+          subtotal={installationSubtotal}
+          canAdd={lines.fields.length < meta.maxLines}
+          onAdd={addInstallation}
+          onRemove={(i) => lines.remove(i)}
+        />
       </FormSection>
 
       <FormSection title="Pricing" description="Totals are calculated by the server: line amounts, then the discount, then GST per line rate.">
@@ -435,6 +494,16 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
         </div>
       </FormSection>
 
+      {warnOnSave ? (
+        <FormSection title="Revision" description="This estimate has already left draft, so every change needs a reason.">
+          <FormGrid>
+            <FormField label="Reason for revision" error={errors.revisionReason?.message} required wide hint="Kept in the estimate's history and shown to your team.">
+              <Textarea rows={3} {...register("revisionReason")} />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+      ) : null}
+
       <FormActions>
         <Button onClick={onCancel} disabled={isSubmitting}>
           Cancel
@@ -458,7 +527,7 @@ export function EstimateForm({ meta, estimate, initialLead, internal, onSubmit, 
           onCancel={() => setPendingSave(null)}
         >
           <p>
-            {estimate.estimateNumber} is {estimate.statusLabel.toLowerCase()}. Its status won't change, and the edit is recorded in its history.
+            {estimate.estimateNumber} is {estimate.statusLabel.toLowerCase()}. Its status won't change, and the edit is recorded in its history with your reason.
           </p>
         </ConfirmDialog>
       ) : null}
@@ -479,8 +548,8 @@ interface LineRowProps {
 function LineRow({ index, line, amount, b2c, errors, control, onRemove }: LineRowProps) {
   const name = `${line.sku} ${line.description}`.trim();
   const errorId = `line-${index}-error`;
-  const messages = [errors?.productId?.message, errors?.quantity?.message, errors?.unitPrice?.message, errors?.gstPercent?.message].filter(Boolean);
-  const cell = (field: "quantity" | "unitPrice" | "gstPercent", label: string, scale: number) => (
+  const messages = [errors?.productId?.message, errors?.quantity?.message].filter(Boolean);
+  const cell = (field: "quantity", label: string, scale: number) => (
     <Controller
       control={control}
       name={`lines.${index}.${field}`}
@@ -518,8 +587,12 @@ function LineRow({ index, line, amount, b2c, errors, control, onRemove }: LineRo
         ) : null}
       </td>
       <td className="px-3 py-2">{cell("quantity", "Quantity", 3)}</td>
-      <td className="px-3 py-2">{cell("unitPrice", "Rate", 2)}</td>
-      <td className="px-3 py-2">{cell("gstPercent", "GST", 3)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap" title="From the product sheet">
+        {formatCurrency(line.unitPrice)}
+      </td>
+      <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap" title="From the product sheet">
+        {formatPercent(line.gstPercent)}
+      </td>
       <td className="px-3 py-2 text-right font-mono tabular whitespace-nowrap">{amount === undefined ? "—" : formatCurrency(amount)}</td>
       <td className="px-3 py-2 text-right">
         <Button size="icon-sm" variant="ghost" onClick={onRemove} aria-label={`Remove ${name}`}>
@@ -601,7 +674,7 @@ function applyEstimateErrors(error: unknown, setError: ReturnType<typeof useForm
   let focused = false;
   for (const fe of error.fieldErrors) {
     const name = fe.field.replace(/\[(\d+)\]/g, ".$1");
-    const known = (FIELDS as readonly string[]).includes(name) || /^lines\.\d+\.(productId|quantity|unitPrice|gstPercent)$/.test(name);
+    const known = (FIELDS as readonly string[]).includes(name) || /^lines\.\d+\.(productId|description|unit|quantity|unitPrice|gstPercent)$/.test(name);
     if (known) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic line paths
       setError(name as any, { type: "server", message: fe.message }, { shouldFocus: !focused && !name.endsWith("productId") });

@@ -55,6 +55,10 @@ public class Lead extends AuditableEntity {
     @Column(name = "project_type", nullable = false, length = 30)
     private ProjectType projectType;
 
+    /** What the project is when {@link #projectType} is OTHER; null otherwise. */
+    @Column(name = "project_type_other", length = 100)
+    private String projectTypeOther;
+
     @Column(name = "units")
     private Integer units;
 
@@ -100,6 +104,10 @@ public class Lead extends AuditableEntity {
 
     @Column(name = "deleted_by")
     private UUID deletedBy;
+
+    /** Why the lead was archived; set together with {@code deletedAt}. */
+    @Column(name = "delete_reason", length = 500)
+    private String deleteReason;
 
     public String getLeadNumber() {
         return leadNumber;
@@ -151,6 +159,22 @@ public class Lead extends AuditableEntity {
 
     public void setCity(String city) {
         this.city = city;
+    }
+
+    public String getProjectTypeOther() {
+        return projectTypeOther;
+    }
+
+    public void setProjectTypeOther(String projectTypeOther) {
+        this.projectTypeOther = projectTypeOther;
+    }
+
+    /** Label shown on screens and documents: "Other: Warehouse" for OTHER with a description, else the type's label. */
+    public String getProjectTypeDisplay() {
+        if (projectType == ProjectType.OTHER && projectTypeOther != null && !projectTypeOther.isBlank()) {
+            return projectType.getLabel() + ": " + projectTypeOther;
+        }
+        return projectType.getLabel();
     }
 
     public ProjectType getProjectType() {
@@ -263,6 +287,14 @@ public class Lead extends AuditableEntity {
 
     public void setDeletedAt(Instant deletedAt) {
         this.deletedAt = deletedAt;
+    }
+
+    public String getDeleteReason() {
+        return deleteReason;
+    }
+
+    public void setDeleteReason(String deleteReason) {
+        this.deleteReason = deleteReason;
     }
 
     public UUID getDeletedBy() {

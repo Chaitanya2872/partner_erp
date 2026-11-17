@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { BadgeCheck, Pencil, Trash2 } from "lucide-react";
+import { Archive, BadgeCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { DataTable, type ColumnDef } from "@/components/tables/DataTable";
 import type { SortState } from "@/components/tables/sorting";
@@ -144,8 +144,8 @@ export function LeadTable({ caption, rows, meta, actions, showPartner = true, ..
                   </Button>
                 ) : null}
                 {canDelete ? (
-                  <Button size="icon-sm" variant="destructive-outline" onClick={() => actions.requestDelete(l)} aria-label={`Delete ${l.clientName}`}>
-                    <Trash2 aria-hidden="true" />
+                  <Button size="icon-sm" variant="destructive-outline" onClick={() => actions.requestDelete(l)} aria-label={`Archive ${l.clientName}`}>
+                    <Archive aria-hidden="true" />
                   </Button>
                 ) : null}
               </div>

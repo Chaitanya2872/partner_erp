@@ -2,6 +2,8 @@ package com.iotiq.partnererp.modules.estimates.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import com.iotiq.partnererp.common.persistence.LineKind;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -17,7 +19,7 @@ import java.util.UUID;
 public record EstimatePreview(List<Line> lines, TotalsResponse totals, BigDecimal defaultFeePercent,
                               BigDecimal feePercent, boolean feeOverride, Internal internal) {
 
-    public record Line(int lineNo, UUID id, UUID productId, String sku, String description, String hsn, String unit,
+    public record Line(int lineNo, UUID id, LineKind kind, UUID productId, String sku, String description, String hsn, String unit,
                        BigDecimal quantity, BigDecimal unitPrice, BigDecimal gstPercent, BigDecimal amount) {
     }
 

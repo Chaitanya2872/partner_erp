@@ -81,6 +81,16 @@ describe("user management", () => {
     expect(screen.getByRole("link", { name: /Permissions/ })).toBeInTheDocument();
   });
 
+  it("lets an Admin manage Admin accounts but not Super Admin accounts", async () => {
+    const superTarget: User = { ...target, id: "u2", fullName: "Sue Super", email: "sue@example.test", role: { id: "role-SUPER_ADMIN", code: "SUPER_ADMIN", displayName: "Super Admin" } };
+    vi.mocked(userService.list).mockResolvedValue({ content: [target, superTarget], meta: { page: 0, size: 20, totalElements: 2, totalPages: 1 } });
+    vi.mocked(authService.restore).mockResolvedValue(makeMe("ADMIN", { modules: makeMe("SUPER_ADMIN").modules }, ["USER_MANAGEMENT:MANAGE_USERS"]));
+    renderApp("/users");
+    expect(await screen.findByText("Sue Super")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Deactivate" })).toHaveLength(1);
+  });
+
   it("asks for confirmation before deactivating", async () => {
     vi.mocked(authService.restore).mockResolvedValue(makeMe("SUPER_ADMIN"));
     vi.mocked(userService.setStatus).mockResolvedValue({ ...target, status: "DISABLED", version: 4 });
@@ -88,7 +98,7 @@ describe("user management", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Deactivate" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/signed out of every session/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate user" }));
     expect(userService.setStatus).toHaveBeenCalledWith("u1", "DISABLED", 3);
   });
 
@@ -144,11 +154,11 @@ describe("user management", () => {
     expect(screen.queryByRole("button", { name: "Save permissions" })).not.toBeInTheDocument();
   });
 
-  it("never offers role-reserved modules or actions", async () => {
-    vi.mocked(authService.restore).mockResolvedValue(makeMe("SUPER_ADMIN"));
+  it("offers Role Management and Manage permissions to an Admin editor (no Super-Admin-only items any more)", async () => {
+    vi.mocked(authService.restore).mockResolvedValue(makeMe("ADMIN", { modules: makeMe("SUPER_ADMIN").modules }, ["USER_MANAGEMENT:MANAGE_PERMISSIONS"]));
     renderApp("/users/u1/permissions");
-    expect(await screen.findByRole("checkbox", { name: "Role Management Read" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Manage permissions" })).toBeDisabled();
+    expect(await screen.findByRole("checkbox", { name: "Role Management Read" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "Manage permissions" })).toBeEnabled();
   });
 
   it("does not save when the preview shows nothing would change", async () => {
@@ -194,7 +204,7 @@ describe("user management", () => {
     expect(screen.getByText(/^Locked until/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Unlock" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Unlock" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Unlock account" }));
     expect(userService.unlock).toHaveBeenCalledWith("u1", 3);
   });
 

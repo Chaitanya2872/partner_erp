@@ -22,6 +22,15 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID>, JpaSp
     @EntityGraph(attributePaths = {"partner", "lead", "lead.partner", "lead.partner.tier"})
     Optional<Estimate> findByIdAndDeletedAtIsNull(UUID id);
 
+    /** An archived (soft-deleted) estimate, for the archive views. */
+    @EntityGraph(attributePaths = {"partner", "lead", "lead.partner", "lead.partner.tier"})
+    Optional<Estimate> findByIdAndDeletedAtIsNotNull(UUID id);
+
+    /** Locks an archived estimate for restore. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select e from Estimate e where e.id = :id and e.deletedAt is not null")
+    Optional<Estimate> lockArchived(@Param("id") UUID id);
+
     /** Locks the estimate for status changes and delete, so concurrent requests wait and re-read. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from Estimate e where e.id = :id and e.deletedAt is null")

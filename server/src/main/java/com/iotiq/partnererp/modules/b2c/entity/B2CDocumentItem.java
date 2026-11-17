@@ -4,6 +4,9 @@ import com.iotiq.partnererp.common.persistence.BaseEntity;
 import com.iotiq.partnererp.modules.products.entity.Product;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import com.iotiq.partnererp.common.persistence.LineKind;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -28,6 +31,10 @@ public class B2CDocumentItem extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
     private Product product;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, length = 20)
+    private LineKind kind = LineKind.PRODUCT;
 
     /** B2C name. */
     @Column(name = "description", length = 300)
@@ -69,6 +76,14 @@ public class B2CDocumentItem extends BaseEntity {
 
     public void setLineNo(int lineNo) {
         this.lineNo = lineNo;
+    }
+
+    public LineKind getKind() {
+        return kind;
+    }
+
+    public void setKind(LineKind kind) {
+        this.kind = kind;
     }
 
     public Product getProduct() {

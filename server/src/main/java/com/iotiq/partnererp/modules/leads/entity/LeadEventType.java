@@ -8,7 +8,9 @@ public enum LeadEventType {
     CREATED("Created"),
     STAGE_CHANGED("Stage changed"),
     ACKNOWLEDGED("Acknowledged"),
-    AUTO_STAGE("Stage changed automatically");
+    AUTO_STAGE("Stage changed automatically"),
+    ARCHIVED("Archived"),
+    RESTORED("Restored");
 
     private final String label;
 

@@ -18,7 +18,7 @@ export const DropdownMenuContent = forwardRef<ComponentRef<typeof RadixMenu.Cont
           align={align}
           collisionPadding={8}
           className={cn(
-            "z-50 min-w-48 max-w-[calc(100vw-16px)] overflow-hidden rounded-lg border border-border bg-surface p-1 text-foreground shadow-md animate-in",
+            "z-50 min-w-48 max-w-[calc(100vw-16px)] overflow-hidden rounded-lg border border-border bg-surface p-1 text-foreground shadow-md origin-[var(--radix-dropdown-menu-content-transform-origin)] data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
             className,
           )}
           {...props}
@@ -29,7 +29,7 @@ export const DropdownMenuContent = forwardRef<ComponentRef<typeof RadixMenu.Cont
 );
 
 const itemClass =
-  "relative flex min-h-9 cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none " +
+  "relative flex min-h-9 cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none transition-colors duration-100 " +
   "data-[highlighted]:bg-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-50 " +
   "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground";
 

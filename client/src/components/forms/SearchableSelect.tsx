@@ -119,7 +119,7 @@ export const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectPr
           align="start"
           sideOffset={4}
           collisionPadding={8}
-          className="z-50 w-[var(--radix-popover-trigger-width)] min-w-56 max-w-[calc(100vw-16px)] rounded-lg border border-border bg-surface p-1 shadow-md animate-in"
+          className="z-50 w-[var(--radix-popover-trigger-width)] min-w-56 max-w-[calc(100vw-16px)] rounded-lg border border-border bg-surface p-1 shadow-md origin-[var(--radix-popover-content-transform-origin)] data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out"
         >
           <div className="relative mb-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

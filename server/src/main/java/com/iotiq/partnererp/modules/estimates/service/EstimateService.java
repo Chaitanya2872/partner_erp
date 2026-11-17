@@ -6,8 +6,12 @@ import com.iotiq.partnererp.common.exception.BusinessException;
 import com.iotiq.partnererp.common.exception.ResourceNotFoundException;
 import com.iotiq.partnererp.common.exception.ValidationException;
 import com.iotiq.partnererp.common.persistence.DocumentTotals;
+import com.iotiq.partnererp.common.persistence.LineKind;
 import com.iotiq.partnererp.common.response.ApiResponse.FieldError;
 import com.iotiq.partnererp.common.util.DocumentCalculator;
+import com.iotiq.partnererp.common.web.ArchiveRequest;
+import com.iotiq.partnererp.modules.estimates.dto.EstimateArchiveDetail;
+import com.iotiq.partnererp.modules.estimates.dto.EstimateArchiveEntry;
 import com.iotiq.partnererp.modules.audit.entity.AuditLog;
 import com.iotiq.partnererp.modules.audit.repository.AuditLogRepository;
 import com.iotiq.partnererp.modules.audit.service.AuditActions;
@@ -289,10 +293,10 @@ public class EstimateService {
         List<EstimatePreview.InternalLine> internalLines = new ArrayList<>();
         int lineNo = 1;
         for (DraftLine l : draft.lines()) {
-            lines.add(new EstimatePreview.Line(lineNo, l.existingId(), l.product().getId(), l.sku(), l.description(),
+            lines.add(new EstimatePreview.Line(lineNo, l.existingId(), l.kind(), l.product() == null ? null : l.product().getId(), l.sku(), l.description(),
                     l.hsn(), l.unit(), l.quantity(), l.unitPrice(), l.gstPercent(), l.amount()));
             internalLines.add(new EstimatePreview.InternalLine(lineNo, l.b2cName(), l.b2cRate(), l.b2cAmount(),
-                    l.b2cRate().signum() == 0));
+                    l.kind() == LineKind.PRODUCT && l.b2cRate().signum() == 0));
             lineNo++;
         }
         EstimatePreview.Internal internal = null;
@@ -355,6 +359,20 @@ public class EstimateService {
         if (changedKeys.isEmpty()) {
             return toResponse(estimate);
         }
+        // Once an estimate has left DRAFT the client may already hold a copy, so every change must say why.
+        String revisionReason = null;
+        if (estimate.getStatus() != EstimateStatus.DRAFT) {
+            List<FieldError> reasonErrors = new ArrayList<>();
+            revisionReason = EstimateRules.text(request.revisionReason(), "revisionReason",
+                    EstimateRules.MAX_REVISION_REASON, reasonErrors);
+            if (revisionReason == null || revisionReason.length() < EstimateRules.MIN_REVISION_REASON) {
+                reasonErrors.add(new FieldError("revisionReason", "Say why this estimate is being revised (at least "
+                        + EstimateRules.MIN_REVISION_REASON + " characters)."));
+            }
+            if (!reasonErrors.isEmpty()) {
+                throw new ValidationException(reasonErrors);
+            }
+        }
         // Old lines go first: (estimate, line_no) is unique and Hibernate would insert before it deletes.
         estimate.getItems().clear();
         repository.flush();
@@ -370,6 +388,9 @@ public class EstimateService {
             // D-13: previous rate (old values), new rate, the default it replaces and the reason.
             newValues.put("defaultFeePercent", draft.defaultFee());
             newValues.put("feeOverrideReason", draft.feeReason());
+        }
+        if (revisionReason != null) {
+            newValues.put("revisionReason", revisionReason);
         }
         auditService.record(AuditActions.ESTIMATE_UPDATED, AuditActions.ENTITY_ESTIMATE, id,
                 only(before, changedKeys), newValues);
@@ -398,9 +419,13 @@ public class EstimateService {
                 "Only sent estimates can be rejected.", stage -> stage == LeadStage.WON ? LeadStage.WON : LeadStage.LOST);
     }
 
-    /** Soft delete with its twin kept for history. Refused once the estimate is invoiced (D-26). */
+    /**
+     * Archive (soft delete) with a mandatory reason; the twin is kept for history. Any status except invoiced may be
+     * archived (D-26). It moves to the archive, where it is read-only until restored.
+     */
     @Transactional
-    public void delete(UUID id, AuthenticatedUser user) {
+    public void delete(UUID id, ArchiveRequest request, AuthenticatedUser user) {
+        String reason = ArchiveRequest.requireReason(request);
         Estimate estimate = lock(id, user);
         if (estimate.getStatus() == EstimateStatus.INVOICED) {
             throw BusinessException.conflict("ESTIMATE_INVOICED", "Invoiced estimates can't be deleted.");
@@ -410,8 +435,60 @@ public class EstimateService {
         before.putAll(EstimateMapper.auditSnapshot(estimate));
         estimate.setDeletedAt(clock.instant());
         estimate.setDeletedBy(user.id());
+        estimate.setDeleteReason(reason);
         repository.saveAndFlush(estimate);
-        auditService.record(AuditActions.ESTIMATE_DELETED, AuditActions.ENTITY_ESTIMATE, id, before, null);
+        auditService.record(AuditActions.ESTIMATE_DELETED, AuditActions.ENTITY_ESTIMATE, id, before,
+                AuditService.values("reason", reason));
+    }
+
+    /**
+     * Brings an archived estimate back. Refused while its lead is still archived (restore the lead first).
+     */
+    @Transactional
+    public EstimateResponse restore(UUID id, AuthenticatedUser user) {
+        requireScope(id, user);
+        Estimate estimate = repository.lockArchived(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Archived estimate", id));
+        if (estimate.getLead() != null && estimate.getLead().getDeletedAt() != null) {
+            throw BusinessException.conflict("LEAD_ARCHIVED",
+                    "The lead of this estimate is archived. Restore the lead first.");
+        }
+        String reason = estimate.getDeleteReason();
+        estimate.setDeletedAt(null);
+        estimate.setDeletedBy(null);
+        estimate.setDeleteReason(null);
+        repository.saveAndFlush(estimate);
+        auditService.record(AuditActions.ESTIMATE_RESTORED, AuditActions.ENTITY_ESTIMATE, id,
+                AuditService.values("archiveReason", reason), AuditService.values("restored", true));
+        return toResponse(estimate);
+    }
+
+    /** The archive: soft-deleted estimates, newest archived first, searched like the main list; same scope rules. */
+    @Transactional(readOnly = true)
+    public Page<EstimateArchiveEntry> archive(String query, Pageable pageable, AuthenticatedUser user) {
+        LocalDate today = LocalDate.now(clock);
+        Specification<Estimate> spec = dataScopeService.resolve(user, ModuleCode.ESTIMATES).<Estimate>toSpecification()
+                .and(matching(new Filters(query, null, null, null, null), today, true));
+        Page<Estimate> page = repository.findAll(spec, pageable);
+        Map<UUID, String> names = actorNames(page.getContent().stream().map(Estimate::getDeletedBy).toList());
+        return page.map(e -> new EstimateArchiveEntry(EstimateMapper.toSummary(e, today), e.getDeletedAt(),
+                names.get(e.getDeletedBy()), e.getDeleteReason()));
+    }
+
+    /** One archived estimate (partner copy), read-only, with the reason, who archived it and when. */
+    @Transactional(readOnly = true)
+    public EstimateArchiveDetail archived(UUID id, AuthenticatedUser user) {
+        requireScope(id, user);
+        Estimate estimate = repository.findByIdAndDeletedAtIsNotNull(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Archived estimate", id));
+        return new EstimateArchiveDetail(toResponse(estimate), estimate.getDeletedAt(),
+                actorNames(List.of(estimate.getDeletedBy())).get(estimate.getDeletedBy()), estimate.getDeleteReason());
+    }
+
+    private Map<UUID, String> actorNames(List<UUID> ids) {
+        Set<UUID> actorIds = ids.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        return userRepository.findAllById(actorIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getFullName));
     }
 
     // ------------------------------------------------------------------------------------------- helpers
@@ -461,7 +538,7 @@ public class EstimateService {
 
     // ---- building a draft from the request
 
-    private record DraftLine(UUID existingId, Product product, String sku, String description, String b2cName,
+    private record DraftLine(UUID existingId, LineKind kind, Product product, String sku, String description, String b2cName,
                              String hsn, String unit, BigDecimal quantity, BigDecimal unitPrice, BigDecimal b2cRate,
                              BigDecimal gstPercent) {
 
@@ -585,10 +662,26 @@ public class EstimateService {
         List<DraftLine> lines = new ArrayList<>();
         for (int i = 0; i < input.size(); i++) {
             EstimateRequest.Line in = input.get(i);
-            if (in == null || in.productId() == null) {
+            if (in == null) {
                 continue;
             }
             String f = "lines[" + i + "]";
+            LineKind kind = LineKind.PRODUCT;
+            if (in.kind() != null && !in.kind().isBlank()) {
+                try {
+                    kind = LineKind.valueOf(in.kind().strip().toUpperCase(java.util.Locale.ROOT));
+                } catch (IllegalArgumentException e) {
+                    errors.add(new FieldError(f + ".kind", "Unknown line type."));
+                    continue;
+                }
+            }
+            if (kind == LineKind.INSTALLATION) {
+                installationLine(in, f, saved, lines, errors);
+                continue;
+            }
+            if (in.productId() == null) {
+                continue;
+            }
             EstimateItem kept = in.id() == null ? null : saved.get(in.id());
             if (in.id() != null && kept == null) {
                 errors.add(new FieldError(f + ".id", "This line isn't part of the estimate any more. Reload and try again."));
@@ -596,13 +689,12 @@ public class EstimateService {
             }
             BigDecimal quantity = EstimateRules.quantity(in.quantity(), f + ".quantity", errors);
             if (kept != null && kept.getProduct() != null && kept.getProduct().getId().equals(in.productId())) {
-                // Saved line: keep its snapshot; only quantity, partner rate and GST may change (decision 5).
-                BigDecimal rate = in.unitPrice() == null ? kept.getUnitPrice()
-                        : EstimateRules.rate(in.unitPrice(), f + ".unitPrice", errors);
-                BigDecimal gst = in.gstPercent() == null ? kept.getGstPercent()
-                        : EstimateRules.percent(in.gstPercent(), f + ".gstPercent", "GST", errors);
+                // Saved line: keep its snapshot; only the quantity changes. Rate and GST come from the product sheet
+                // (the saved copy), so any value in the request is ignored.
+                BigDecimal rate = kept.getUnitPrice();
+                BigDecimal gst = kept.getGstPercent();
                 if (quantity != null && rate != null && gst != null) {
-                    lines.add(new DraftLine(kept.getId(), kept.getProduct(), kept.getProduct().getSku(),
+                    lines.add(new DraftLine(kept.getId(), LineKind.PRODUCT, kept.getProduct(), kept.getProduct().getSku(),
                             kept.getDescription(), kept.getB2cName(), kept.getHsn(), kept.getUnit(), quantity, rate,
                             kept.getB2cUnitPrice(), gst));
                 }
@@ -618,17 +710,42 @@ public class EstimateService {
                 errors.add(new FieldError(f + ".productId", e.getMessage()));
                 continue;
             }
-            BigDecimal rate = in.unitPrice() == null ? snap.rate()
-                    : EstimateRules.rate(in.unitPrice(), f + ".unitPrice", errors);
-            BigDecimal gst = in.gstPercent() == null ? snap.gstPercent().setScale(3)
-                    : EstimateRules.percent(in.gstPercent(), f + ".gstPercent", "GST", errors);
+            // Price and GST always come from the product sheet; any value in the request is ignored.
+            BigDecimal rate = snap.rate();
+            BigDecimal gst = snap.gstPercent().setScale(3);
             if (quantity != null && rate != null && gst != null) {
-                lines.add(new DraftLine(null, productRepository.getReferenceById(snap.productId()), snap.sku(),
+                lines.add(new DraftLine(null, LineKind.PRODUCT, productRepository.getReferenceById(snap.productId()), snap.sku(),
                         snap.name(), snap.b2cName(), snap.hsn(), snap.unit(), quantity, rate.setScale(2),
                         snap.b2cRate().setScale(2), gst));
             }
         }
         return lines;
+    }
+
+    /** Installation line: free text priced like any other line, no product, fully editable once saved. */
+    private static void installationLine(EstimateRequest.Line in, String f, Map<UUID, EstimateItem> saved,
+                                         List<DraftLine> lines, List<FieldError> errors) {
+        EstimateItem kept = in.id() == null ? null : saved.get(in.id());
+        if (in.id() != null && (kept == null || !kept.isInstallation())) {
+            errors.add(new FieldError(f + ".id", "This line isn't part of the estimate any more. Reload and try again."));
+            return;
+        }
+        if (in.productId() != null) {
+            errors.add(new FieldError(f + ".productId", "Installation lines have no product."));
+        }
+        String description = EstimateRules.text(in.description(), f + ".description", 300, errors);
+        if (description == null) {
+            errors.add(new FieldError(f + ".description", "Describe the installation work."));
+        }
+        String unit = EstimateRules.text(in.unit(), f + ".unit", 20, errors);
+        BigDecimal quantity = EstimateRules.quantity(in.quantity(), f + ".quantity", errors);
+        BigDecimal rate = EstimateRules.rate(in.unitPrice(), f + ".unitPrice", errors);
+        BigDecimal gst = EstimateRules.percent(in.gstPercent(), f + ".gstPercent", "GST", errors);
+        if (description != null && description.length() <= 300 && (unit == null || unit.length() <= 20)
+                && quantity != null && rate != null && gst != null && in.productId() == null) {
+            lines.add(new DraftLine(kept == null ? null : kept.getId(), LineKind.INSTALLATION, null, null, description,
+                    description, null, unit == null ? "job" : unit, quantity, rate, rate, gst));
+        }
     }
 
     private static void apply(Estimate estimate, Draft d) {
@@ -648,6 +765,7 @@ public class EstimateService {
         for (DraftLine l : d.lines()) {
             EstimateItem item = new EstimateItem();
             item.setLineNo(lineNo++);
+            item.setKind(l.kind());
             item.setProduct(l.product());
             item.setDescription(l.description());
             item.setB2cName(l.b2cName());
@@ -667,8 +785,8 @@ public class EstimateService {
         List<Map<String, Object>> lines = new ArrayList<>();
         int lineNo = 1;
         for (DraftLine l : d.lines()) {
-            lines.add(EstimateMapper.auditLine(lineNo++, l.product().getId(), l.description(), l.quantity(),
-                    l.unitPrice(), l.gstPercent()));
+            lines.add(EstimateMapper.auditLine(lineNo++, l.kind(), l.product() == null ? null : l.product().getId(),
+                    l.description(), l.unit(), l.quantity(), l.unitPrice(), l.gstPercent()));
         }
         return AuditService.values(
                 "leadId", d.lead().getId(),
@@ -741,13 +859,13 @@ public class EstimateService {
 
     private Specification<Estimate> spec(Filters filters, AuthenticatedUser user, LocalDate today) {
         return dataScopeService.resolve(user, ModuleCode.ESTIMATES).<Estimate>toSpecification()
-                .and(matching(filters, today));
+                .and(matching(filters, today, false));
     }
 
-    private static Specification<Estimate> matching(Filters f, LocalDate today) {
+    private static Specification<Estimate> matching(Filters f, LocalDate today, boolean archived) {
         return (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.isNull(root.get("deletedAt")));
+            predicates.add(archived ? cb.isNotNull(root.get("deletedAt")) : cb.isNull(root.get("deletedAt")));
             boolean counting = cq != null && Long.class == cq.getResultType();
             // One join each serves the search and, for page queries, fetches the partner and lead for the rows.
             @SuppressWarnings("unchecked")

@@ -24,6 +24,15 @@ public interface LeadRepository extends JpaRepository<Lead, UUID>, JpaSpecificat
     @EntityGraph(attributePaths = {"partner", "partner.tier"})
     Optional<Lead> findByIdAndDeletedAtIsNull(UUID id);
 
+    /** An archived (soft-deleted) lead, for the archive views. */
+    @EntityGraph(attributePaths = {"partner", "partner.tier"})
+    Optional<Lead> findByIdAndDeletedAtIsNotNull(UUID id);
+
+    /** Locks an archived lead for restore. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select l from Lead l where l.id = :id and l.deletedAt is not null")
+    Optional<Lead> lockArchived(@Param("id") UUID id);
+
     /** Locks the lead for acknowledge, stage change and delete, so concurrent requests wait and re-read. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select l from Lead l where l.id = :id and l.deletedAt is null")

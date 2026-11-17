@@ -57,7 +57,7 @@ export function useProductActions({ onDeleted }: { onDeleted?: () => void } = {}
       <ConfirmDialog
         open={!!deactivateTarget}
         title="Deactivate product?"
-        confirmLabel="Deactivate"
+        confirmLabel="Deactivate product"
         busy={statusMutation.isPending}
         onCancel={() => setDeactivateTarget(null)}
         onConfirm={() => deactivateTarget && statusMutation.mutate({ product: deactivateTarget, active: false })}
@@ -73,7 +73,7 @@ export function useProductActions({ onDeleted }: { onDeleted?: () => void } = {}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete product?"
-        confirmLabel="Delete"
+        confirmLabel="Delete product"
         danger
         busy={deleteMutation.isPending}
         onCancel={() => setDeleteTarget(null)}

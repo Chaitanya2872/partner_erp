@@ -532,7 +532,7 @@ public class DashboardQueries {
 
     /**
      * Sales per product from the invoice line snapshots of live issued invoices dated in the period: quantity and
-     * taxable value as invoiced. Lines without a product are grouped under a null product id. B2C names and prices
+     * taxable value as invoiced. Installation lines are excluded; product lines whose product was removed are grouped under a null product id. B2C names and prices
      * on the lines are never read.
      */
     public List<ProductSalesRow> productSales(MapSqlParameterSource params) {
@@ -543,7 +543,7 @@ public class DashboardQueries {
                           FROM invoice_items ii
                           JOIN invoices i ON i.id = ii.invoice_id
                           LEFT JOIN products pr ON pr.id = ii.product_id
-                         WHERE i.status = 'ISSUED' AND i.deleted_at IS NULL AND i.invoice_date BETWEEN :from AND :to
+                         WHERE ii.kind = 'PRODUCT' AND i.status = 'ISSUED' AND i.deleted_at IS NULL AND i.invoice_date BETWEEN :from AND :to
                          GROUP BY ii.product_id, pr.sku, pr.partner_name, pr.category
                         """, params, (rs, i) -> new ProductSalesRow(rs.getObject("product_id", UUID.class),
                 rs.getString("sku"), rs.getString("name"), rs.getString("category"), rs.getBigDecimal("qty"),

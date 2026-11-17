@@ -8,6 +8,7 @@ import com.iotiq.partnererp.common.exception.BusinessException;
 import com.iotiq.partnererp.common.exception.ResourceNotFoundException;
 import com.iotiq.partnererp.common.exception.ValidationException;
 import com.iotiq.partnererp.common.persistence.DocumentTotals;
+import com.iotiq.partnererp.common.persistence.LineKind;
 import com.iotiq.partnererp.common.response.ApiResponse.FieldError;
 import com.iotiq.partnererp.common.util.DocumentCalculator;
 import com.iotiq.partnererp.modules.audit.entity.AuditLog;
@@ -333,12 +334,12 @@ public class InvoiceService {
         for (int n = 0; n < d.lines().size(); n++) {
             DraftLine l = d.lines().get(n);
             GstCalculator.LineTax t = d.tax().lines().get(n);
-            lines.add(new InvoiceResponse.Line(l.existingId(), n + 1, l.product() == null ? null : l.product().getId(),
+            lines.add(new InvoiceResponse.Line(l.existingId(), n + 1, l.kind(), l.product() == null ? null : l.product().getId(),
                     l.sku(), true, l.description(), l.hsn(), l.unit(), l.quantity(), l.unitPrice(), l.gstPercent(),
                     t.amount(), t.taxableValue(), t.cgst(), t.sgst(), t.igst(), t.tax(), t.total()));
             internalLines.add(new InvoicePreview.InternalLine(n + 1, l.product() == null ? null : l.product().getId(),
                     l.b2cName(), l.b2cRate(), DocumentCalculator.lineAmount(l.quantity(), l.b2cRate()),
-                    l.b2cRate().signum() == 0));
+                    l.kind() == LineKind.PRODUCT && l.b2cRate().signum() == 0));
         }
         InvoicePreview.Internal internal = null;
         if (ProductService.canViewInternal(user)) {
@@ -664,7 +665,12 @@ public class InvoiceService {
         String reason = request == null || request.reason() == null || request.reason().isBlank() ? null
                 : request.reason().strip();
         if (reason == null) {
-            throw ValidationException.of("reason", "Give a reason for cancelling the invoice.");
+            throw ValidationException.of("reason", "Give a reason for cancelling the invoice (at least "
+                    + InvoiceRules.MIN_REASON + " characters).");
+        }
+        if (reason.length() < InvoiceRules.MIN_REASON) {
+            throw ValidationException.of("reason", "Give a reason for cancelling the invoice (at least "
+                    + InvoiceRules.MIN_REASON + " characters).");
         }
         if (reason.length() > InvoiceRules.MAX_REASON) {
             throw ValidationException.of("reason", "Must be at most " + InvoiceRules.MAX_REASON + " characters.");
@@ -746,7 +752,7 @@ public class InvoiceService {
 
     // ------------------------------------------------------------------------------------------- building
 
-    private record DraftLine(UUID existingId, Product product, String sku, String description, String b2cName,
+    private record DraftLine(UUID existingId, LineKind kind, Product product, String sku, String description, String b2cName,
                              String hsn, String unit, BigDecimal quantity, BigDecimal unitPrice, BigDecimal b2cRate,
                              BigDecimal gstPercent) {
     }
@@ -898,8 +904,9 @@ public class InvoiceService {
     }
 
     /**
-     * §6.2 snapshots for direct invoices. A line GST rate other than the source rate (the saved line's or the
-     * product's) needs {@code INVOICES:APPROVE}: tax rates are sensitive (Phase 9 decision 6).
+     * §6.2 snapshots for direct invoices. Product lines take rate and GST from the product sheet (a saved line keeps
+     * its copy); any price or GST sent for them is ignored. Only a saved installation line's GST change needs
+     * {@code INVOICES:APPROVE}: tax rates are sensitive (Phase 9 decision 6).
      */
     private List<DraftLine> lines(List<InvoiceRequest.Line> input, Invoice existing, AuthenticatedUser user,
                                   List<FieldError> errors) {
@@ -909,10 +916,26 @@ public class InvoiceService {
         List<DraftLine> lines = new ArrayList<>();
         for (int i = 0; i < input.size(); i++) {
             InvoiceRequest.Line in = input.get(i);
-            if (in == null || in.productId() == null) {
+            if (in == null) {
                 continue;
             }
             String f = "lines[" + i + "]";
+            LineKind kind = LineKind.PRODUCT;
+            if (in.kind() != null && !in.kind().isBlank()) {
+                try {
+                    kind = LineKind.valueOf(in.kind().strip().toUpperCase(java.util.Locale.ROOT));
+                } catch (IllegalArgumentException e) {
+                    errors.add(new FieldError(f + ".kind", "Unknown line type."));
+                    continue;
+                }
+            }
+            if (kind == LineKind.INSTALLATION) {
+                installationLine(in, f, saved, approver, lines, errors);
+                continue;
+            }
+            if (in.productId() == null) {
+                continue;
+            }
             InvoiceItem kept = in.id() == null ? null : saved.get(in.id());
             if (in.id() != null && kept == null) {
                 errors.add(new FieldError(f + ".id", "This line isn't part of the invoice any more. Reload and try again."));
@@ -920,16 +943,11 @@ public class InvoiceService {
             }
             BigDecimal quantity = EstimateRules.quantity(in.quantity(), f + ".quantity", errors);
             if (kept != null && kept.getProduct() != null && kept.getProduct().getId().equals(in.productId())) {
-                BigDecimal rate = in.unitPrice() == null ? kept.getUnitPrice()
-                        : EstimateRules.rate(in.unitPrice(), f + ".unitPrice", errors);
-                BigDecimal gst = in.gstPercent() == null ? kept.getGstPercent()
-                        : EstimateRules.percent(in.gstPercent(), f + ".gstPercent", "GST", errors);
-                if (gst != null && gst.compareTo(kept.getGstPercent()) != 0 && !approver) {
-                    errors.add(new FieldError(f + ".gstPercent", "Changing a GST rate needs the Invoices approve permission."));
-                    continue;
-                }
+                // Product lines are priced by the product sheet: a saved line keeps its copy, whatever the request says.
+                BigDecimal rate = kept.getUnitPrice();
+                BigDecimal gst = kept.getGstPercent();
                 if (quantity != null && rate != null && gst != null) {
-                    lines.add(new DraftLine(kept.getId(), kept.getProduct(), kept.getProduct().getSku(),
+                    lines.add(new DraftLine(kept.getId(), LineKind.PRODUCT, kept.getProduct(), kept.getProduct().getSku(),
                             kept.getDescription(), kept.getB2cName(), kept.getHsn(), kept.getUnit(), quantity, rate,
                             kept.getB2cUnitPrice(), gst));
                 }
@@ -945,17 +963,11 @@ public class InvoiceService {
                 errors.add(new FieldError(f + ".productId", e.getMessage()));
                 continue;
             }
-            BigDecimal productGst = snap.gstPercent().setScale(3);
-            BigDecimal rate = in.unitPrice() == null ? snap.rate()
-                    : EstimateRules.rate(in.unitPrice(), f + ".unitPrice", errors);
-            BigDecimal gst = in.gstPercent() == null ? productGst
-                    : EstimateRules.percent(in.gstPercent(), f + ".gstPercent", "GST", errors);
-            if (gst != null && gst.compareTo(productGst) != 0 && !approver) {
-                errors.add(new FieldError(f + ".gstPercent", "Changing a GST rate needs the Invoices approve permission."));
-                continue;
-            }
+            // Price and GST always come from the product sheet; any value in the request is ignored.
+            BigDecimal rate = snap.rate();
+            BigDecimal gst = snap.gstPercent().setScale(3);
             if (quantity != null && rate != null && gst != null) {
-                lines.add(new DraftLine(null, productRepository.getReferenceById(snap.productId()), snap.sku(),
+                lines.add(new DraftLine(null, LineKind.PRODUCT, productRepository.getReferenceById(snap.productId()), snap.sku(),
                         snap.name(), snap.b2cName(), snap.hsn(), snap.unit(), quantity, rate.setScale(2),
                         snap.b2cRate().setScale(2), gst));
             }
@@ -963,14 +975,47 @@ public class InvoiceService {
         return lines;
     }
 
+    /**
+     * Installation line of a direct invoice: free text priced like any line, no product. It has no source rate, so
+     * only a change to a saved line's GST rate needs {@code INVOICES:APPROVE}.
+     */
+    private static void installationLine(InvoiceRequest.Line in, String f, Map<UUID, InvoiceItem> saved,
+                                         boolean approver, List<DraftLine> lines, List<FieldError> errors) {
+        InvoiceItem kept = in.id() == null ? null : saved.get(in.id());
+        if (in.id() != null && (kept == null || !kept.isInstallation())) {
+            errors.add(new FieldError(f + ".id", "This line isn't part of the invoice any more. Reload and try again."));
+            return;
+        }
+        if (in.productId() != null) {
+            errors.add(new FieldError(f + ".productId", "Installation lines have no product."));
+        }
+        String description = EstimateRules.text(in.description(), f + ".description", 300, errors);
+        if (description == null) {
+            errors.add(new FieldError(f + ".description", "Describe the installation work."));
+        }
+        String unit = EstimateRules.text(in.unit(), f + ".unit", 20, errors);
+        BigDecimal quantity = EstimateRules.quantity(in.quantity(), f + ".quantity", errors);
+        BigDecimal rate = EstimateRules.rate(in.unitPrice(), f + ".unitPrice", errors);
+        BigDecimal gst = EstimateRules.percent(in.gstPercent(), f + ".gstPercent", "GST", errors);
+        if (gst != null && kept != null && gst.compareTo(kept.getGstPercent()) != 0 && !approver) {
+            errors.add(new FieldError(f + ".gstPercent", "Changing a GST rate needs the Invoices approve permission."));
+            return;
+        }
+        if (description != null && description.length() <= 300 && (unit == null || unit.length() <= 20)
+                && quantity != null && rate != null && gst != null && in.productId() == null) {
+            lines.add(new DraftLine(kept == null ? null : kept.getId(), LineKind.INSTALLATION, null, null, description,
+                    description, null, unit == null ? "job" : unit, quantity, rate, rate, gst));
+        }
+    }
+
     private static DraftLine copy(EstimateItem i) {
-        return new DraftLine(null, i.getProduct(), i.getProduct() == null ? null : i.getProduct().getSku(),
+        return new DraftLine(null, i.getKind(), i.getProduct(), i.getProduct() == null ? null : i.getProduct().getSku(),
                 i.getDescription(), i.getB2cName(), i.getHsn(), i.getUnit(), i.getQuantity(), i.getUnitPrice(),
                 i.getB2cUnitPrice(), i.getGstPercent());
     }
 
     private static DraftLine copy(InvoiceItem i) {
-        return new DraftLine(i.getId(), i.getProduct(), i.getProduct() == null ? null : i.getProduct().getSku(),
+        return new DraftLine(i.getId(), i.getKind(), i.getProduct(), i.getProduct() == null ? null : i.getProduct().getSku(),
                 i.getDescription(), i.getB2cName(), i.getHsn(), i.getUnit(), i.getQuantity(), i.getUnitPrice(),
                 i.getB2cUnitPrice(), i.getGstPercent());
     }
@@ -979,7 +1024,8 @@ public class InvoiceService {
     private static InvoiceRequest requestOf(Invoice i) {
         boolean converted = i.getEstimate() != null;
         List<InvoiceRequest.Line> lines = converted ? null : i.getItems().stream()
-                .map(l -> new InvoiceRequest.Line(l.getId(), l.getProduct() == null ? null : l.getProduct().getId(),
+                .map(l -> new InvoiceRequest.Line(l.getId(), l.getKind().name(),
+                        l.getProduct() == null ? null : l.getProduct().getId(), l.getDescription(), l.getUnit(),
                         l.getQuantity(), l.getUnitPrice(), l.getGstPercent())).toList();
         return new InvoiceRequest(converted ? null : i.getLead() == null ? null : i.getLead().getId(),
                 converted ? null : i.getBillTo(), converted ? null : i.getDiscountPercent(),
@@ -1042,6 +1088,7 @@ public class InvoiceService {
             GstCalculator.LineTax lt = tax.lines().get(n);
             InvoiceItem item = new InvoiceItem();
             item.setLineNo(n + 1);
+            item.setKind(l.kind());
             item.setProduct(l.product());
             item.setDescription(l.description());
             item.setB2cName(l.b2cName());

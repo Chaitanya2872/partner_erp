@@ -101,6 +101,7 @@ public class B2CDocumentService {
         for (DocumentLine line : lines) {
             B2CDocumentItem item = new B2CDocumentItem();
             item.setLineNo(line.getLineNo());
+            item.setKind(line.getKind());
             item.setProduct(line.getProduct());
             item.setDescription(line.getB2cName());
             item.setPartnerName(line.getDescription());
@@ -111,7 +112,8 @@ public class B2CDocumentService {
             item.setGstPercent(line.getGstPercent());
             item.setLineTotal(DocumentCalculator.lineAmount(line.getQuantity(), line.getB2cUnitPrice()));
             twin.addItem(item);
-            incomplete |= line.getB2cUnitPrice().signum() == 0;
+            // Installation has no separate internal price (its B2C rate is the rate), so it is never "missing".
+            incomplete |= !line.isInstallation() && line.getB2cUnitPrice().signum() == 0;
         }
         DocumentCalculator.Totals b2c = DocumentCalculator.totals(lines.stream()
                 .map(l -> new DocumentCalculator.Line(l.getQuantity(), l.getB2cUnitPrice(), l.getGstPercent()))

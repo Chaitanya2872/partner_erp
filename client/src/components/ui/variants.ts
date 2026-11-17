@@ -2,16 +2,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 /** Class variants shared by Button and Badge (kept apart from the components so fast refresh works). */
 export const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium transition-colors " +
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium " +
+    "transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out-soft active:scale-[0.98] " +
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring " +
-    "disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
+    "disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "border-primary bg-primary text-primary-foreground shadow-xs hover:border-primary-hover hover:bg-primary-hover",
+        primary: "border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover",
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-active",
-        outline: "border-border-strong bg-surface text-foreground shadow-xs hover:border-accent hover:bg-hover",
-        destructive: "border-danger-solid bg-danger-solid text-white shadow-xs hover:opacity-90",
+        outline: "border-border-strong bg-surface text-foreground hover:border-accent-ink/60 hover:bg-hover",
+        destructive: "border-danger-solid bg-danger-solid text-white hover:opacity-90",
         "destructive-outline": "border-border-strong bg-surface text-danger hover:border-danger hover:bg-danger-bg",
         ghost: "border-transparent bg-transparent text-foreground hover:bg-hover",
         link: "h-auto border-transparent bg-transparent p-0 text-accent-ink underline-offset-2 hover:underline",

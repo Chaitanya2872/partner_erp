@@ -153,7 +153,8 @@ export function InvoiceDetailsPage() {
   const busy = issue.isPending || confirm.isPending || cancel.isPending || discard.isPending;
   const withText = (action: "confirm" | "cancel", max = 500) => () => {
     const value = text.trim();
-    if (!value) return setTextError(action === "confirm" ? "Explain why this tax treatment is right." : "Give the reason for cancelling.");
+    if (!value) return setTextError(action === "confirm" ? "Explain why this tax treatment is right." : CANCEL_REASON_MESSAGE);
+    if (action === "cancel" && value.length < MIN_CANCEL_REASON) return setTextError(CANCEL_REASON_MESSAGE);
     if (value.length > max) return setTextError(`Use at most ${max} characters.`);
     if (action === "confirm") confirm.mutate(i);
     else cancel.mutate(i);
@@ -536,6 +537,9 @@ function DocumentViewer({ invoice: i, canInternal }: { invoice: Invoice; canInte
     </ContentCard>
   );
 }
+
+const MIN_CANCEL_REASON = 10;
+const CANCEL_REASON_MESSAGE = "Give a reason for cancelling the invoice (at least 10 characters).";
 
 function historyEntry(h: InvoiceHistoryEntry): TimelineEntry {
   const tone: TimelineEntry["tone"] =

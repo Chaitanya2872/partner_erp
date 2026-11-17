@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { renderApp } from "@/test/renderApp";
 import { catalog, makeMe, row } from "@/test/fixtures";
 import { authService } from "@/services/auth.service";
+import { ApiRequestError } from "@/services/api";
 import { leadService } from "../services/leadService";
 import type { Lead, LeadHistoryEntry, LeadMeta, LeadSummary } from "../types/lead.types";
 
@@ -21,6 +22,9 @@ vi.mock("../services/leadService", () => ({
     setStage: vi.fn(),
     acknowledge: vi.fn(),
     remove: vi.fn(),
+    archive: vi.fn(),
+    archived: vi.fn(),
+    restore: vi.fn(),
   },
 }));
 
@@ -38,6 +42,7 @@ const meta: LeadMeta = {
   projectTypes: [
     { code: "VILLA", label: "Villa" },
     { code: "APARTMENT", label: "Apartment" },
+    { code: "OTHER", label: "Other" },
   ],
   partners: [
     { id: "p1", name: "Studio Nila", statusLabel: "Active", active: true, tierName: "Registered", feePercent: "8.000" },
@@ -91,6 +96,7 @@ const won: LeadSummary = {
 
 const lead: Lead = {
   ...fresh,
+  projectTypeOther: null,
   presalesOwner: "Kiran",
   expectedClose: "2026-12-15",
   source: "Partner referral",
@@ -134,7 +140,7 @@ describe("lead list", () => {
     // Without Leads approve there is no acknowledge button, and without delete no delete button.
     expect(within(freshRow).getByText("Not acknowledged")).toBeInTheDocument();
     expect(within(freshRow).queryByRole("button", { name: /Acknowledge/ })).not.toBeInTheDocument();
-    expect(within(freshRow).queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();
+    expect(within(freshRow).queryByRole("button", { name: /Archive/ })).not.toBeInTheDocument();
     expect(within(freshRow).getByRole("link", { name: "Edit Rao Residence" })).toHaveAttribute("href", "/leads/l1/edit");
 
     const wonRow = await rowOf("Iyer Villa");
@@ -169,7 +175,7 @@ describe("lead list", () => {
     expect(within(dialog).getByText(/moves from Won to Negotiation/)).toBeInTheDocument();
     expect(leadService.setStage).not.toHaveBeenCalled();
     await userEvent.type(within(dialog).getByLabelText("Reason (optional)"), "Budget revised");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Reopen" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reopen lead" }));
     await vi.waitFor(() => expect(leadService.setStage).toHaveBeenCalledWith("l2", "NEGOTIATION", 6, "Budget revised"));
   });
 
@@ -180,7 +186,7 @@ describe("lead list", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Acknowledge Rao Residence" }));
     const dialog = await screen.findByRole("dialog", { name: "Acknowledge registration?" });
     expect(dialog).toHaveTextContent("Acknowledge “Rao Residence” for Studio Nila? The 8.00% (Registered) fee rate locks now and 90-day protection starts.");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Acknowledge" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Acknowledge lead" }));
     await vi.waitFor(() => expect(leadService.acknowledge).toHaveBeenCalledWith("l1"));
     expect(await screen.findByText("Acknowledged. 8.00% fee rate locked.")).toBeInTheDocument();
   });
@@ -210,15 +216,90 @@ describe("lead list", () => {
     expect(screen.getByRole("combobox", { name: "Stage" })).toBeEnabled();
   });
 
-  it("confirms before deleting and explains the document rule", async () => {
+  it("archives only with a written reason of at least 10 characters and explains the document rule", async () => {
     signIn(approver());
     vi.mocked(leadService.remove).mockResolvedValue();
     renderApp("/leads");
-    await userEvent.click(await screen.findByRole("button", { name: "Delete Rao Residence" }));
-    const dialog = await screen.findByRole("dialog", { name: "Delete lead?" });
+    await userEvent.click(await screen.findByRole("button", { name: "Archive Rao Residence" }));
+    const dialog = await screen.findByRole("dialog", { name: "Archive lead?" });
     expect(within(dialog).getByText(/mark it Lost instead/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
-    await vi.waitFor(() => expect(leadService.remove).toHaveBeenCalledWith("l1"));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Archive lead" }));
+    expect(await within(dialog).findByText("Say why it is being archived (at least 10 characters).")).toBeInTheDocument();
+    expect(leadService.remove).not.toHaveBeenCalled();
+    await userEvent.type(within(dialog).getByLabelText(/Reason for archiving/), "too short");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Archive lead" }));
+    expect(leadService.remove).not.toHaveBeenCalled();
+    await userEvent.type(within(dialog).getByLabelText(/Reason for archiving/), " - duplicate entry");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Archive lead" }));
+    await vi.waitFor(() => expect(leadService.remove).toHaveBeenCalledWith("l1", "too short - duplicate entry"));
+  });
+
+  it("shows the server's refusal of the archive reason under the reason box", async () => {
+    signIn(approver());
+    vi.mocked(leadService.remove).mockRejectedValueOnce(
+      new ApiRequestError(400, "VALIDATION_FAILED", "Validation failed", [{ field: "reason", message: "Give a reason of 10 to 500 characters." }]),
+    );
+    renderApp("/leads");
+    await userEvent.click(await screen.findByRole("button", { name: "Archive Rao Residence" }));
+    const dialog = await screen.findByRole("dialog", { name: "Archive lead?" });
+    await userEvent.type(within(dialog).getByLabelText(/Reason for archiving/), "Entered twice by mistake");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Archive lead" }));
+    expect(await within(dialog).findByText("Give a reason of 10 to 500 characters.")).toBeInTheDocument();
+  });
+
+  describe("archive tab", () => {
+    const archivedLead = { ...fresh, id: "l7", clientName: "Old Villa" };
+    beforeEach(() => {
+      vi.mocked(leadService.archive).mockResolvedValue({
+        content: [{ ...archivedLead, deletedAt: "2026-10-25T10:00:00Z", deletedByName: "Test Admin", deleteReason: "Entered twice by mistake" }],
+        meta: { page: 0, size: 20, totalElements: 1, totalPages: 1 },
+      } as never);
+      vi.mocked(leadService.archived).mockResolvedValue({
+        lead: { ...lead, id: "l7", clientName: "Old Villa" },
+        deletedAt: "2026-10-25T10:00:00Z",
+        deletedByName: "Test Admin",
+        deleteReason: "Entered twice by mistake",
+      } as never);
+    });
+
+    it("lists archived leads with who, when and why and opens a read-only view", async () => {
+      signIn(editor());
+      renderApp("/leads");
+      await userEvent.click(await screen.findByRole("tab", { name: "Archive" }));
+      const archivedRow = (await screen.findByText("Old Villa")).closest("tr")!;
+      expect(within(archivedRow).getByText("Test Admin")).toBeInTheDocument();
+      expect(within(archivedRow).getByText("Entered twice by mistake")).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /Deleted on/ })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /Deleted by/ })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /Reason/ })).toBeInTheDocument();
+      // Archived rows have no edit link; View opens the read-only dialog.
+      expect(within(archivedRow).queryByRole("link", { name: /Edit/ })).not.toBeInTheDocument();
+      await userEvent.click(within(archivedRow).getByRole("button", { name: /View/ }));
+      const dialog = await screen.findByRole("dialog", { name: /Old Villa/ });
+      expect(within(dialog).getByText(/Reason: Entered twice by mistake/)).toBeInTheDocument();
+      expect(within(dialog).getByText(/Read-only/)).toBeInTheDocument();
+      expect(leadService.archived).toHaveBeenCalledWith("l7", expect.anything());
+    });
+
+    it("restores after a confirmation", async () => {
+      signIn(approver());
+      vi.mocked(leadService.restore).mockResolvedValue({ ...lead, id: "l7", clientName: "Old Villa" });
+      renderApp("/leads");
+      await userEvent.click(await screen.findByRole("tab", { name: "Archive" }));
+      await userEvent.click(await screen.findByRole("button", { name: /Restore Old Villa/ }));
+      const dialog = await screen.findByRole("dialog", { name: /Restore lead/ });
+      expect(leadService.restore).not.toHaveBeenCalled();
+      await userEvent.click(within(dialog).getByRole("button", { name: /Restore lead/ }));
+      await vi.waitFor(() => expect(leadService.restore).toHaveBeenCalledWith("l7"));
+    });
+
+    it("offers no restore without Leads approve or delete", async () => {
+      signIn(editor());
+      renderApp("/leads");
+      await userEvent.click(await screen.findByRole("tab", { name: "Archive" }));
+      await screen.findByText("Old Villa");
+      expect(screen.queryByRole("button", { name: /Restore/ })).not.toBeInTheDocument();
+    });
   });
 
   it("sends search and filters to the server and resets to the first page", async () => {
@@ -295,6 +376,23 @@ describe("lead form", () => {
     expect(await screen.findByText("Saved. Same phone is already protected for Beta Builders.")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Rao Residence" })).toBeInTheDocument();
     expect(screen.queryByText("Leave without saving?")).not.toBeInTheDocument();
+  });
+
+  it("asks what the project is when the type is Other, and only then", async () => {
+    signIn(editor());
+    vi.mocked(leadService.create).mockResolvedValue({ ...lead });
+    renderApp("/leads/new?partnerId=p1");
+    await userEvent.type(await screen.findByLabelText(/^Client name/), "Rao Residence");
+    expect(screen.queryByLabelText(/What kind of project/)).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText(/^Project type/), "OTHER");
+    const detail = await screen.findByLabelText(/What kind of project/);
+    await userEvent.click(screen.getByRole("button", { name: "Create lead" }));
+    expect((await screen.findAllByText("Say what kind of project it is.")).length).toBeGreaterThan(0);
+    expect(leadService.create).not.toHaveBeenCalled();
+    await userEvent.type(detail, "Warehouse");
+    await userEvent.click(screen.getByRole("button", { name: "Create lead" }));
+    await vi.waitFor(() => expect(leadService.create).toHaveBeenCalled());
+    expect(vi.mocked(leadService.create).mock.calls[0][0]).toMatchObject({ projectType: "OTHER", projectTypeOther: "Warehouse" });
   });
 
   it("lets the partner change before acknowledgement", async () => {

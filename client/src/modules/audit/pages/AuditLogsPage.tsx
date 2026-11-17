@@ -8,7 +8,7 @@ import { DataTable, type ColumnDef } from "@/components/tables/DataTable";
 import { EmptyState } from "@/components/feedback/States";
 import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
 import { DescriptionList, DetailRow } from "@/components/data/DataDisplay";
-import { DateInput } from "@/components/forms/inputs";
+import { FilterDate } from "@/components/forms/inputs";
 import { SearchInput } from "@/components/forms/SearchInput";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { Dialog } from "@/components/ui/Dialog";
@@ -245,12 +245,9 @@ export function AuditLogsPage() {
               loading={actors.isPending}
               className="sm:w-52"
             />
-            <div className="flex items-center gap-2">
-              <DateInput id="audit-from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" aria-label="From date" />
-              <span className="text-muted-foreground" aria-hidden="true">
-                –
-              </span>
-              <DateInput id="audit-to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" aria-label="To date" />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <FilterDate label="From" id="audit-from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} aria-label="From date" />
+              <FilterDate label="To" id="audit-to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} aria-label="To date" />
             </div>
             {filtered ? (
               <Button variant="ghost" onClick={clear}>

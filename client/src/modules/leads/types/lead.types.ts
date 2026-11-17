@@ -4,7 +4,7 @@ import type { Money } from "@/modules/partners/types/partner.types";
 
 export type LeadStage = "NEW" | "REGISTERED" | "PRESALES" | "SITE_VISIT" | "ESTIMATE_SENT" | "NEGOTIATION" | "WON" | "LOST";
 export type ProjectType = "VILLA" | "APARTMENT" | "MULTI_UNIT_PROJECT" | "OFFICE" | "RETROFIT_RENOVATION" | "OTHER";
-export type LeadEvent = "CREATED" | "STAGE_CHANGED" | "ACKNOWLEDGED" | "AUTO_STAGE";
+export type LeadEvent = "CREATED" | "STAGE_CHANGED" | "ACKNOWLEDGED" | "AUTO_STAGE" | "ARCHIVED" | "RESTORED";
 
 /** BR-L3: Won and Lost are closed; leaving them (reopening) needs Leads approve (D-04). */
 export const CLOSED_STAGES: readonly LeadStage[] = ["WON", "LOST"];
@@ -54,6 +54,8 @@ export interface LeadSummary {
 }
 
 export interface Lead extends Omit<LeadSummary, "sla"> {
+  /** What the project is when the type is Other; null otherwise. */
+  projectTypeOther: string | null;
   presalesOwner: string | null;
   expectedClose: string | null;
   source: string | null;
@@ -109,6 +111,8 @@ export interface LeadInput {
   city: string;
   partnerId: string;
   projectType: ProjectType | "";
+  /** Required by the server when projectType is OTHER. */
+  projectTypeOther: string;
   units: number | null;
   budget: string | null;
   stage: LeadStage;
@@ -118,6 +122,38 @@ export interface LeadInput {
   source: string;
   notes: string;
   version?: number;
+}
+
+/** A row of the lead archive: who archived it, when and why. */
+export interface LeadArchiveEntry {
+  id: string;
+  leadNumber: string;
+  clientName: string;
+  clientPhone: string | null;
+  city: string | null;
+  projectTypeLabel: string;
+  stage: LeadStage;
+  stageLabel: string;
+  partner: PartnerRef;
+  createdAt: string;
+  deletedAt: string;
+  deletedByName: string | null;
+  deleteReason: string;
+}
+
+/** An archived lead, read-only. */
+export interface LeadArchiveDetail {
+  lead: Lead;
+  deletedAt: string;
+  deletedByName: string | null;
+  deleteReason: string;
+}
+
+export interface ArchiveFilters {
+  q?: string;
+  page: number;
+  size: number;
+  sort?: string;
 }
 
 export interface LeadFilters {

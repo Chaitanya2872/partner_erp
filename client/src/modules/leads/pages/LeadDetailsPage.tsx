@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, FilePlus2, Pencil, Trash2 } from "lucide-react";
+import { Archive, BadgeCheck, FilePlus2, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ErrorState, LoadingState } from "@/components/feedback/States";
 import { ContentCard, PageActions, PageContainer, PageHeader } from "@/components/layout/Page";
@@ -23,6 +23,8 @@ const HISTORY_TONE: Record<LeadHistoryEntry["event"], TimelineEntry["tone"]> = {
   STAGE_CHANGED: "info",
   ACKNOWLEDGED: "success",
   AUTO_STAGE: "info",
+  ARCHIVED: "danger",
+  RESTORED: "success",
 };
 
 export function LeadDetailsPage() {
@@ -77,7 +79,7 @@ export function LeadDetailsPage() {
               ) : null}
               {canDelete ? (
                 <Button variant="destructive-outline" onClick={() => actions.requestDelete(l)}>
-                  <Trash2 aria-hidden="true" /> Delete
+                  <Archive aria-hidden="true" /> Archive
                 </Button>
               ) : null}
               {canEstimate ? (
@@ -191,7 +193,7 @@ export function LeadDetailsPage() {
             <Timeline
               entries={[...history.data].reverse().map((h) => ({
                 id: h.id,
-                tone: h.toStage === "WON" ? "success" : h.toStage === "LOST" ? "danger" : HISTORY_TONE[h.event],
+                tone: h.event === "ARCHIVED" || h.event === "RESTORED" ? HISTORY_TONE[h.event] : h.toStage === "WON" ? "success" : h.toStage === "LOST" ? "danger" : HISTORY_TONE[h.event],
                 title: historyTitle(h),
                 time: `${formatDateTime(h.occurredAt)}${h.actorName ? ` · ${h.actorName}` : ""}`,
                 description: h.reason ?? undefined,
@@ -220,6 +222,10 @@ function historyTitle(h: LeadHistoryEntry) {
   switch (h.event) {
     case "CREATED":
       return <>Created as {h.toStageLabel}</>;
+    case "ARCHIVED":
+      return <>Archived</>;
+    case "RESTORED":
+      return <>Restored from the archive</>;
     case "ACKNOWLEDGED":
       return h.fromStage !== h.toStage ? <>Acknowledged: {h.fromStageLabel} → {h.toStageLabel}</> : <>Acknowledged</>;
     default:

@@ -10,11 +10,12 @@ import { cn } from "@/lib/cn";
 
 /** Shared look of every text-like control; the invalid state comes from aria-invalid (set by FormField). */
 export const controlClass =
-  "w-full min-w-0 rounded-md border border-input bg-surface px-3 text-sm text-foreground shadow-xs transition-colors " +
-  "placeholder:text-muted-foreground hover:border-accent-ink " +
-  "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring " +
-  "disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:opacity-70 " +
-  "aria-invalid:border-danger aria-invalid:focus-visible:outline-danger";
+  "w-full min-w-0 rounded-md border border-border-strong bg-surface px-3 text-sm text-foreground " +
+  "transition-[border-color,box-shadow,background-color] duration-150 ease-out-soft " +
+  "placeholder:text-muted-foreground hover:border-input " +
+  "focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20 " +
+  "disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:opacity-70 read-only:bg-surface-muted " +
+  "aria-invalid:border-danger aria-invalid:focus-visible:ring-danger/20";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...props }, ref) {
   return <input ref={ref} className={cn(controlClass, "h-9 py-1.5", className)} {...props} />;

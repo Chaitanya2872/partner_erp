@@ -1,6 +1,7 @@
 package com.iotiq.partnererp.modules.invoices.mapper;
 
 import com.iotiq.partnererp.common.enums.PaymentStatus;
+import com.iotiq.partnererp.common.persistence.LineKind;
 import com.iotiq.partnererp.common.util.DocumentCalculator;
 import com.iotiq.partnererp.modules.audit.service.AuditService;
 import com.iotiq.partnererp.modules.b2c.entity.B2CDocument;
@@ -50,8 +51,10 @@ public final class InvoiceMapper {
     }
 
     public static InvoiceResponse.Line toLine(InvoiceItem i) {
-        return new InvoiceResponse.Line(i.getId(), i.getLineNo(), i.getProduct() == null ? null : i.getProduct().getId(),
-                i.getProduct() == null ? null : i.getProduct().getSku(), i.getProduct() != null && i.getProduct().isActive(),
+        return new InvoiceResponse.Line(i.getId(), i.getLineNo(), i.getKind(),
+                i.getProduct() == null ? null : i.getProduct().getId(),
+                i.getProduct() == null ? null : i.getProduct().getSku(),
+                i.isInstallation() || (i.getProduct() != null && i.getProduct().isActive()),
                 i.getDescription(), i.getHsn(), i.getUnit(), i.getQuantity(), i.getUnitPrice(), i.getGstPercent(),
                 i.getLineTotal(), i.getTaxableValue(), i.getCgstAmount(), i.getSgstAmount(), i.getIgstAmount(),
                 i.getTaxAmount(), i.getTotalAmount());
@@ -107,17 +110,22 @@ public final class InvoiceMapper {
                 "placeOfSupplyCode", i.getPlaceOfSupplyCode(),
                 "placeOfSupplyBasis", i.getPlaceOfSupplyBasis(),
                 "taxType", i.getTaxType(),
-                "lines", i.getItems().stream().map(l -> auditLine(l.getLineNo(),
-                        l.getProduct() == null ? null : l.getProduct().getId(), l.getDescription(), l.getQuantity(),
-                        l.getUnitPrice(), l.getGstPercent(), l.getTaxableValue(), l.getTaxAmount())).toList(),
+                "lines", i.getItems().stream().map(l -> auditLine(l.getLineNo(), l.getKind(),
+                        l.getProduct() == null ? null : l.getProduct().getId(), l.getDescription(), l.getUnit(),
+                        l.getQuantity(), l.getUnitPrice(), l.getGstPercent(), l.getTaxableValue(), l.getTaxAmount())).toList(),
                 "taxableAmount", i.getTotals().getTaxableAmount(),
                 "gstAmount", i.getTotals().getGstAmount(),
                 "grandTotal", i.getTotals().getGrandTotal());
     }
 
-    public static Map<String, Object> auditLine(int lineNo, Object productId, String description, Object quantity,
-                                                Object unitPrice, Object gstPercent, Object taxableValue,
-                                                Object taxAmount) {
+    public static Map<String, Object> auditLine(int lineNo, LineKind kind, Object productId, String description,
+                                                String unit, Object quantity, Object unitPrice, Object gstPercent,
+                                                Object taxableValue, Object taxAmount) {
+        if (kind == LineKind.INSTALLATION) {
+            return AuditService.values("lineNo", lineNo, "kind", kind, "description", description, "unit", unit,
+                    "quantity", quantity, "unitPrice", unitPrice, "gstPercent", gstPercent,
+                    "taxableValue", taxableValue, "taxAmount", taxAmount);
+        }
         return AuditService.values("lineNo", lineNo, "productId", productId, "description", description,
                 "quantity", quantity, "unitPrice", unitPrice, "gstPercent", gstPercent, "taxableValue", taxableValue,
                 "taxAmount", taxAmount);
@@ -128,7 +136,7 @@ public final class InvoiceMapper {
             return null;
         }
         return new EstimateLeadRef(l.getId(), l.getLeadNumber(), l.getClientName(), l.getClientPhone(), l.getCity(),
-                l.getProjectType().getLabel(), l.getStage(), l.getStage().getLabel(), l.getDeletedAt() != null);
+                l.getProjectTypeDisplay(), l.getStage(), l.getStage().getLabel(), l.getDeletedAt() != null);
     }
 
     public static PartnerRef partner(Invoice i) {
@@ -136,8 +144,9 @@ public final class InvoiceMapper {
     }
 
     private static InternalInvoiceDocument.Line toInternalLine(B2CDocumentItem i) {
-        return new InternalInvoiceDocument.Line(i.getLineNo(), i.getDescription(), i.getPartnerName(), i.getHsn(),
+        return new InternalInvoiceDocument.Line(i.getLineNo(), i.getKind(), i.getDescription(), i.getPartnerName(), i.getHsn(),
                 i.getUnit(), i.getQuantity(), i.getUnitPrice(), i.getGstPercent(),
-                DocumentCalculator.lineAmount(i.getQuantity(), i.getUnitPrice()), i.getUnitPrice().signum() == 0);
+                DocumentCalculator.lineAmount(i.getQuantity(), i.getUnitPrice()),
+                i.getKind() == LineKind.PRODUCT && i.getUnitPrice().signum() == 0);
     }
 }

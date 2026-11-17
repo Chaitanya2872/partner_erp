@@ -85,6 +85,7 @@ export function PartnersPage() {
   ];
 
   const filtered = !!q || !!status || !!category || !!tier || !!agreementStatus;
+  const clearFilters = () => { setSearch(""); setStatus(""); setCategory(""); setTier(""); setAgreementStatus(""); setPage(0); };
 
   return (
     <PageContainer>
@@ -130,6 +131,7 @@ export function PartnersPage() {
         empty={
           <EmptyState
             title={filtered ? "No partners match" : "No partners yet"}
+            onClearFilters={filtered ? clearFilters : undefined}
             action={
               !filtered && canEdit ? (
                 <Button asChild variant="primary">
@@ -140,7 +142,7 @@ export function PartnersPage() {
               ) : undefined
             }
           >
-            {filtered ? "Try other filters." : "Add your first referral partner to start tracking leads and fees."}
+            {filtered ? undefined : "Add your first referral partner to start tracking leads and fees."}
           </EmptyState>
         }
         // The partner name already links to the detail page, so the only row action is Edit.

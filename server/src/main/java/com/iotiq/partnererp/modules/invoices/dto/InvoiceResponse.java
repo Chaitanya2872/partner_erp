@@ -7,6 +7,8 @@ import com.iotiq.partnererp.modules.estimates.dto.EstimateLeadRef;
 import com.iotiq.partnererp.modules.invoices.tax.PlaceOfSupplyBasis;
 import com.iotiq.partnererp.modules.leads.dto.PartnerRef;
 
+import com.iotiq.partnererp.common.persistence.LineKind;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -40,7 +42,7 @@ public record InvoiceResponse(UUID id, String invoiceNumber, InvoiceStatus statu
      * @param lineTotal     taxable value + total tax
      * @param productActive false when the product was deactivated after the line was saved
      */
-    public record Line(UUID id, int lineNo, UUID productId, String sku, boolean productActive, String description,
+    public record Line(UUID id, int lineNo, LineKind kind, UUID productId, String sku, boolean productActive, String description,
                        String hsn, String unit, BigDecimal quantity, BigDecimal unitPrice, BigDecimal gstPercent,
                        BigDecimal amount, BigDecimal taxableValue, BigDecimal cgstAmount, BigDecimal sgstAmount,
                        BigDecimal igstAmount, BigDecimal taxAmount, BigDecimal lineTotal) {

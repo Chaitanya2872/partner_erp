@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/feedback/States";
 import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/layout/Page";
 import { MetricCard, SummaryPanel } from "@/components/dashboard/Dashboard";
 import { SearchInput } from "@/components/forms/SearchInput";
-import { DateInput } from "@/components/forms/inputs";
+import { FilterDate } from "@/components/forms/inputs";
 import { StatusBadge } from "@/components/data/StatusBadge";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -149,6 +149,7 @@ function PayoutList({ statuses, canExport, createButton }: { statuses: { value: 
       setPage(0);
     };
   const filtered = !!q || !!status || !!from || !!to;
+  const clearFilters = () => { setSearch(""); setStatus(""); setFrom(""); setTo(""); setPage(0); };
   const canOpenPartner = canRead("PARTNERS");
 
   const exportCsv = async () => {
@@ -236,8 +237,8 @@ function PayoutList({ statuses, canExport, createButton }: { statuses: { value: 
       pageSizeOptions={[20, 50, 100]}
       onPageSizeChange={set(setSize)}
       empty={
-        <EmptyState title={filtered ? "No payouts match" : "No payouts yet"} action={!filtered ? createButton : undefined}>
-          {filtered ? "Try other filters." : "Create a draft payout for a partner with eligible commission."}
+        <EmptyState title={filtered ? "No payouts match" : "No payouts yet"} onClearFilters={filtered ? clearFilters : undefined} action={!filtered ? createButton : undefined}>
+          {filtered ? undefined : "Create a draft payout for a partner with eligible commission."}
         </EmptyState>
       }
       toolbar={
@@ -251,8 +252,8 @@ function PayoutList({ statuses, canExport, createButton }: { statuses: { value: 
               </option>
             ))}
           </Select>
-          <DateInput aria-label="Created from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" />
-          <DateInput aria-label="Created to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" />
+          <FilterDate label="From" aria-label="Created from" value={from} max={to || undefined} onChange={(e) => set(setFrom)(e.target.value)} className="sm:w-40" />
+          <FilterDate label="To" aria-label="Created to" value={to} min={from || undefined} onChange={(e) => set(setTo)(e.target.value)} className="sm:w-40" />
           {canExport ? (
             <Button onClick={exportCsv} loading={exporting} loadingText="Exporting…">
               <Download aria-hidden="true" /> Export CSV
@@ -388,6 +389,7 @@ function AdjustmentList({ canCreate, statuses }: { canCreate: boolean; statuses:
       setPage(0);
     };
   const filtered = !!q || !!status || !!kind;
+  const clearFilters = () => { setSearch(""); setStatus(""); setKind(""); setPage(0); };
   const newButton = canCreate ? (
     <Button onClick={() => setCreating(true)}>
       <Plus aria-hidden="true" /> New adjustment
@@ -494,8 +496,8 @@ function AdjustmentList({ canCreate, statuses }: { canCreate: boolean; statuses:
         pageSizeOptions={[20, 50, 100]}
         onPageSizeChange={set(setSize)}
         empty={
-          <EmptyState title={filtered ? "No adjustments match" : "No adjustments"} action={!filtered ? newButton : undefined}>
-            {filtered ? "Try other filters." : "Reversals of paid commission and manual corrections appear here."}
+          <EmptyState title={filtered ? "No adjustments match" : "No adjustments"} onClearFilters={filtered ? clearFilters : undefined} action={!filtered ? newButton : undefined}>
+            {filtered ? undefined : "Reversals of paid commission and manual corrections appear here."}
           </EmptyState>
         }
         toolbar={

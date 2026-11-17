@@ -32,7 +32,7 @@ interface UserFormDialogProps {
   roles: Role[];
   /** Roles the current user may assign (non-Super-Admins: User only). */
   assignableRoleIds: string[];
-  /** Role changes are reserved for Super Admins and never allowed on one's own account. */
+  /** Role changes are never allowed on one's own account. */
   canChangeRole: boolean;
   onClose: () => void;
   onSubmit: (values: UserFormValues) => Promise<void>;
@@ -113,7 +113,7 @@ function UserFormDialogBody({ user, roles, assignableRoleIds, canChangeRole, onC
               roleChanged
                 ? "Changing the role resets this user's permissions to the role's defaults."
                 : editing && !canChangeRole
-                  ? "Only a Super Admin can change roles, and never on their own account."
+                  ? "You cannot change your own role."
                   : undefined
             }
           >

@@ -90,6 +90,19 @@ export const DateInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
   return <Input ref={ref} type="date" {...props} />;
 });
 
+/** Date filter for toolbars: a visible label ("From", "To") so native mm/dd/yyyy fields are never anonymous. */
+export const FilterDate = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string }>(function FilterDate(
+  { label, className, ...props },
+  ref,
+) {
+  return (
+    <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <span className="w-9 shrink-0 sm:w-auto">{label}</span>
+      <DateInput ref={ref} className={cn("min-w-0 flex-1 text-foreground sm:w-40 sm:flex-none", className)} {...props} />
+    </label>
+  );
+});
+
 /** Password field with a show/hide toggle. */
 export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, "type">>(function PasswordInput(
   { className, ...props },

@@ -83,7 +83,7 @@ describe("roles and default permissions", () => {
     vi.mocked(roleService.permissions).mockResolvedValue({ ...userRole, editable: false });
     renderApp("/roles/role-USER/permissions");
     expect(await screen.findByRole("checkbox", { name: "Products Read" })).toBeDisabled();
-    expect(screen.getByText(/Only a Super Admin can change defaults/)).toBeInTheDocument();
+    expect(screen.getByText(/You do not have permission to change defaults/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save defaults" })).not.toBeInTheDocument();
   });
 

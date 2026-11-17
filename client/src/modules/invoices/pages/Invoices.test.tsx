@@ -116,6 +116,7 @@ const totals = {
 const line = {
   id: "il1",
   lineNo: 1,
+  kind: "PRODUCT" as const,
   productId: "pr1",
   sku: "SG-10F",
   productActive: true,
@@ -341,7 +342,13 @@ describe("invoice details", () => {
     await userEvent.click(screen.getByRole("button", { name: /Cancel invoice/ }));
     const dialog = await screen.findByRole("dialog", { name: "Cancel INV-2026-000001?" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel invoice" }));
-    expect(await within(dialog).findByText("Give the reason for cancelling.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Give a reason for cancelling the invoice (at least 10 characters).")).toBeInTheDocument();
+    // Fewer than 10 characters is refused on the client too.
+    await userEvent.type(within(dialog).getByLabelText(/Reason for cancelling/), "Too short");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel invoice" }));
+    expect(await within(dialog).findByText("Give a reason for cancelling the invoice (at least 10 characters).")).toBeInTheDocument();
+    expect(invoiceService.cancel).not.toHaveBeenCalled();
+    await userEvent.clear(within(dialog).getByLabelText(/Reason for cancelling/));
     await userEvent.type(within(dialog).getByLabelText(/Reason for cancelling/), "Duplicate billing");
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel invoice" }));
     await vi.waitFor(() => expect(invoiceService.cancel).toHaveBeenCalledWith("i1", { version: 3, reason: "Duplicate billing" }));
@@ -387,8 +394,13 @@ describe("invoice form", () => {
     await userEvent.click(await screen.findByRole("option", { name: /Rao Residence/ }));
     await userEvent.click(screen.getByRole("button", { name: /Add item/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Add Smart Glide" }));
-    // Without Invoices approve the copied GST rate can't be changed.
-    expect(screen.getByLabelText("GST for SG-10F Smart Glide")).toHaveAttribute("readonly");
+    // Rate and GST of a product line come from the product sheet: plain text for everyone, never inputs.
+    expect(screen.queryByLabelText("GST for SG-10F Smart Glide")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Rate for SG-10F/)).not.toBeInTheDocument();
+    const productRow = screen.getByLabelText("Quantity for SG-10F Smart Glide").closest("tr")!;
+    expect(within(productRow).getAllByTitle("From the product sheet")).toHaveLength(2);
+    expect(within(productRow).getByText("₹1,000.00")).toBeInTheDocument();
+    expect(within(productRow).getByText(/^18(\.0+)?%$/)).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText(/^Place of supply/), "36");
     await userEvent.selectOptions(screen.getByLabelText(/^Basis/), "INSTALLATION_SITE");
     expect(await screen.findAllByText("₹1,180.00")).not.toHaveLength(0);
@@ -399,10 +411,72 @@ describe("invoice form", () => {
       billTo: "CLIENT",
       placeOfSupplyCode: "36",
       placeOfSupplyBasis: "INSTALLATION_SITE",
-      lines: [{ productId: "pr1", quantity: "1", unitPrice: "1000", gstPercent: "18" }],
+      lines: [{ productId: "pr1", quantity: "1" }],
     });
+    const sentLine = vi.mocked(invoiceService.create).mock.calls[0][0]?.lines?.[0];
+    expect(sentLine).not.toHaveProperty("unitPrice");
+    expect(sentLine).not.toHaveProperty("gstPercent");
     expect(leadService.list).not.toHaveBeenCalled();
     expect(leadService.get).not.toHaveBeenCalled();
+  });
+
+  it("adds installation lines to a direct invoice and sends them with kind, description and unit", async () => {
+    signIn(writer());
+    vi.mocked(invoiceService.create).mockResolvedValue(draft);
+    renderApp("/invoices/new");
+    await userEvent.click(await screen.findByRole("combobox", { name: /Lead/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /Rao Residence/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Add item/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add Smart Glide" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add installation line" }));
+    await userEvent.type(screen.getByLabelText("Description of installation line 1"), "Wiring");
+    await userEvent.type(screen.getByLabelText("Rate of installation line 1"), "800");
+    await userEvent.selectOptions(screen.getByLabelText(/^Place of supply/), "36");
+    await userEvent.selectOptions(screen.getByLabelText(/^Basis/), "INSTALLATION_SITE");
+    await userEvent.click(screen.getByRole("button", { name: "Create draft" }));
+    await vi.waitFor(() => expect(invoiceService.create).toHaveBeenCalled());
+    expect(vi.mocked(invoiceService.create).mock.calls[0][0].lines).toMatchObject([
+      { kind: "PRODUCT", productId: "pr1" },
+      { kind: "INSTALLATION", description: "Wiring", unit: "job", quantity: "1", unitPrice: "800", gstPercent: "18" },
+    ]);
+  });
+
+  it("keeps a direct draft's installation lines editable instead of dropping them", async () => {
+    signIn(writer());
+    const withInstall: Invoice = {
+      ...draft,
+      lines: [
+        draft.lines[0],
+        { ...line, id: "il2", lineNo: 2, kind: "INSTALLATION", productId: null, sku: null, description: "Wiring", hsn: null, unit: "job", unitPrice: "800", gstPercent: "18" },
+      ],
+    };
+    vi.mocked(invoiceService.get).mockResolvedValue(withInstall);
+    vi.mocked(invoiceService.update).mockResolvedValue(withInstall);
+    renderApp("/invoices/i1/edit");
+    const description = await screen.findByLabelText("Description of installation line 1");
+    expect(description).toHaveValue("Wiring");
+    await userEvent.clear(description);
+    await userEvent.type(description, "Wiring and testing");
+    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await vi.waitFor(() => expect(invoiceService.update).toHaveBeenCalled());
+    expect(vi.mocked(invoiceService.update).mock.calls[0][1].lines).toMatchObject([
+      { id: "il1", kind: "PRODUCT", productId: "pr1" },
+      { id: "il2", kind: "INSTALLATION", description: "Wiring and testing", unit: "job", unitPrice: "800" },
+    ]);
+  });
+
+  it("shows installation lines of an invoice in their own table", async () => {
+    signIn(writer());
+    vi.mocked(invoiceService.get).mockResolvedValue({
+      ...issued,
+      lines: [line, { ...line, id: "il2", lineNo: 2, kind: "INSTALLATION", productId: null, sku: null, description: "Wiring", hsn: null, unit: "job" }],
+    });
+    renderApp("/invoices/i1");
+    expect(await screen.findByRole("heading", { name: "Installation" })).toBeInTheDocument();
+    const installation = screen.getByRole("table", { name: "Installation lines" });
+    expect(within(installation).getByText("Wiring")).toBeInTheDocument();
+    expect(within(installation).getByText("Installation subtotal")).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Invoice items" })).queryByText("Wiring")).not.toBeInTheDocument();
   });
 
   it("never guesses the tax: no place of supply means no tax type", async () => {

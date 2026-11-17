@@ -21,6 +21,7 @@ import java.util.UUID;
  * </ul>
  */
 public record LeadRequest(String clientName, String clientPhone, String clientEmail, String city, UUID partnerId, ProjectType projectType,
+                          String projectTypeOther,
                           Integer units, BigDecimal budget, LeadStage stage, String stageReason, String presalesOwner,
                           LocalDate expectedClose, String source, String notes, Long version) {
 }

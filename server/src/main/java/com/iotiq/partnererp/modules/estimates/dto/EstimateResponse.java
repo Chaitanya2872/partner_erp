@@ -1,6 +1,7 @@
 package com.iotiq.partnererp.modules.estimates.dto;
 
 import com.iotiq.partnererp.common.enums.BillTo;
+import com.iotiq.partnererp.common.persistence.LineKind;
 import com.iotiq.partnererp.modules.estimates.entity.EstimateStatus;
 import com.iotiq.partnererp.modules.leads.dto.PartnerRef;
 
@@ -25,9 +26,9 @@ public record EstimateResponse(UUID id, String estimateNumber, LocalDate estimat
 
     /**
      * @param amount        quantity × partner rate, before the document discount (source "Amount")
-     * @param productActive false when the product was deactivated after the line was saved
+     * @param productActive false when the product was deactivated after the line was saved (always true for installation)
      */
-    public record Line(UUID id, int lineNo, UUID productId, String sku, boolean productActive, String description,
+    public record Line(UUID id, int lineNo, LineKind kind, UUID productId, String sku, boolean productActive, String description,
                        String hsn, String unit, BigDecimal quantity, BigDecimal unitPrice, BigDecimal gstPercent,
                        BigDecimal amount) {
     }

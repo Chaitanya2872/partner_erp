@@ -12,6 +12,7 @@ import { PageActions, PageContainer, PageHeader, Toolbar } from "@/components/la
 import { SearchInput } from "@/components/forms/SearchInput";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
+import { SegmentedList, SegmentedTrigger, Tabs, TabsContent } from "@/components/ui/Tabs";
 import { errorMessage } from "@/lib/errors";
 import { queryKeys } from "@/lib/queryKeys";
 import { saveTextFile } from "@/utils/download";
@@ -19,6 +20,7 @@ import { formatCurrency, formatDate } from "@/utils/format";
 import { estimateService } from "../services/estimateService";
 import { useEstimateMeta } from "../hooks/useEstimates";
 import { EstimateStatusBadge } from "../components/EstimateStatusBadge";
+import { EstimateArchive } from "../components/EstimateArchive";
 import type { EstimateStatus, EstimateSummary } from "../types/estimate.types";
 
 const linkClass = "font-medium text-accent-ink underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring";
@@ -29,6 +31,7 @@ const linkClass = "font-medium text-accent-ink underline-offset-2 hover:underlin
  */
 export function EstimatesPage() {
   const { canRead, canWrite, canPerform } = useAuth();
+  const [view, setView] = useState<"active" | "archive">("active");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<EstimateStatus | "">("");
   const [expired, setExpired] = useState("");
@@ -57,6 +60,7 @@ export function EstimatesPage() {
       setPage(0);
     };
   const filtered = !!q || !!status || !!expired;
+  const clearFilters = () => { setSearch(""); setStatus(""); setExpired(""); setPage(0); };
 
   const exportCsv = async () => {
     setExporting(true);
@@ -152,6 +156,12 @@ export function EstimatesPage() {
         }
       />
 
+      <Tabs value={view} onValueChange={(next) => setView(next as "active" | "archive")} className="space-y-4">
+        <SegmentedList aria-label="Estimates view">
+          <SegmentedTrigger value="active">Active estimates</SegmentedTrigger>
+          <SegmentedTrigger value="archive">Archive</SegmentedTrigger>
+        </SegmentedList>
+        <TabsContent value="active" className="pt-0">
       <DataTable
         caption="Estimates"
         itemLabel="estimates"
@@ -184,8 +194,8 @@ export function EstimatesPage() {
             : undefined
         }
         empty={
-          <EmptyState title={filtered ? "No estimates match" : "No estimates yet"} action={!filtered ? newEstimate : undefined}>
-            {filtered ? "Try other filters." : "Create an estimate from a lead to quote the client or the partner."}
+          <EmptyState title={filtered ? "No estimates match" : "No estimates yet"} onClearFilters={filtered ? clearFilters : undefined} action={!filtered ? newEstimate : undefined}>
+            {filtered ? undefined : "Create an estimate from a lead to quote the client or the partner."}
           </EmptyState>
         }
         toolbar={
@@ -207,6 +217,11 @@ export function EstimatesPage() {
           </Toolbar>
         }
       />
+        </TabsContent>
+        <TabsContent value="archive" className="pt-0">
+          <EstimateArchive />
+        </TabsContent>
+      </Tabs>
     </PageContainer>
   );
 }

@@ -184,7 +184,7 @@ export function UserPermissionsPage() {
       {target.superAdmin ? (
         <Alert tone="info">A {target.role.displayName} always has full access to every module; these permissions cannot be edited.</Alert>
       ) : readOnly ? (
-        <Alert tone="neutral">Read-only view. Only a Super Admin can change permissions, and nobody can change their own.</Alert>
+        <Alert tone="neutral">Read-only view. You cannot change your own permissions, and a Super Admin always has full access.</Alert>
       ) : (
         <Alert tone="info" title="How permissions combine">
           Write includes Read. Delete, Export, Approve and special actions must be granted separately. Self and Team scopes show no records

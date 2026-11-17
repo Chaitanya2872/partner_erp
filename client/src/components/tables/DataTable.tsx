@@ -136,7 +136,7 @@ export function DataTable<T>({
     );
   } else {
     body = rows.map((row) => (
-      <tr key={rowKey(row)} className="border-b border-border transition-colors last:border-b-0 even:bg-surface-muted hover:bg-hover">
+      <tr key={rowKey(row)} className="group/row border-b border-border/70 transition-colors duration-100 last:border-b-0 hover:bg-hover">
         {visible.map((c) => (
           <td
             key={c.id}
@@ -147,7 +147,18 @@ export function DataTable<T>({
         ))}
         {rowActions ? (
           <td className="whitespace-nowrap px-3 py-2 text-right align-middle">
-            <div className="flex items-center justify-end gap-1.5">{rowActions(row)}</div>
+            {/* On hover-capable devices the action buttons rest as quiet text and gain their border when the row is hovered or
+              focused; touch devices and keyboard focus always see them fully. */}
+            <div
+              className={cn(
+                "flex items-center justify-end gap-1.5",
+                "[@media(hover:hover)]:*:border-transparent [@media(hover:hover)]:*:bg-transparent",
+                "group-hover/row:*:border-border-strong group-hover/row:*:bg-surface",
+                "group-focus-within/row:*:border-border-strong group-focus-within/row:*:bg-surface",
+              )}
+            >
+              {rowActions(row)}
+            </div>
           </td>
         ) : null}
       </tr>
@@ -188,14 +199,14 @@ export function DataTable<T>({
         role="region"
         aria-labelledby={captionId}
         tabIndex={0}
-        className="relative overflow-x-auto rounded-lg border border-border bg-surface shadow-xs focus-visible:outline-2 focus-visible:outline-ring"
+        className="relative max-h-[min(75dvh,56rem)] overflow-auto rounded-lg border border-border bg-surface focus-visible:outline-2 focus-visible:outline-ring"
       >
-        <table className={cn("w-full min-w-[40rem] border-collapse text-sm", fetching && "opacity-70 transition-opacity")} aria-busy={loading || fetching || undefined}>
+        <table className={cn("w-full min-w-[40rem] border-collapse text-sm", fetching && "opacity-60 transition-opacity duration-200")} aria-busy={loading || fetching || undefined}>
           <caption id={captionId} className="sr-only">
             {caption}
             {sort ? `, sorted by ${columns.find((c) => c.sortKey === sort.key)?.label ?? sort.key} ${sort.direction === "asc" ? "ascending" : "descending"}` : ""}
           </caption>
-          <thead className="border-b border-border">
+          <thead className="sticky top-0 z-10 bg-surface-muted shadow-[inset_0_-1px_0_var(--border)]">
             <tr>
               {visible.map((c) => {
                 const sorted = sort && c.sortKey && sort.key === c.sortKey ? sort.direction : null;
@@ -205,7 +216,7 @@ export function DataTable<T>({
                     scope="col"
                     aria-sort={c.sortKey ? (sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none") : undefined}
                     className={cn(
-                      "whitespace-nowrap px-3 py-2.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground",
+                      "whitespace-nowrap px-3 py-2.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground",
                       alignClass(c),
                     )}
                   >

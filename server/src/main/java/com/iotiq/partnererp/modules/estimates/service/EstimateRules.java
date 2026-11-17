@@ -17,6 +17,8 @@ public final class EstimateRules {
 
     public static final int MAX_LINES = 100;
     public static final int MAX_NOTES = 5000;
+    public static final int MIN_REVISION_REASON = 10;
+    public static final int MAX_REVISION_REASON = 500;
     static final BigDecimal MAX_QUANTITY = new BigDecimal("999999999.999");
     static final BigDecimal MAX_MONEY = new BigDecimal("999999999999.99");
     static final BigDecimal HUNDRED = BigDecimal.valueOf(100);

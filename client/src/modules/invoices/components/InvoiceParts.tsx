@@ -64,8 +64,30 @@ function Row({ label, children, strong }: { label: string; children: ReactNode; 
   );
 }
 
-/** Per-line tax breakdown: every line keeps its taxable value, rate, components, tax and total. */
+/**
+ * Per-line tax breakdown: every line keeps its taxable value, rate, components, tax and total. Product lines come
+ * first; installation lines (no product, no HSN) follow in their own "Installation" table with a subtotal.
+ */
 export function InvoiceLinesTable({ lines, tax, caption = "Invoice items" }: { lines: InvoiceLine[]; tax: Pick<TaxTreatment, "taxType" | "stateTaxLabel">; caption?: string }) {
+  const products = lines.filter((l) => l.kind !== "INSTALLATION");
+  const installation = lines.filter((l) => l.kind === "INSTALLATION");
+  if (installation.length === 0) return <LinesTable lines={lines} tax={tax} caption={caption} />;
+  return (
+    <div className="space-y-4">
+      {products.length > 0 ? <LinesTable lines={products} tax={tax} caption={caption} /> : null}
+      <section aria-labelledby="invoice-installation-heading" className="space-y-2">
+        <h4 id="invoice-installation-heading" className="text-sm font-semibold">
+          Installation
+        </h4>
+        <LinesTable lines={installation} tax={tax} caption="Installation lines" subtotalLabel="Installation subtotal" />
+      </section>
+    </div>
+  );
+}
+
+function LinesTable({ lines, tax, caption, subtotalLabel }: { lines: InvoiceLine[]; tax: Pick<TaxTreatment, "taxType" | "stateTaxLabel">; caption: string; subtotalLabel?: string }) {
+  const columns = 8 + (tax.taxType === "INTRA" ? 2 : 0) + (tax.taxType === "INTER" ? 1 : 0);
+  const subtotal = lines.reduce((sum, l) => sum + Number(l.lineTotal), 0);
   const intra = tax.taxType === "INTRA";
   const inter = tax.taxType === "INTER";
   return (
@@ -115,6 +137,16 @@ export function InvoiceLinesTable({ lines, tax, caption = "Invoice items" }: { l
             </tr>
           ))}
         </tbody>
+        {subtotalLabel ? (
+          <tfoot>
+            <tr className="border-t border-border bg-surface-sunken">
+              <th scope="row" colSpan={columns - 1} className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                {subtotalLabel}
+              </th>
+              <Num strong>{formatCurrency(subtotal.toFixed(2))}</Num>
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );

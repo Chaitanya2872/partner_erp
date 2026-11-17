@@ -1,5 +1,6 @@
 package com.iotiq.partnererp.modules.estimates.mapper;
 
+import com.iotiq.partnererp.common.persistence.LineKind;
 import com.iotiq.partnererp.common.util.DocumentCalculator;
 import com.iotiq.partnererp.modules.audit.service.AuditService;
 import com.iotiq.partnererp.modules.b2c.entity.B2CDocument;
@@ -70,29 +71,37 @@ public final class EstimateMapper {
                 "billTo", e.getBillTo(),
                 "feePercent", e.getFeePercent(),
                 "notes", e.getNotes(),
-                "lines", e.getItems().stream().map(i -> auditLine(i.getLineNo(),
-                        i.getProduct() == null ? null : i.getProduct().getId(), i.getDescription(), i.getQuantity(),
-                        i.getUnitPrice(), i.getGstPercent())).toList(),
+                "lines", e.getItems().stream().map(i -> auditLine(i.getLineNo(), i.getKind(),
+                        i.getProduct() == null ? null : i.getProduct().getId(), i.getDescription(), i.getUnit(),
+                        i.getQuantity(), i.getUnitPrice(), i.getGstPercent())).toList(),
                 "grandTotal", e.getTotals().getGrandTotal());
     }
 
-    public static Map<String, Object> auditLine(int lineNo, Object productId, String description, Object quantity,
-                                                Object unitPrice, Object gstPercent) {
+    /** Installation lines carry their unit in the audit line (it is free text); product lines keep the old shape. */
+    public static Map<String, Object> auditLine(int lineNo, LineKind kind, Object productId, String description,
+                                                String unit, Object quantity, Object unitPrice, Object gstPercent) {
+        if (kind == LineKind.INSTALLATION) {
+            return AuditService.values("lineNo", lineNo, "kind", kind, "description", description, "unit", unit,
+                    "quantity", quantity, "unitPrice", unitPrice, "gstPercent", gstPercent);
+        }
         return AuditService.values("lineNo", lineNo, "productId", productId, "description", description,
                 "quantity", quantity, "unitPrice", unitPrice, "gstPercent", gstPercent);
     }
 
     private static EstimateResponse.Line toLine(EstimateItem i) {
-        return new EstimateResponse.Line(i.getId(), i.getLineNo(), i.getProduct() == null ? null : i.getProduct().getId(),
-                i.getProduct() == null ? null : i.getProduct().getSku(), i.getProduct() != null && i.getProduct().isActive(),
+        return new EstimateResponse.Line(i.getId(), i.getLineNo(), i.getKind(),
+                i.getProduct() == null ? null : i.getProduct().getId(),
+                i.getProduct() == null ? null : i.getProduct().getSku(),
+                i.isInstallation() || (i.getProduct() != null && i.getProduct().isActive()),
                 i.getDescription(), i.getHsn(), i.getUnit(), i.getQuantity(), i.getUnitPrice(), i.getGstPercent(),
                 i.getLineTotal());
     }
 
     private static InternalEstimateDocument.Line toInternalLine(B2CDocumentItem i) {
-        return new InternalEstimateDocument.Line(i.getLineNo(), i.getDescription(), i.getPartnerName(), i.getHsn(),
+        return new InternalEstimateDocument.Line(i.getLineNo(), i.getKind(), i.getDescription(), i.getPartnerName(), i.getHsn(),
                 i.getUnit(), i.getQuantity(), i.getUnitPrice(), i.getGstPercent(),
-                DocumentCalculator.lineAmount(i.getQuantity(), i.getUnitPrice()), i.getUnitPrice().signum() == 0);
+                DocumentCalculator.lineAmount(i.getQuantity(), i.getUnitPrice()),
+                i.getKind() == LineKind.PRODUCT && i.getUnitPrice().signum() == 0);
     }
 
     private static EstimateLeadRef lead(Lead l) {
@@ -100,7 +109,7 @@ public final class EstimateMapper {
             return null;
         }
         return new EstimateLeadRef(l.getId(), l.getLeadNumber(), l.getClientName(), l.getClientPhone(), l.getCity(),
-                l.getProjectType().getLabel(), l.getStage(), l.getStage().getLabel(), l.getDeletedAt() != null);
+                l.getProjectTypeDisplay(), l.getStage(), l.getStage().getLabel(), l.getDeletedAt() != null);
     }
 
     private static PartnerRef partner(Estimate e) {

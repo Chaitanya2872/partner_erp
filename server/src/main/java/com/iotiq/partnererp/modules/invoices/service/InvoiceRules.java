@@ -15,6 +15,7 @@ public final class InvoiceRules {
     public static final int MAX_DUE_DAYS = 365;
     public static final int MAX_ADDRESS = 1000;
     public static final int MAX_REASON = 500;
+    public static final int MIN_REASON = 10;
     /** BR-V6: a balance up to ₹0.50 counts as paid. */
     static final BigDecimal PAID_TOLERANCE = new BigDecimal("0.50");
 

@@ -10,8 +10,12 @@
 import type { Money } from "@/modules/partners/types/partner.types";
 import type { LeadStage, PartnerRef } from "@/modules/leads/types/lead.types";
 
+export type { ArchiveFilters } from "@/modules/leads/types/lead.types";
+
 export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "INVOICED";
 export type BillTo = "CLIENT" | "PARTNER";
+/** Section of a document: price-sheet products, or the installation work (free-text priced lines, no product). */
+export type LineKind = "PRODUCT" | "INSTALLATION";
 
 export interface Totals {
   subtotal: Money;
@@ -34,6 +38,14 @@ export interface EstimateLeadRef {
   stageLabel: string;
   /** The lead was deleted after the estimate was made. */
   deleted: boolean;
+}
+
+/** A row of the estimate archive: who archived it, when and why. */
+export interface EstimateArchiveEntry {
+  estimate: EstimateSummary;
+  deletedAt: string;
+  deletedByName: string | null;
+  deleteReason: string;
 }
 
 export interface EstimateSummary {
@@ -59,9 +71,10 @@ export interface EstimateSummary {
 export interface EstimateLine {
   id: string;
   lineNo: number;
+  kind: LineKind;
   productId: string | null;
   sku: string | null;
-  /** False when the product was deactivated after the line was saved. */
+  /** False when the product was deactivated after the line was saved (always true for installation). */
   productActive: boolean;
   description: string;
   hsn: string | null;
@@ -118,10 +131,18 @@ export interface EstimateMeta {
 export interface EstimateLineInput {
   /** Id of a saved line: keeps its product snapshot. Omitted for new lines. */
   id?: string;
-  productId: string;
+  kind: LineKind;
+  /** Omitted for installation lines. */
+  productId?: string;
+  /** Installation lines only (required, at most 300 characters). */
+  description?: string;
+  /** Installation lines only; the server defaults it to "job". */
+  unit?: string;
   quantity: string;
-  unitPrice: string;
-  gstPercent: string;
+  /** Installation lines only: product lines always take the product sheet's rate. */
+  unitPrice?: string;
+  /** Installation lines only: product lines always take the product sheet's GST. */
+  gstPercent?: string;
 }
 
 export interface EstimateInput {
@@ -136,13 +157,16 @@ export interface EstimateInput {
   feeOverrideReason: string | null;
   notes: string;
   lines: EstimateLineInput[];
+  /** Why a sent, accepted or rejected estimate is being revised (10 to 500 characters); empty for drafts. */
+  revisionReason?: string;
   version?: number;
 }
 
 export interface PreviewLine {
   lineNo: number;
   id: string | null;
-  productId: string;
+  kind: LineKind;
+  productId: string | null;
   sku: string | null;
   description: string;
   hsn: string | null;
@@ -178,6 +202,7 @@ export interface EstimatePreview {
 
 export interface InternalEstimateLine {
   lineNo: number;
+  kind: LineKind;
   b2cName: string;
   partnerName: string;
   hsn: string | null;
@@ -214,6 +239,14 @@ export interface EstimateHistoryEntry {
   actorName: string | null;
   action: string;
   changes: { field: string; from: unknown; to: unknown }[];
+}
+
+/** An archived estimate, read-only (partner copy). */
+export interface EstimateArchiveDetail {
+  estimate: Estimate;
+  deletedAt: string;
+  deletedByName: string | null;
+  deleteReason: string;
 }
 
 export interface EstimateFilters {

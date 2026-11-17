@@ -71,8 +71,34 @@ public abstract class ApiIntegrationTest extends AbstractIntegrationTest {
         return createUser(role, false);
     }
 
-    /** An ACTIVE account with the role's default permission template. */
+    /**
+     * An ACTIVE account. USER and SUPER_ADMIN get their role's default permissions; ADMIN gets the deliberately
+     * limited pre-V23 matrix ({@link #LEGACY_ADMIN_MODULES}, no special actions) so the many tests that need a
+     * "partial" account keep working. Since V23 a real Admin has full access: use {@link #createUserFromTemplate}.
+     */
     protected TestUser createUser(RoleCode role, boolean mustChangePassword) {
+        TestUser created = createUserFromTemplate(role, mustChangePassword);
+        if (role == RoleCode.ADMIN) {
+            jdbc.update("delete from user_action_permissions where user_id = ?", created.id());
+            jdbc.update("delete from user_module_permissions where user_id = ?", created.id());
+            LEGACY_ADMIN_MODULES.forEach((module, write) -> jdbc.update("""
+                    insert into user_module_permissions (user_id, module_id, can_write)
+                    select ?, id, ? from modules where code = ?""", created.id(), write, module));
+        }
+        return created;
+    }
+
+    /** Pre-V23 Admin matrix: module -> write. */
+    protected static final java.util.Map<String, Boolean> LEGACY_ADMIN_MODULES = java.util.Map.of(
+            "DASHBOARD", false, "PARTNERS", true, "LEADS", true, "PRODUCTS", true, "ESTIMATES", true,
+            "INVOICES", true, "PAYMENTS", true, "PAYOUTS", false, "REPORTS", false);
+
+    /** An ACTIVE account with exactly the role's default permission template (and template actions). */
+    protected TestUser createUserFromTemplate(RoleCode role) {
+        return createUserFromTemplate(role, false);
+    }
+
+    protected TestUser createUserFromTemplate(RoleCode role, boolean mustChangePassword) {
         String email = role.name().toLowerCase().replace('_', '-') + "-" + UUID.randomUUID() + "@test.iotiq.local";
         UUID id = tx.execute(status -> {
             User user = new User();
@@ -122,6 +148,16 @@ public abstract class ApiIntegrationTest extends AbstractIntegrationTest {
 
     protected static MockHttpServletRequestBuilder withJson(MockHttpServletRequestBuilder builder, String body) {
         return builder.contentType(MediaType.APPLICATION_JSON).content(body);
+    }
+
+    /** An archive (soft delete) call of a lead or estimate, with a valid reason. */
+    protected static MockHttpServletRequestBuilder archive(String url, Object... uriVars) {
+        return archive(url, "Archived by an integration test", uriVars);
+    }
+
+    protected static MockHttpServletRequestBuilder archive(String url, String reason, Object... uriVars) {
+        return withJson(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(url, uriVars),
+                "{\"reason\":\"" + reason + "\"}");
     }
 
     protected String body(Object value) {

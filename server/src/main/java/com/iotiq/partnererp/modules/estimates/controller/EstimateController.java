@@ -3,7 +3,10 @@ package com.iotiq.partnererp.modules.estimates.controller;
 import com.iotiq.partnererp.common.constants.AppConstants;
 import com.iotiq.partnererp.common.response.ApiResponse;
 import com.iotiq.partnererp.common.response.PageResponse;
+import com.iotiq.partnererp.common.web.ArchiveRequest;
 import com.iotiq.partnererp.common.web.Pageables;
+import com.iotiq.partnererp.modules.estimates.dto.EstimateArchiveDetail;
+import com.iotiq.partnererp.modules.estimates.dto.EstimateArchiveEntry;
 import com.iotiq.partnererp.modules.estimates.dto.EstimateHistoryEntry;
 import com.iotiq.partnererp.modules.estimates.dto.EstimateLeadOption;
 import com.iotiq.partnererp.modules.estimates.dto.EstimateMeta;
@@ -49,6 +52,7 @@ import java.util.UUID;
 @RequestMapping(AppConstants.API_V1 + "/estimates")
 public class EstimateController {
 
+    private static final Set<String> ARCHIVE_SORTABLE = Set.of("deletedAt", "estimateDate", "estimateNumber");
     private static final Set<String> SORTABLE = Set.of("estimateDate", "estimateNumber", "validUntil", "createdAt");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "estimateDate", "estimateNumber");
     private static final MediaType CSV = new MediaType("text", "csv", StandardCharsets.UTF_8);
@@ -74,6 +78,24 @@ public class EstimateController {
         return PageResponse.of(estimateService.search(new EstimateService.Filters(q, status, partnerId, leadId, expired),
                 Pageables.of(page, size, sort, SORTABLE, DEFAULT_SORT), SecurityUtils.requireCurrentUser()))
                 .toApiResponse();
+    }
+
+    @Operation(summary = "The archive: archived estimates with who, when and why; newest archived first")
+    @GetMapping("/archive")
+    @PreAuthorize("hasAuthority('ESTIMATES:READ')")
+    public ApiResponse<List<EstimateArchiveEntry>> archive(@RequestParam(required = false) String q,
+                                                           @RequestParam(defaultValue = "0") int page,
+                                                           @RequestParam(defaultValue = "20") int size,
+                                                           @RequestParam(required = false) String sort) {
+        return PageResponse.of(estimateService.archive(q, Pageables.of(page, size, sort, ARCHIVE_SORTABLE,
+                Sort.by(Sort.Direction.DESC, "deletedAt")), SecurityUtils.requireCurrentUser())).toApiResponse();
+    }
+
+    @Operation(summary = "One archived estimate (read-only partner copy) with the archive reason, who and when")
+    @GetMapping("/archive/{id}")
+    @PreAuthorize("hasAuthority('ESTIMATES:READ')")
+    public ApiResponse<EstimateArchiveDetail> archived(@PathVariable UUID id) {
+        return ApiResponse.ok(estimateService.archived(id, SecurityUtils.requireCurrentUser()));
     }
 
     @Operation(summary = "Statuses, buyer options and form defaults (validity days, terms, GST)")
@@ -177,12 +199,19 @@ public class EstimateController {
         return ApiResponse.ok(estimateService.reject(id, version(request), SecurityUtils.requireCurrentUser()));
     }
 
-    @Operation(summary = "Delete an estimate (soft; 409 once invoiced)")
+    @Operation(summary = "Archive an estimate with a reason (soft; 409 once invoiced)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('ESTIMATES:DELETE')")
-    public void delete(@PathVariable UUID id) {
-        estimateService.delete(id, SecurityUtils.requireCurrentUser());
+    public void delete(@PathVariable UUID id, @RequestBody(required = false) ArchiveRequest request) {
+        estimateService.delete(id, request, SecurityUtils.requireCurrentUser());
+    }
+
+    @Operation(summary = "Restore an archived estimate (needs ESTIMATES:APPROVE or ESTIMATES:DELETE; 409 while its lead is archived)")
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAnyAuthority('ESTIMATES:APPROVE', 'ESTIMATES:DELETE')")
+    public ApiResponse<EstimateResponse> restore(@PathVariable UUID id) {
+        return ApiResponse.ok(estimateService.restore(id, SecurityUtils.requireCurrentUser()));
     }
 
     private static Long version(EstimateStatusRequest request) {

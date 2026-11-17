@@ -17,7 +17,7 @@ import java.util.UUID;
  *       {@code discountPercent}, {@code feePercent} and {@code lines} must be left out (or equal the stored values).
  *       Billing details, place of supply, due days and notes can change.</li>
  *   <li>The place of supply and its basis are entered explicitly; the billing state never implies them.</li>
- *   <li>A line GST rate other than the product's (or the estimate's) needs {@code INVOICES:APPROVE}.</li>
+ *   <li>Product lines take rate and GST from the product sheet (a saved line keeps its copy); {@code unitPrice} and {@code gstPercent} are ignored for them. A saved installation line's GST change needs {@code INVOICES:APPROVE}.</li>
  *   <li>{@code version} is required on update.</li>
  * </ul>
  */
@@ -27,6 +27,8 @@ public record InvoiceRequest(UUID leadId, BillTo billTo, BigDecimal discountPerc
                              String placeOfSupplyCode, PlaceOfSupplyBasis placeOfSupplyBasis, List<Line> lines,
                              Long version) {
 
-    public record Line(UUID id, UUID productId, BigDecimal quantity, BigDecimal unitPrice, BigDecimal gstPercent) {
+    /** {@code kind} null = PRODUCT; INSTALLATION lines have no product and carry {@code description} and {@code unit}. */
+    public record Line(UUID id, String kind, UUID productId, String description, String unit, BigDecimal quantity,
+                       BigDecimal unitPrice, BigDecimal gstPercent) {
     }
 }

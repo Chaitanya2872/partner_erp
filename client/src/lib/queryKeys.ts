@@ -29,6 +29,8 @@ export const queryKeys = {
     meta: ["leads", "meta"] as const,
     detail: (id: string) => ["leads", id] as const,
     history: (id: string) => ["leads", id, "history"] as const,
+    archive: (filters: Record<string, unknown>) => ["leads", "archive", filters] as const,
+    archived: (id: string) => ["leads", "archive", id] as const,
   },
   products: {
     all: ["products"] as const,
@@ -44,6 +46,8 @@ export const queryKeys = {
     detail: (id: string) => ["estimates", id] as const,
     history: (id: string) => ["estimates", id, "history"] as const,
     internal: (id: string) => ["estimates", id, "internal"] as const,
+    archive: (filters: Record<string, unknown>) => ["estimates", "archive", filters] as const,
+    archived: (id: string) => ["estimates", "archive", id] as const,
     preview: (id: string | undefined, input: unknown) => ["estimates", "preview", id ?? "new", input] as const,
     productOptions: (q: string) => ["estimates", "product-options", q] as const,
     leadOptions: (q: string) => ["estimates", "lead-options", q] as const,

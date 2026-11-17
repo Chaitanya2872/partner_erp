@@ -12,6 +12,10 @@ import com.iotiq.partnererp.modules.auth.entity.ModuleCode;
 import com.iotiq.partnererp.modules.auth.entity.User;
 import com.iotiq.partnererp.modules.auth.repository.UserRepository;
 import com.iotiq.partnererp.modules.auth.service.DataScopeService;
+import com.iotiq.partnererp.common.web.ArchiveRequest;
+import com.iotiq.partnererp.modules.leads.dto.LeadArchiveDetail;
+import com.iotiq.partnererp.modules.leads.dto.LeadArchiveEntry;
+import com.iotiq.partnererp.modules.leads.dto.PartnerRef;
 import com.iotiq.partnererp.modules.leads.dto.LeadHistoryEntry;
 import com.iotiq.partnererp.modules.leads.dto.LeadMeta;
 import com.iotiq.partnererp.modules.leads.dto.LeadRequest;
@@ -121,7 +125,7 @@ public class LeadService {
     public Page<LeadSummary> search(Filters filters, Pageable pageable, AuthenticatedUser user) {
         LeadSla.Targets targets = targets();
         Specification<Lead> spec = dataScopeService.resolve(user, ModuleCode.LEADS).<Lead>toSpecification()
-                .and(matching(filters));
+                .and(matching(filters, false));
         if (filters.slaBreach() != null) {
             Set<UUID> breached = metrics.slaBreachedIds(clock.instant(), clock.getZone(), targets.ackHours(),
                     targets.estimateDays());
@@ -138,6 +142,39 @@ public class LeadService {
     public LeadResponse get(UUID id, AuthenticatedUser user) {
         Lead lead = load(id, user);
         return toResponse(lead, protectingPartner(lead));
+    }
+
+    /** The archive: soft-deleted leads, newest archived first, searched like the main list; same scope rules. */
+    @Transactional(readOnly = true)
+    public Page<LeadArchiveEntry> archive(String query, Pageable pageable, AuthenticatedUser user) {
+        Specification<Lead> spec = dataScopeService.resolve(user, ModuleCode.LEADS).<Lead>toSpecification()
+                .and(matching(new Filters(query, null, null, null, null), true));
+        Page<Lead> page = leadRepository.findAll(spec, pageable);
+        Map<UUID, String> names = actorNames(page.getContent().stream().map(Lead::getDeletedBy).toList());
+        return page.map(l -> archiveEntry(l, names.get(l.getDeletedBy())));
+    }
+
+    /** One archived lead, read-only, with the reason, who archived it and when. */
+    @Transactional(readOnly = true)
+    public LeadArchiveDetail archived(UUID id, AuthenticatedUser user) {
+        requireScope(id, user);
+        Lead lead = leadRepository.findByIdAndDeletedAtIsNotNull(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Archived lead", id));
+        return new LeadArchiveDetail(toResponse(lead, null), lead.getDeletedAt(),
+                actorNames(List.of(lead.getDeletedBy())).get(lead.getDeletedBy()), lead.getDeleteReason());
+    }
+
+    private static LeadArchiveEntry archiveEntry(Lead l, String deletedByName) {
+        return new LeadArchiveEntry(l.getId(), l.getLeadNumber(), l.getClientName(), l.getClientPhone(), l.getCity(),
+                l.getProjectTypeDisplay(), l.getStage(), l.getStage().getLabel(),
+                new PartnerRef(l.getPartner().getId(), l.getPartner().getName()), l.getCreatedAt(), l.getDeletedAt(),
+                deletedByName, l.getDeleteReason());
+    }
+
+    private Map<UUID, String> actorNames(List<UUID> ids) {
+        Set<UUID> actorIds = ids.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        return userRepository.findAllById(actorIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getFullName));
     }
 
     @Transactional(readOnly = true)
@@ -276,9 +313,13 @@ public class LeadService {
         return toResponse(lead, protectingPartner(lead));
     }
 
-    /** D-26: soft delete, refused while estimates, invoices, payments or internal documents point at the lead. */
+    /**
+     * D-26: archive (soft delete) with a mandatory reason, refused while estimates, invoices, payments or internal
+     * documents point at the lead. Nothing is removed; the lead moves to the archive and can be restored.
+     */
     @Transactional
-    public void delete(UUID id, AuthenticatedUser user) {
+    public void delete(UUID id, ArchiveRequest request, AuthenticatedUser user) {
+        String reason = ArchiveRequest.requireReason(request);
         Lead lead = lock(id, user);
         if (metrics.hasDocuments(id)) {
             throw BusinessException.conflict("LEAD_HAS_DOCUMENTS",
@@ -287,8 +328,32 @@ public class LeadService {
         Map<String, Object> before = LeadMapper.auditSnapshot(lead);
         lead.setDeletedAt(clock.instant());
         lead.setDeletedBy(user.id());
+        lead.setDeleteReason(reason);
         leadRepository.saveAndFlush(lead);
-        auditService.record(AuditActions.LEAD_DELETED, AuditActions.ENTITY_LEAD, id, before, null);
+        history(lead, LeadEventType.ARCHIVED, lead.getStage(), lead.getStage(), reason, user);
+        auditService.record(AuditActions.LEAD_DELETED, AuditActions.ENTITY_LEAD, id, before,
+                AuditService.values("reason", reason));
+    }
+
+    /**
+     * Brings an archived lead back. The phone is checked again against protected leads of other partners; as for any
+     * save that only sets the {@code conflict} warning (BR-L6), it never blocks the restore.
+     */
+    @Transactional
+    public LeadResponse restore(UUID id, AuthenticatedUser user) {
+        requireScope(id, user);
+        Lead lead = leadRepository.lockArchived(id).orElseThrow(() -> new ResourceNotFoundException("Archived lead", id));
+        String reason = lead.getDeleteReason();
+        lead.setDeletedAt(null);
+        lead.setDeletedBy(null);
+        lead.setDeleteReason(null);
+        String protecting = protectingPartner(lead.getClientPhone(), lead.getPartner().getId(), id);
+        lead.setConflict(protecting != null);
+        leadRepository.saveAndFlush(lead);
+        history(lead, LeadEventType.RESTORED, lead.getStage(), lead.getStage(), null, user);
+        auditService.record(AuditActions.LEAD_RESTORED, AuditActions.ENTITY_LEAD, id,
+                AuditService.values("archiveReason", reason), AuditService.values("restored", true));
+        return toResponse(lead, protecting);
     }
 
     /**
@@ -419,6 +484,7 @@ public class LeadService {
         lead.setCity(input.city());
         lead.setPartner(partner);
         lead.setProjectType(input.projectType());
+        lead.setProjectTypeOther(input.projectTypeOther());
         lead.setUnits(input.units());
         lead.setBudget(input.budget());
         lead.setPresalesOwner(input.presalesOwner());
@@ -438,10 +504,10 @@ public class LeadService {
         return out;
     }
 
-    private static Specification<Lead> matching(Filters f) {
+    private static Specification<Lead> matching(Filters f, boolean archived) {
         return (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.isNull(root.get("deletedAt")));
+            predicates.add(archived ? cb.isNotNull(root.get("deletedAt")) : cb.isNull(root.get("deletedAt")));
             boolean counting = cq != null && Long.class == cq.getResultType();
             // One join to the partner serves the search and, for page queries, fetches it for the rows.
             @SuppressWarnings("unchecked")
@@ -483,7 +549,7 @@ public class LeadService {
 
     /** Trimmed input; blanks become null. */
     record Normalized(String clientName, String clientPhone, String clientEmail, String city, UUID partnerId, ProjectType projectType,
-                      Integer units, BigDecimal budget, LeadStage stage, String stageReason, String presalesOwner,
+                      String projectTypeOther, Integer units, BigDecimal budget, LeadStage stage, String stageReason, String presalesOwner,
                       LocalDate expectedClose, String source, String notes) {
     }
 
@@ -514,6 +580,13 @@ public class LeadService {
         if (r.projectType() == null) {
             errors.add(new FieldError("projectType", "Choose a project type."));
         }
+        String projectTypeOther = text(r.projectTypeOther(), "projectTypeOther", 100, errors);
+        if (r.projectType() == ProjectType.OTHER && projectTypeOther == null) {
+            errors.add(new FieldError("projectTypeOther", "Say what kind of project it is."));
+        }
+        if (r.projectType() != ProjectType.OTHER) {
+            projectTypeOther = null;
+        }
         if (r.units() != null && r.units() < 0) {
             errors.add(new FieldError("units", "Units can't be negative."));
         }
@@ -532,7 +605,7 @@ public class LeadService {
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }
-        return new Normalized(clientName, phone, email, city, r.partnerId(), r.projectType(), r.units(), budget, r.stage(),
+        return new Normalized(clientName, phone, email, city, r.partnerId(), r.projectType(), projectTypeOther, r.units(), budget, r.stage(),
                 stageReason, presalesOwner, r.expectedClose(), source, notes);
     }
 

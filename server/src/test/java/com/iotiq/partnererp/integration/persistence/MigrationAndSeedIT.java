@@ -25,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MigrationAndSeedIT extends AbstractIntegrationTest {
 
+    private static final int LAST_MIGRATION = 24;
+
     @Autowired
     private ProductRepository productRepository;
 
@@ -41,7 +43,9 @@ class MigrationAndSeedIT extends AbstractIntegrationTest {
     void allMigrationsAppliedSuccessfully() {
         List<String> versions = jdbc.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20");
+        // Extend LAST_MIGRATION when a migration is added.
+        assertThat(versions).containsExactlyElementsOf(
+                java.util.stream.IntStream.rangeClosed(1, LAST_MIGRATION).mapToObj(String::valueOf).toList());
         assertThat(count("select count(*) from flyway_schema_history where not success")).isZero();
     }
 
@@ -147,13 +151,21 @@ class MigrationAndSeedIT extends AbstractIntegrationTest {
         assertThat(count("select count(*) from permissions where not active")).isEqualTo(29);
 
         Map<String, String> admin = template("ADMIN");
-        assertThat(admin).containsExactlyInAnyOrderEntriesOf(Map.of(
-                "DASHBOARD", "R", "PARTNERS", "RW", "LEADS", "RW", "PRODUCTS", "RW", "ESTIMATES", "RW",
-                "INVOICES", "RW", "PAYMENTS", "RW", "PAYOUTS", "R", "REPORTS", "R"));
+        // V23: Admin has the same access as Super Admin, so its template covers every module with every flag.
+        assertThat(admin).hasSize(14);
+        assertThat(admin.values()).containsOnly("RW");
+        assertThat(count("""
+                select count(*) from role_permission_templates t join roles r on r.id = t.role_id
+                where r.code = 'ADMIN' and t.can_write and t.can_delete and t.can_export and t.can_approve
+                  and t.data_scope = 'ALL'""")).isEqualTo(14);
         assertThat(template("USER")).containsExactlyInAnyOrderEntriesOf(Map.of("DASHBOARD", "R", "PRODUCTS", "R"));
-        // Write never implies the sensitive flags in the defaults.
-        assertThat(count("select count(*) from role_permission_templates where can_delete or can_export or can_approve"))
-                .isZero();
+        // Write never implies the sensitive flags in the USER defaults.
+        assertThat(count("""
+                select count(*) from role_permission_templates t join roles r on r.id = t.role_id
+                where r.code = 'USER' and (t.can_delete or t.can_export or t.can_approve)""")).isZero();
+        // Nothing is reserved for Super Admin any more.
+        assertThat(count("select count(*) from modules where super_admin_only")).isZero();
+        assertThat(count("select count(*) from permissions where super_admin_only")).isZero();
     }
 
     private Map<String, String> template(String role) {

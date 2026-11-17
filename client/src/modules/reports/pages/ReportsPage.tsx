@@ -250,8 +250,21 @@ export function ReportsPage() {
               reset();
             }}
             empty={
-              <EmptyState title={filtered ? "No rows match" : "Nothing in this period"}>
-                {filtered ? "Try other filters." : "Choose another period."}
+              <EmptyState
+                title={filtered ? "No rows match" : "Nothing in this period"}
+                onClearFilters={
+                  filtered
+                    ? () => {
+                        setStatus("");
+                        setPartnerId("");
+                        setPartnerLabel(null);
+                        setSearch("");
+                        setPage(0);
+                      }
+                    : undefined
+                }
+              >
+                {filtered ? undefined : "Choose another period."}
               </EmptyState>
             }
             toolbar={

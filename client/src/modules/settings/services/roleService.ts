@@ -24,7 +24,7 @@ export interface RolePermissions {
   code: string;
   displayName: string;
   superAdmin: boolean;
-  /** Super Admin viewer and not the Super Admin role (decided by the server). */
+  /** viewer may edit role defaults and not the Super Admin role (decided by the server). */
   editable: boolean;
   modules: ModulePermission[];
   userCount: number;

@@ -54,8 +54,9 @@ import java.util.UUID;
  * <p>Rules (no privilege escalation):
  * <ul>
  *   <li>SUPER_ADMIN access is implicit and complete; it is never stored and cannot be edited.</li>
- *   <li>Only a Super Admin changes permissions, never their own (delegation is not enabled in this version).</li>
- *   <li>Super-Admin-only modules/actions (Role Management, MANAGE_PERMISSIONS) cannot be granted.</li>
+ *   <li>Only a Super Admin or an actor holding MANAGE_PERMISSIONS changes permissions, never their own and never a
+ *       Super Admin's.</li>
+ *   <li>Modules/actions flagged super_admin_only (none by default since V23) cannot be granted below Super Admin.</li>
  *   <li>USER accounts cannot hold User Management.</li>
  *   <li>Write needs Read; Delete needs Write; flags a module does not support are rejected; actions need
  *       Read on their module; data scope applies only to modules that support it.</li>
@@ -95,6 +96,12 @@ public class PermissionService {
             return false;
         }
         return !(role == RoleCode.USER && ModuleCode.USER_MANAGEMENT.name().equals(module.code()));
+    }
+
+    /** Super Admin, or an actor holding the MANAGE_PERMISSIONS action (Admins have it by default). */
+    public static boolean canChangePermissions(AuthenticatedUser actor) {
+        return actor.isSuperAdmin() || actor.permissions().actionCodes().contains(
+                EffectivePermissions.authority(ModuleCode.USER_MANAGEMENT.name(), "MANAGE_PERMISSIONS"));
     }
 
     /** Effective permissions of a user whose role is loaded. */
@@ -156,19 +163,20 @@ public class PermissionService {
                 .map(ActionDef::code)
                 .toList();
         boolean superAdmin = target.getRole().isSuperAdmin();
-        boolean editable = !superAdmin && actor.isSuperAdmin() && !actor.id().equals(target.getId());
+        boolean editable = !superAdmin && canChangePermissions(actor) && !actor.id().equals(target.getId());
         List<String> overrides = superAdmin ? List.of()
-                : differences(templateRows(target.getRole()), rows.stream().filter(ModulePermissionDto::read).toList(), actions);
+                : differences(templateRows(target.getRole()), templateActions(target.getRole()),
+                        rows.stream().filter(ModulePermissionDto::read).toList(), actions);
         return new UserPermissionsResponse(target.getId(), RoleRef.of(target.getRole()), superAdmin, editable, rows,
                 actions, overrides);
     }
 
-    /** Replaces a user's permissions (Super Admin only). */
+    /** Replaces a user's permissions (Super Admin or MANAGE_PERMISSIONS). */
     @Transactional
     public UserPermissionsResponse replace(UUID userId, UpdateUserPermissionsRequest request,
                                            AuthenticatedUser actor) {
-        if (!actor.isSuperAdmin()) {
-            throw new AccessDeniedException("Only a Super Admin can change permissions");
+        if (!canChangePermissions(actor)) {
+            throw new AccessDeniedException("You are not allowed to change permissions");
         }
         User target = userRepository.findForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
@@ -200,8 +208,8 @@ public class PermissionService {
      */
     @Transactional(readOnly = true)
     public PermissionPreviewResponse preview(UUID userId, UpdateUserPermissionsRequest request, AuthenticatedUser actor) {
-        if (!actor.isSuperAdmin()) {
-            throw new AccessDeniedException("Only a Super Admin can change permissions");
+        if (!canChangePermissions(actor)) {
+            throw new AccessDeniedException("You are not allowed to change permissions");
         }
         User target = userRepository.findWithRoleById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
@@ -229,7 +237,8 @@ public class PermissionService {
                 scopes.add(new PermissionPreviewResponse.ScopeChange(code, old.scope(), access.scope()));
             }
         });
-        List<String> differsFromRole = differences(templateRows(target.getRole()), validated.modules(), validated.actions());
+        List<String> differsFromRole = differences(templateRows(target.getRole()), templateActions(target.getRole()), validated.modules(),
+                validated.actions());
         return new PermissionPreviewResponse(target.getId(), !granted.isEmpty() || !revoked.isEmpty() || !scopes.isEmpty(),
                 granted, revoked, scopes, List.copyOf(after), differsFromRole);
     }
@@ -240,7 +249,23 @@ public class PermissionService {
      */
     @Transactional
     public void applyRoleTemplate(User user, UUID actorId) {
-        replaceRows(user, templateRows(user.getRole()), List.of(), actorId);
+        replaceRows(user, templateRows(user.getRole()), templateActions(user.getRole()), actorId);
+    }
+
+    /**
+     * Action grants a role starts with: none for USER; every grantable module action (on the template's modules) for
+     * ADMIN, which has the same access as Super Admin. Super Admin has none stored.
+     */
+    @Transactional(readOnly = true)
+    public List<String> templateActions(Role roleEntity) {
+        if (roleEntity.roleCode().orElse(null) != RoleCode.ADMIN) {
+            return List.of();
+        }
+        Set<String> modules = new HashSet<>();
+        templateRows(roleEntity).forEach(r -> modules.add(r.moduleCode()));
+        return catalog.moduleActions().stream()
+                .filter(a -> !a.superAdminOnly() && modules.contains(a.moduleCode()))
+                .map(ActionDef::code).toList();
     }
 
     /** The role's default matrix (template) as grantable rows; empty for Super Admin, whose access is implicit. */
@@ -282,8 +307,8 @@ public class PermissionService {
     }
 
     /** Modules (and actions) where a user's matrix differs from the role default. */
-    public List<String> differences(List<ModulePermissionDto> template, List<ModulePermissionDto> modules,
-                                    List<String> actions) {
+    public List<String> differences(List<ModulePermissionDto> template, List<String> templateActions,
+                                    List<ModulePermissionDto> modules, List<String> actions) {
         Map<String, ModulePermissionDto> t = new LinkedHashMap<>();
         template.forEach(r -> t.put(r.moduleCode(), r));
         Map<String, ModulePermissionDto> u = new LinkedHashMap<>();
@@ -300,7 +325,12 @@ public class PermissionService {
                 out.add(def.code());
             }
         }
-        actions.stream().sorted().forEach(code -> catalog.moduleAction(code)
+        Set<String> differing = new TreeSet<>(actions);
+        differing.addAll(templateActions);
+        Set<String> common = new HashSet<>(actions);
+        common.retainAll(templateActions);
+        differing.removeAll(common);
+        differing.forEach(code -> catalog.moduleAction(code)
                 .ifPresent(a -> out.add(EffectivePermissions.authority(a.moduleCode(), a.code()))));
         return out;
     }

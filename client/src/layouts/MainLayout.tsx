@@ -1,5 +1,5 @@
 import { Suspense, useState } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { Sheet } from "@/components/ui/Dialog";
@@ -16,16 +16,23 @@ import { cn } from "@/lib/cn";
  * - Phone (<768px): no rail; the top bar's menu button opens the navigation as a drawer.
  */
 export function MainLayout() {
+  const { pathname } = useLocation();
   const isDesktop = useMediaQuery(BREAKPOINTS.desktop);
   const isTablet = useMediaQuery(BREAKPOINTS.tablet);
   const [collapsedPref, setCollapsedPref] = useState(() => preferences.get(PREFERENCE_KEYS.sidebarCollapsed) === "true");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // A collapsed rail expands over the content while hovered/focused (no layout shift) and folds back afterwards.
+  const [hovered, setHovered] = useState(false);
+  const [suppressHover, setSuppressHover] = useState(false);
 
   const showRail = isTablet;
   const collapsed = isDesktop ? collapsedPref : true;
 
+  const visuallyCollapsed = collapsed && !(hovered && !suppressHover);
+
   const toggleCollapsed = () => {
     const next = !collapsedPref;
+    if (next) setSuppressHover(true); // fold immediately after pinning collapsed, until the pointer leaves
     preferences.set(PREFERENCE_KEYS.sidebarCollapsed, String(next));
     setCollapsedPref(next);
   };
@@ -42,13 +49,34 @@ export function MainLayout() {
       {showRail ? (
         <aside
           className={cn(
-            "no-print sticky top-0 h-dvh shrink-0 transition-[width] duration-200",
+            "no-print relative sticky top-0 z-40 h-dvh shrink-0 transition-[width] duration-300 ease-in-out",
             collapsed ? "w-[4.5rem]" : "w-64",
           )}
           data-testid="sidebar"
           data-collapsed={collapsed}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => {
+            setHovered(false);
+            setSuppressHover(false);
+          }}
+          onFocus={() => setHovered(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHovered(false);
+          }}
         >
-          <Sidebar collapsed={collapsed} onToggleCollapsed={isDesktop ? toggleCollapsed : undefined} />
+          <div
+            className={cn(
+              "absolute inset-y-0 left-0 overflow-hidden transition-[width,box-shadow] duration-300 ease-in-out",
+              visuallyCollapsed ? "w-[4.5rem]" : "w-64",
+              collapsed && !visuallyCollapsed && "shadow-2xl",
+            )}
+          >
+            <Sidebar
+              collapsed={visuallyCollapsed}
+              pinnedCollapsed={collapsed}
+              onToggleCollapsed={isDesktop ? toggleCollapsed : undefined}
+            />
+          </div>
         </aside>
       ) : (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen} title="Navigation" className="bg-sidebar">
@@ -63,7 +91,10 @@ export function MainLayout() {
         <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-16 pt-5 focus:outline-none sm:px-6 sm:pt-6 lg:px-8">
           <RouteErrorBoundary>
             <Suspense fallback={<PageSkeleton />}>
-              <Outlet />
+              {/* Keyed by route so each page eases in; opacity/transform only, so it never shifts layout. */}
+              <div key={pathname} className="animate-page-in">
+                <Outlet />
+              </div>
             </Suspense>
           </RouteErrorBoundary>
         </main>

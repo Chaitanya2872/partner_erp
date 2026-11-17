@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 import { AlertCard, DashboardSection } from "@/components/dashboard/Dashboard";
 import { ErrorState } from "@/components/feedback/States";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -36,17 +36,22 @@ export function AlertsPanel() {
           <CheckCircle2 className="size-4 text-success" aria-hidden="true" /> Nothing needs attention right now.
         </p>
       ) : (
-        <ul className="grid gap-3 lg:grid-cols-2" aria-label="Alerts">
+        <ul className="grid items-start gap-3 md:grid-cols-2 2xl:grid-cols-4" aria-label="Alerts">
           {groups.map((g) => {
             const open = canRead(g.module as ModuleCode);
             return (
               <li key={g.code}>
                 <AlertCard tone={g.severity} title={`${g.title} · ${formatNumber(g.count)}`} href={open && g.href ? g.href : undefined}>
-                  <p>
+                  <p className="line-clamp-2">
                     {g.detail}
                     {g.amount !== null && Number(g.amount) !== 0 ? ` Total ${formatCurrency(g.amount)}.` : ""}
                   </p>
                   {g.items.length > 0 ? (
+                    <details className="group/records pt-0.5">
+                      <summary className="inline-flex cursor-pointer select-none list-none items-center gap-1 rounded-sm text-xs font-medium text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                        <ChevronRight className="size-3.5 transition-transform duration-150 group-open/records:rotate-90" aria-hidden="true" />
+                        {g.count > g.items.length ? `Show first ${g.items.length} of ${formatNumber(g.count)}` : `Show ${g.items.length} ${g.items.length === 1 ? "record" : "records"}`}
+                      </summary>
                     <ul className="mt-1.5 space-y-0.5">
                       {g.items.map((item) => (
                         <li key={item.id} className="text-sm">
@@ -62,6 +67,7 @@ export function AlertsPanel() {
                       ))}
                       {g.count > g.items.length ? <li className="text-xs text-muted-foreground">and {formatNumber(g.count - g.items.length)} more</li> : null}
                     </ul>
+                    </details>
                   ) : null}
                 </AlertCard>
               </li>

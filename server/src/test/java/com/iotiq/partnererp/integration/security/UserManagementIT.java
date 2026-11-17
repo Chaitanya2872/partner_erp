@@ -48,10 +48,13 @@ class UserManagementIT extends ApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.editable").value(true))
                 .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'PARTNERS')].write").value(true))
-                .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'PAYOUTS')].write").value(false))
+                .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'PAYOUTS')].write").value(true))
                 .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'PAYOUTS')].read").value(true))
-                .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'INTERNAL_B2C')].read").value(false))
-                .andExpect(jsonPath("$.data.actions.length()").value(0));
+                // V23: a new Admin starts with full access (every module and every module action).
+                .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'INTERNAL_B2C')].read").value(true))
+                .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'ROLE_MANAGEMENT')].write").value(true))
+                .andExpect(jsonPath("$.data.actions.length()").value(
+                        count("select count(*) from permissions where active and kind = 'MODULE'").intValue()));
         assertThat(count("select count(*) from audit_logs where action = 'USER_CREATED' and entity_id = ?", id)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select new_values::text from audit_logs where action = 'USER_CREATED' "
                 + "and entity_id = ?", String.class, id)).doesNotContain("Temporary-Pass-11");
@@ -101,7 +104,7 @@ class UserManagementIT extends ApiIntegrationTest {
     }
 
     @Test
-    void delegatedAdminManagesOnlyUserAccountsAndCannotEscalate() throws Exception {
+    void delegatedAdminCannotManageSuperAdminsOrEscalateToSuperAdmin() throws Exception {
         Session sa = login(createUser(RoleCode.SUPER_ADMIN));
         TestUser admin = createUser(RoleCode.ADMIN);
         TestUser otherAdmin = createUser(RoleCode.ADMIN);
@@ -121,17 +124,34 @@ class UserManagementIT extends ApiIntegrationTest {
                         body(Map.of("status", "DISABLED", "version", userVersion(user.id())))))
                 .andExpect(status().isOk());
 
-        // Denied: creating privileged accounts, promoting, touching Admin/Super Admin accounts or itself.
-        for (RoleCode role : new RoleCode[]{RoleCode.ADMIN, RoleCode.SUPER_ADMIN}) {
-            mvc.perform(withJson(post("/api/v1/users").with(bearer(adminSession)), body(Map.of(
-                            "fullName", "Escalation", "email", "esc-" + UUID.randomUUID() + "@test.iotiq.local",
-                            "roleId", roleId(role), "temporaryPassword", "Temporary-Pass-11"))))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error.code").value("FORBIDDEN_OPERATION"));
-        }
+        // Allowed since V23 (Admin has Super Admin's access, apart from Super Admin accounts): creating Admins,
+        // promoting a user to Admin, managing other Admins.
+        mvc.perform(withJson(post("/api/v1/users").with(bearer(adminSession)), body(Map.of(
+                        "fullName", "Another Admin", "email", "adm-" + UUID.randomUUID() + "@test.iotiq.local",
+                        "roleId", roleId(RoleCode.ADMIN), "temporaryPassword", "Temporary-Pass-11"))))
+                .andExpect(status().isCreated());
+        mvc.perform(withJson(put("/api/v1/users/{id}", otherAdmin.id()).with(bearer(adminSession)), body(Map.of(
+                        "fullName", "Renamed Admin", "email", otherAdmin.email(), "roleId", roleId(RoleCode.ADMIN),
+                        "version", userVersion(otherAdmin.id())))))
+                .andExpect(status().isOk());
+
+        // Denied: creating or promoting to Super Admin, and touching Super Admin accounts or one's own role.
+        mvc.perform(withJson(post("/api/v1/users").with(bearer(adminSession)), body(Map.of(
+                        "fullName", "Escalation", "email", "esc-" + UUID.randomUUID() + "@test.iotiq.local",
+                        "roleId", roleId(RoleCode.SUPER_ADMIN), "temporaryPassword", "Temporary-Pass-11"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN_OPERATION"));
         mvc.perform(withJson(put("/api/v1/users/{id}", user.id()).with(bearer(adminSession)), body(Map.of(
-                        "fullName", "Promoted", "email", user.email(), "roleId", roleId(RoleCode.ADMIN),
+                        "fullName", "Promoted", "email", user.email(), "roleId", roleId(RoleCode.SUPER_ADMIN),
                         "version", userVersion(user.id())))))
+                .andExpect(status().isForbidden());
+        mvc.perform(withJson(put("/api/v1/users/{id}", superAdmin.id()).with(bearer(adminSession)), body(Map.of(
+                        "fullName", "Hijacked", "email", superAdmin.email(), "roleId", roleId(RoleCode.SUPER_ADMIN),
+                        "version", userVersion(superAdmin.id())))))
+                .andExpect(status().isForbidden());
+        mvc.perform(withJson(put("/api/v1/users/{id}", superAdmin.id()).with(bearer(adminSession)), body(Map.of(
+                        "fullName", "Demoted", "email", superAdmin.email(), "roleId", roleId(RoleCode.USER),
+                        "version", userVersion(superAdmin.id())))))
                 .andExpect(status().isForbidden());
         mvc.perform(withJson(put("/api/v1/users/{id}", admin.id()).with(bearer(adminSession)), body(Map.of(
                         "fullName", "Self Promoted", "email", admin.email(), "roleId", roleId(RoleCode.SUPER_ADMIN),
@@ -142,7 +162,7 @@ class UserManagementIT extends ApiIntegrationTest {
                 .andExpect(status().isForbidden());
         mvc.perform(withJson(patch("/api/v1/users/{id}/status", otherAdmin.id()).with(bearer(adminSession)),
                         body(Map.of("status", "DISABLED", "version", userVersion(otherAdmin.id())))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mvc.perform(withJson(put("/api/v1/users/{id}/permissions", admin.id()).with(bearer(adminSession)),
                         body(Map.of("modules", List.of(Map.of("moduleCode", "INTERNAL_B2C", "read", true)),
                                 "actions", List.of()))))
@@ -155,6 +175,8 @@ class UserManagementIT extends ApiIntegrationTest {
                 String.class, admin.id())).isEqualTo("ADMIN");
         assertThat(jdbc.queryForObject("select status from users where id = ?", String.class, superAdmin.id()))
                 .isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select r.code from users u join roles r on r.id = u.role_id where u.id = ?",
+                String.class, superAdmin.id())).isEqualTo("SUPER_ADMIN");
     }
 
     @Test
@@ -179,7 +201,7 @@ class UserManagementIT extends ApiIntegrationTest {
                         "version", userVersion(user.id())))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role.code").value("ADMIN"));
-        assertThat(count("select count(*) from user_module_permissions where user_id = ?", user.id())).isEqualTo(9);
+        assertThat(count("select count(*) from user_module_permissions where user_id = ?", user.id())).isEqualTo(14);
         assertThat(count("select count(*) from audit_logs where action = 'USER_ROLE_CHANGED' and entity_id = ? "
                 + "and old_values ->> 'role' = 'USER' and new_values ->> 'role' = 'ADMIN'", user.id())).isEqualTo(1);
 

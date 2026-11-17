@@ -52,7 +52,7 @@ export function PageHeader({ title, description, actions, back, badge, documentT
           </Link>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+          <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">{title}</h1>
           {badge}
         </div>
         {description ? <div className="mt-1 text-sm text-muted-foreground">{description}</div> : null}

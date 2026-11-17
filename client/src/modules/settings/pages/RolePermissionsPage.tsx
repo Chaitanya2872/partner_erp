@@ -132,7 +132,7 @@ export function RolePermissionsPage() {
         <Alert tone={readOnly ? "neutral" : "info"} title="Defaults apply to new accounts only">
           New accounts with this role, and accounts moved to it, start with these permissions. Existing accounts keep theirs; change them one
           by one under Users. Special actions are never part of a default and are granted per user.
-          {readOnly ? " Only a Super Admin can change defaults." : ""}
+          {readOnly ? " You do not have permission to change defaults." : ""}
         </Alert>
       )}
 

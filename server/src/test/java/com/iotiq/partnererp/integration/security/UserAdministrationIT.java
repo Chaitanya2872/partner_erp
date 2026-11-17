@@ -32,8 +32,9 @@ class UserAdministrationIT extends ApiIntegrationTest {
         Session managerSession = login(manager);
         TestUser locked = createUser(RoleCode.USER);
         TestUser lockedAdmin = createUser(RoleCode.ADMIN);
-        jdbc.update("update users set locked_until = now() + interval '10 minutes', failed_login_count = 0 where id in (?, ?)",
-                locked.id(), lockedAdmin.id());
+        TestUser lockedSuper = createUser(RoleCode.SUPER_ADMIN);
+        jdbc.update("update users set locked_until = now() + interval '10 minutes', failed_login_count = 0 where id in (?, ?, ?)",
+                locked.id(), lockedAdmin.id(), lockedSuper.id());
 
         assertThat(loginResult(locked.email(), PASSWORD).getResponse().getStatus()).isEqualTo(423);
         String list = mvc.perform(get("/api/v1/users").with(bearer(managerSession)).param("locked", "true").param("size", "100"))
@@ -45,10 +46,13 @@ class UserAdministrationIT extends ApiIntegrationTest {
                         .param("q", locked.email())).andReturn().getResponse().getContentAsString();
         assertThat(JsonPath.<Integer>read(unlockedList, "$.data.length()")).isZero();
 
-        // An Admin manages User accounts only.
+        // An Admin manages every account except Super Admin accounts (V23).
+        mvc.perform(withJson(post("/api/v1/users/{id}/unlock", lockedSuper.id()).with(bearer(managerSession)),
+                        body(Map.of("version", userVersion(lockedSuper.id())))))
+                .andExpect(status().isForbidden());
         mvc.perform(withJson(post("/api/v1/users/{id}/unlock", lockedAdmin.id()).with(bearer(managerSession)),
                         body(Map.of("version", userVersion(lockedAdmin.id())))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         // Without Manage users.
         Session reader = login(createUser(RoleCode.ADMIN));
         mvc.perform(withJson(post("/api/v1/users/{id}/unlock", locked.id()).with(bearer(reader)),
@@ -152,6 +156,9 @@ class UserAdministrationIT extends ApiIntegrationTest {
         Session sa = login(createUser(RoleCode.SUPER_ADMIN));
         TestUser target = createUser(RoleCode.ADMIN);
         long auditsBefore = count("select count(*) from audit_logs where entity_id = ?", target.id());
+        // The fixture Admin is deliberately limited, so it differs from the (full-access) Admin template.
+        int differsBefore = JsonPath.<Integer>read(mvc.perform(get("/api/v1/users/{id}/permissions", target.id())
+                .with(bearer(sa))).andReturn().getResponse().getContentAsString(), "$.data.differsFromRole.length()");
 
         Map<String, Object> proposal = Map.of("modules", List.of(
                 Map.of("moduleCode", "PARTNERS", "read", true, "write", true, "approve", true, "dataScope", "SELF"),
@@ -166,20 +173,21 @@ class UserAdministrationIT extends ApiIntegrationTest {
         assertThat(JsonPath.<List<String>>read(preview, "$.data.revoked")).contains("LEADS:READ", "INVOICES:WRITE");
         assertThat(JsonPath.<String>read(preview, "$.data.scopeChanges[0].moduleCode")).isEqualTo("PARTNERS");
         assertThat(JsonPath.<String>read(preview, "$.data.scopeChanges[0].to")).isEqualTo("SELF");
-        assertThat(JsonPath.<List<String>>read(preview, "$.data.differsFromRole")).contains("PARTNERS", "LEADS",
-                "PARTNERS:VIEW_PARTNER_SENSITIVE");
+        assertThat(JsonPath.<List<String>>read(preview, "$.data.differsFromRole")).contains("PARTNERS", "LEADS")
+                // The Admin default already includes every action (V23), so granting one is no difference.
+                .doesNotContain("PARTNERS:VIEW_PARTNER_SENSITIVE");
 
         // Dependencies are validated exactly as when saving.
         mvc.perform(withJson(post("/api/v1/users/{id}/permissions/preview", target.id()).with(bearer(sa)),
                         body(Map.of("modules", List.of(Map.of("moduleCode", "PARTNERS", "read", true, "delete", true),
-                                Map.of("moduleCode", "ROLE_MANAGEMENT", "read", true)), "actions", List.of("MARK_PAYOUT_PAID")))))
+                                Map.of("moduleCode", "DASHBOARD", "read", true, "write", true)), "actions", List.of("MARK_PAYOUT_PAID")))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.fieldErrors.length()").value(3));
 
         // Nothing was saved or audited.
         mvc.perform(get("/api/v1/users/{id}/permissions", target.id()).with(bearer(sa)))
                 .andExpect(jsonPath("$.data.modules[?(@.moduleCode == 'LEADS')].read").value(true))
-                .andExpect(jsonPath("$.data.differsFromRole.length()").value(0));
+                .andExpect(jsonPath("$.data.differsFromRole.length()").value(differsBefore));
         assertThat(count("select count(*) from audit_logs where entity_id = ?", target.id())).isEqualTo(auditsBefore);
 
         // After saving, the overrides against the role default are reported.

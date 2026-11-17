@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AlertTriangle, ArrowRightLeft, Banknote, Clock, FileText, Handshake, Hash, Package, Percent, ShoppingCart, Tag, Target, Trophy, UserCheck, UserPlus, Wallet } from "lucide-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { BarsChart, DonutChart, FunnelChart, TrendChart } from "@/components/charts/Charts";
 import { DashboardSection, SummaryPanel } from "@/components/dashboard/Dashboard";
@@ -105,7 +106,7 @@ export function OverviewTab(props: TabProps) {
       <KpiGrid>
         {loading || o?.payments ? (
           <Kpi
-            label="Collected (ex-GST)"
+            label="Collected (ex-GST)" icon={Wallet}
             loading={loading}
             value={o?.payments ? money(o.payments.collectedExGst) : undefined}
             trend={o?.payments ? <Trend current={o.payments.collectedExGst} previous={o.payments.collectedExGstPrevious} /> : undefined}
@@ -115,7 +116,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.invoices ? (
           <Kpi
-            label="Invoiced (taxable)"
+            label="Invoiced (taxable)" icon={FileText}
             loading={loading}
             value={o?.invoices ? money(o.invoices.taxable) : undefined}
             trend={o?.invoices ? <Trend current={o.invoices.taxable} previous={o.invoices.taxablePrevious} /> : undefined}
@@ -125,7 +126,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.invoices ? (
           <Kpi
-            label="Outstanding receivables"
+            label="Outstanding receivables" icon={Clock}
             loading={loading}
             value={o?.invoices ? money(o.invoices.outstanding) : undefined}
             hint={o?.invoices ? `${formatNumber(o.invoices.outstandingCount)} invoices · ${money(o.invoices.overdue)} overdue` : undefined}
@@ -133,7 +134,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.leads ? (
           <Kpi
-            label="New leads"
+            label="New leads" icon={UserPlus}
             loading={loading}
             value={o?.leads ? formatNumber(o.leads.newInPeriod) : undefined}
             trend={o?.leads ? <Trend current={o.leads.newInPeriod} previous={o.leads.newPrevious} /> : undefined}
@@ -143,7 +144,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.leads ? (
           <Kpi
-            label="Win rate"
+            label="Win rate" icon={Trophy}
             loading={loading}
             value={o?.leads ? pct(o.leads.winRate) : undefined}
             hint={o?.leads ? `${formatNumber(o.leads.wonInPeriod)} won · ${formatNumber(o.leads.lostInPeriod)} lost in the period` : undefined}
@@ -151,7 +152,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.estimates ? (
           <Kpi
-            label="Estimate → invoice"
+            label="Estimate → invoice" icon={ArrowRightLeft}
             loading={loading}
             value={o?.estimates ? pct(o.estimates.invoiceConversionRate) : undefined}
             hint={o?.estimates ? `${formatNumber(o.estimates.converted)} of ${formatNumber(o.estimates.total - o.estimates.draft)} issued estimates invoiced` : undefined}
@@ -159,7 +160,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.partners ? (
           <Kpi
-            label="Active partners"
+            label="Active partners" icon={Handshake}
             loading={loading}
             value={o?.partners ? formatNumber(o.partners.active) : undefined}
             trend={o?.partners ? <Trend current={o.partners.newInPeriod} previous={o.partners.newPrevious} /> : undefined}
@@ -169,7 +170,7 @@ export function OverviewTab(props: TabProps) {
         ) : null}
         {loading || o?.payouts ? (
           <Kpi
-            label="Commission earned"
+            label="Commission earned" icon={Banknote}
             loading={loading}
             value={o?.payouts ? money(o.payouts.commissionEarned) : undefined}
             trend={o?.payouts ? <Trend current={o.payouts.commissionEarned} previous={o.payouts.commissionEarnedPrevious} /> : undefined}
@@ -237,10 +238,10 @@ export function SalesTab(props: TabProps) {
     <div className="space-y-6">
       <RestrictionNotice restricted={s?.restricted} modules={["LEADS", "ESTIMATES", "PARTNERS"]} />
       <KpiGrid>
-        <Kpi label="New leads" loading={loading} value={k ? formatNumber(k.newInPeriod) : undefined} trend={k ? <Trend current={k.newInPeriod} previous={k.newPrevious} /> : undefined} hint={k ? `${formatNumber(k.total)} leads in total` : undefined} />
-        <Kpi label="Open pipeline" loading={loading} value={k ? money(k.pipelineValue) : undefined} hint={k ? `${formatNumber(k.open)} open · ${formatNumber(k.openWithoutBudget)} without a budget` : undefined} />
-        <Kpi label="Won · lost" loading={loading} value={k ? `${formatNumber(k.wonInPeriod)} · ${formatNumber(k.lostInPeriod)}` : undefined} hint={k ? `Win rate ${pct(k.winRate)}` : undefined} />
-        <Kpi label="Lead → estimate" loading={loading} value={c ? pct(c.leadToEstimateRate) : undefined} hint={c ? `${count(c.leadsWithEstimate)} of ${formatNumber(c.leadsCreated)} new leads` : undefined} />
+        <Kpi label="New leads" icon={UserPlus} loading={loading} value={k ? formatNumber(k.newInPeriod) : undefined} trend={k ? <Trend current={k.newInPeriod} previous={k.newPrevious} /> : undefined} hint={k ? `${formatNumber(k.total)} leads in total` : undefined} />
+        <Kpi label="Open pipeline" icon={Target} loading={loading} value={k ? money(k.pipelineValue) : undefined} hint={k ? `${formatNumber(k.open)} open · ${formatNumber(k.openWithoutBudget)} without a budget` : undefined} />
+        <Kpi label="Won · lost" icon={Trophy} loading={loading} value={k ? `${formatNumber(k.wonInPeriod)} · ${formatNumber(k.lostInPeriod)}` : undefined} hint={k ? `Win rate ${pct(k.winRate)}` : undefined} />
+        <Kpi label="Lead → estimate" icon={ArrowRightLeft} loading={loading} value={c ? pct(c.leadToEstimateRate) : undefined} hint={c ? `${count(c.leadsWithEstimate)} of ${formatNumber(c.leadsCreated)} new leads` : undefined} />
       </KpiGrid>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -316,11 +317,11 @@ export function PartnersTab(props: TabProps) {
     <div className="space-y-6">
       <RestrictionNotice restricted={p?.restricted} modules={["PARTNERS", "PAYMENTS", "INVOICES", "PAYOUTS"]} />
       <KpiGrid>
-        <Kpi label="Active partners" loading={loading} value={k ? formatNumber(k.active) : undefined} hint={k ? `${formatNumber(k.inactive)} inactive · ${formatNumber(k.total)} total` : undefined} />
-        <Kpi label="In onboarding" loading={loading} value={k ? formatNumber(k.onboarding + k.prospect) : undefined} hint={k ? `${formatNumber(k.prospect)} prospects · ${formatNumber(k.onboarding)} onboarding` : undefined} />
-        <Kpi label="New partners" loading={loading} value={k ? formatNumber(k.newInPeriod) : undefined} trend={k ? <Trend current={k.newInPeriod} previous={k.newPrevious} /> : undefined} />
+        <Kpi label="Active partners" icon={Handshake} loading={loading} value={k ? formatNumber(k.active) : undefined} hint={k ? `${formatNumber(k.inactive)} inactive · ${formatNumber(k.total)} total` : undefined} />
+        <Kpi label="In onboarding" icon={UserCheck} loading={loading} value={k ? formatNumber(k.onboarding + k.prospect) : undefined} hint={k ? `${formatNumber(k.prospect)} prospects · ${formatNumber(k.onboarding)} onboarding` : undefined} />
+        <Kpi label="New partners" icon={UserPlus} loading={loading} value={k ? formatNumber(k.newInPeriod) : undefined} trend={k ? <Trend current={k.newInPeriod} previous={k.newPrevious} /> : undefined} />
         {loading || (p?.realizedRevenue !== null && p?.realizedRevenue !== undefined) ? (
-          <Kpi label="Partner revenue (ex-GST)" loading={loading} value={p?.realizedRevenue != null ? money(p.realizedRevenue) : undefined} hint="Collected through partners in the period" />
+          <Kpi label="Partner revenue (ex-GST)" icon={Wallet} loading={loading} value={p?.realizedRevenue != null ? money(p.realizedRevenue) : undefined} hint="Collected through partners in the period" />
         ) : null}
       </KpiGrid>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -387,11 +388,11 @@ export function ProductsTab(props: TabProps) {
     <div className="space-y-6">
       <RestrictionNotice restricted={p?.restricted} modules={["INVOICES"]} />
       <KpiGrid>
-        <Kpi label="Active products" loading={loading} value={k ? formatNumber(k.active) : undefined} hint={k ? `${formatNumber(k.inactive)} inactive · ${formatNumber(k.total)} total` : undefined} />
-        <Kpi label="Missing partner price" loading={loading} value={k ? formatNumber(k.missingPartnerPrice) : undefined} hint="Active products" />
-        <Kpi label="Missing HSN code" loading={loading} value={k ? formatNumber(k.missingHsn) : undefined} hint="Active products" />
+        <Kpi label="Active products" icon={Package} loading={loading} value={k ? formatNumber(k.active) : undefined} hint={k ? `${formatNumber(k.inactive)} inactive · ${formatNumber(k.total)} total` : undefined} />
+        <Kpi label="Missing partner price" icon={Tag} loading={loading} value={k ? formatNumber(k.missingPartnerPrice) : undefined} hint="Active products" />
+        <Kpi label="Missing HSN code" icon={Hash} loading={loading} value={k ? formatNumber(k.missingHsn) : undefined} hint="Active products" />
         {loading || (p?.totalTaxable !== null && p?.totalTaxable !== undefined) ? (
-          <Kpi label="Product sales (taxable)" loading={loading} value={p?.totalTaxable != null ? money(p.totalTaxable) : undefined} hint={p?.unlistedTaxable != null ? `${money(p.unlistedTaxable)} from lines not in the price sheet` : undefined} />
+          <Kpi label="Product sales (taxable)" icon={ShoppingCart} loading={loading} value={p?.totalTaxable != null ? money(p.totalTaxable) : undefined} hint={p?.unlistedTaxable != null ? `${money(p.unlistedTaxable)} from lines not in the price sheet` : undefined} />
         ) : null}
       </KpiGrid>
       {k?.missingB2cPrice !== null && k?.missingB2cPrice !== undefined ? (
@@ -448,16 +449,16 @@ export function FinanceTab(props: TabProps) {
         <DashboardSection title="Invoicing and collections">
           <KpiGrid>
             {loading || inv ? (
-              <Kpi label="Invoiced (gross)" loading={loading} value={inv ? money(inv.gross) : undefined} hint={inv ? `${money(inv.taxable)} taxable · ${money(inv.gst)} GST` : undefined} />
+              <Kpi label="Invoiced (gross)" icon={FileText} loading={loading} value={inv ? money(inv.gross) : undefined} hint={inv ? `${money(inv.taxable)} taxable · ${money(inv.gst)} GST` : undefined} />
             ) : null}
             {loading || col ? (
-              <Kpi label="Collected" loading={loading} value={col ? money(col.collected) : undefined} hint={col ? `${formatNumber(col.receipts)} receipts · ${money(col.gstCollected)} GST` : undefined} />
+              <Kpi label="Collected" icon={Wallet} loading={loading} value={col ? money(col.collected) : undefined} hint={col ? `${formatNumber(col.receipts)} receipts · ${money(col.gstCollected)} GST` : undefined} />
             ) : null}
             {loading || (f?.collectionEfficiency !== null && f?.collectionEfficiency !== undefined) ? (
-              <Kpi label="Collected to invoiced (indicative)" loading={loading} value={f?.collectionEfficiency != null ? pct(f.collectionEfficiency) : undefined} hint="Collected ÷ invoiced (gross) in the same period; receipts may relate to earlier invoices. Not an approved KPI." />
+              <Kpi label="Collected to invoiced (indicative)" icon={Percent} loading={loading} value={f?.collectionEfficiency != null ? pct(f.collectionEfficiency) : undefined} hint="Collected ÷ invoiced (gross) in the same period; receipts may relate to earlier invoices. Not an approved KPI." />
             ) : null}
             {loading || inv ? (
-              <Kpi label="Overdue" loading={loading} value={inv ? money(inv.overdue) : undefined} hint={inv ? `${formatNumber(inv.overdueCount)} of ${formatNumber(inv.outstandingCount)} outstanding invoices` : undefined} />
+              <Kpi label="Overdue" icon={AlertTriangle} loading={loading} value={inv ? money(inv.overdue) : undefined} hint={inv ? `${formatNumber(inv.overdueCount)} of ${formatNumber(inv.outstandingCount)} outstanding invoices` : undefined} />
             ) : null}
           </KpiGrid>
           <div className="grid gap-4 lg:grid-cols-3">

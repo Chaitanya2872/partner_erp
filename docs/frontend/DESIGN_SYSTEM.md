@@ -39,8 +39,8 @@ The status colours were darkened from the original's brighter tones so that text
 
 | Role | Family | Utility |
 |---|---|---|
-| Display (page titles, metrics) | Bricolage Grotesque 500/700 | `font-display` |
-| Body and UI | Instrument Sans 400/500/600 | `font-sans` (default) |
+| Display (page titles, metrics) | Inter 500/600 (same family as body; hierarchy from size and weight) | `font-display` |
+| Body and UI | Inter 400/500/600 | `font-sans` (default) |
 | Codes, IDs, amounts in tables | IBM Plex Mono 400/500 | `font-mono` (with `tabular-nums` for figures) |
 
 The fonts load from Google Fonts with `display=swap` and fall back to Segoe UI or system fonts. The scale is Tailwind's (`text-xs` … `text-3xl`) plus `text-2xs` (11 px) for overline labels. `cn()` registers `text-2xs` with tailwind-merge so it doesn't clash with colour classes.
@@ -67,3 +67,29 @@ Statuses come from the backend lifecycle enums only (`lib/status.ts`). Each has 
 
 - Currency uses `en-IN` grouping with two decimals: `₹1,25,000.00`. Percentages always show two decimals: `18.00%`. Missing values render as `—`.
 - Decimal strings from the API are formatted as strings, never parsed into floats, so values beyond `Number` precision stay exact (`utils/format.ts`). Form validation compares decimal strings digit by digit (`compareDecimal`).
+
+
+## Motion
+
+Opacity and transform only; `prefers-reduced-motion` collapses every duration. Tokens live in `globals.css`:
+micro 120-180ms (buttons, hover, focus), standard 180-250ms (menus, dialogs, page enter), layout 250-350ms
+(sidebar width, sheet). Easing is `--ease-out-soft`. Utilities: `animate-pop-in/out` (menus, tooltips, dialogs,
+select popovers; use with `data-[state=open|closed]`), `animate-fade-in/out` (overlays), `animate-sheet-in/out`
+(drawers, set `--sheet-from`), `animate-page-in` (route change), `animate-shimmer` (Skeleton).
+
+## Page patterns (Phase 2)
+
+- **Filtered-empty states:** pass `onClearFilters` to `EmptyState` whenever filters are active. It swaps in a "no matches"
+  icon, the default hint "Try a different search, or clear the filters.", and a Clear filters button. Never leave a user on an
+  empty result with no way back. Genuinely empty lists keep their own message and primary action.
+- **Date filters in toolbars:** use `FilterDate` (visible "From" / "To" label plus the `aria-label`); a bare native
+  `mm/dd/yyyy` field is never anonymous. Stack the pair on phones (`flex-col sm:flex-row`) to avoid horizontal overflow.
+- **Row actions (`DataTable.rowActions`):** on hover-capable devices buttons rest borderless and gain their border when the row
+  is hovered or focused; touch devices and keyboard focus always see them fully. Nothing is hover-only. Rows with several actions
+  (Users) use icon-only buttons with an `sr-only` label and a `title`, so the accessible name is unchanged.
+- **Alerts on the dashboard (`AlertCard`):** neutral card, severity as a left accent bar plus icon, "Review" link. Cards size to
+  their content (`items-start` grid) rather than stretching to equal height.
+- **Confirm dialogs:** the title asks the question, the body names the record and states the consequence, and the confirm button
+  repeats the verb and the object ("Delete lead", "Deactivate user"). Destructive actions use `danger`.
+- **Tooltips:** `Tooltip enabled={false}` keeps the trigger mounted (it only suppresses the popup), so toggling it never remounts
+  or drops focus from the wrapped control.

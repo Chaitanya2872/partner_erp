@@ -171,9 +171,9 @@ export async function apiUpload<T>(url: string, file: File, params?: Record<stri
   return res.data.data as T;
 }
 
-/** DELETE endpoints answer 204 No Content. */
-export async function apiDelete(url: string): Promise<void> {
-  await http.delete(url);
+/** DELETE endpoints answer 204 No Content. Archiving sends its reason as a JSON body. */
+export async function apiDelete(url: string, body?: unknown): Promise<void> {
+  await http.delete(url, body === undefined ? undefined : { data: body });
 }
 
 /** The JSON envelope of a response; text responses (downloads) carry it as a string. */

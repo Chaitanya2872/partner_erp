@@ -31,7 +31,7 @@ import java.util.UUID;
 
 /**
  * Role default permissions (role_permission_templates): the matrix new accounts and accounts moved to the role start
- * with. Super Admin only (ROLE_MANAGEMENT is a Super-Admin-only module). The same validation as for users applies, so
+ * with. Needs Super Admin or ROLE_MANAGEMENT write access. The same validation as for users applies, so
  * a role default can't hold what the role may not be granted (e.g. User Management for USER). Existing accounts are
  * never changed by a template edit: their permissions are changed one by one, and audited one by one.
  */
@@ -66,8 +66,8 @@ public class RolePermissionService {
 
     @Transactional
     public RolePermissionsResponse replace(UUID id, UpdateRolePermissionsRequest request, AuthenticatedUser actor) {
-        if (!actor.isSuperAdmin()) {
-            throw new AccessDeniedException("Only a Super Admin can change role permissions");
+        if (!canEdit(actor)) {
+            throw new AccessDeniedException("You are not allowed to change role permissions");
         }
         Role role = load(id);
         if (role.isSuperAdmin()) {
@@ -122,7 +122,11 @@ public class RolePermissionService {
                         def.supportsScope() ? DataScope.ALL : null)).toList()
                 : permissionService.fullMatrix(rows);
         return new RolePermissionsResponse(role.getId(), role.getCode(), role.getDisplayName(), superAdmin,
-                !superAdmin && actor.isSuperAdmin(), matrix, users, role.getVersion());
+                !superAdmin && canEdit(actor), matrix, users, role.getVersion());
+    }
+
+    private static boolean canEdit(AuthenticatedUser actor) {
+        return actor.isSuperAdmin() || actor.permissions().canWrite("ROLE_MANAGEMENT");
     }
 
     private static Map<String, Object> snapshot(List<ModulePermissionDto> rows) {

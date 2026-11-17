@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public record LeadResponse(UUID id, String leadNumber, String clientName, String clientPhone, String clientEmail,
                            String city, PartnerRef partner,
-                           ProjectType projectType, String projectTypeLabel, Integer units, BigDecimal budget,
+                           ProjectType projectType, String projectTypeLabel, String projectTypeOther, Integer units, BigDecimal budget,
                            LeadStage stage, String stageLabel, String presalesOwner, LocalDate expectedClose,
                            String source, String notes, Instant acknowledgedAt, String acknowledgedByName,
                            BigDecimal lockedFeePercent, LocalDate protectionUntil, boolean protectionActive,

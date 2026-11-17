@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { Lock } from "lucide-react";
+import { Lock, type LucideIcon } from "lucide-react";
 import { MetricCard, TrendIndicator } from "@/components/dashboard/Dashboard";
 import { Alert } from "@/components/ui/Alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -21,11 +21,12 @@ export function Trend({ current, previous, positiveIsGood = true }: { current: M
 }
 
 export function KpiGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-4", className)}>{children}</div>;
+  return <div className={cn("grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-4", className)}>{children}</div>;
 }
 
 export interface KpiProps {
   label: string;
+  icon?: LucideIcon;
   value?: ReactNode;
   hint?: ReactNode;
   trend?: ReactNode;
